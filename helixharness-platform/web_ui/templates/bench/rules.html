@@ -1,0 +1,273 @@
+{% extends "base.html" %}
+
+{% block title %}HelixHarness 评测规则{% endblock %}
+
+{% block content %}
+<style>
+  @media (max-width: 767px) {
+    .app-sidebar { display: none; }
+    body > header { overflow-x: auto; padding-left: 8px; padding-right: 8px; }
+    body > header > div:first-child { margin-right: 6px; }
+    body > header > div:first-child > div:last-child { display: none; }
+    body > header #topbar-seg { flex-shrink: 0; }
+    body > header #topbar-seg .topbtn { padding-left: 8px; padding-right: 8px; }
+  }
+</style>
+<section class="min-h-full bg-slate-50 p-4 sm:p-6"
+         data-scoring-rules="true"
+         data-rulebook-palette="light">
+  <div class="mx-auto max-w-6xl">
+    <header class="relative overflow-hidden rounded-xl border border-blue-100 bg-gradient-to-br from-white via-blue-50 to-cyan-50 px-6 py-8 text-ink shadow-sm sm:px-8">
+      <div class="absolute -right-24 -top-24 h-72 w-72 rounded-full border border-blue-200/70"></div>
+      <div class="absolute -right-8 -top-8 h-40 w-40 rounded-full border border-cyan-200/80"></div>
+      <div class="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-end">
+        <div>
+          <p class="font-mono text-xs tracking-[0.2em] text-blue-700">EVALUATION RULEBOOK / CURRENT</p>
+          <h1 class="mt-4 text-3xl font-semibold tracking-tight">评分规则不是一段提示词</h1>
+          <p class="mt-4 max-w-3xl text-sm leading-7 text-ink-muted">
+            当前任务中的所有评测场景统一使用同一版评分规则。评测场景提供稳定的业务事实和验收要求；
+            双方按各自工作流执行，再使用同一套代码证据、Workflow 四轴、计算公式和硬门禁得出结论。
+          </p>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <div class="rounded-lg border border-blue-100 bg-white/90 px-4 py-4 shadow-sm">
+            <p class="font-mono text-[10px] text-ink-dim">PROFILE</p>
+            <strong class="mt-2 block font-mono text-lg">V2</strong>
+          </div>
+          <div class="rounded-lg border border-blue-100 bg-white/90 px-4 py-4 shadow-sm">
+            <p class="font-mono text-[10px] text-ink-dim">WORKFLOW AXES</p>
+            <strong class="mt-2 block font-mono text-2xl">{{ rulebook.workflow_axes | length }}</strong>
+          </div>
+          <div class="rounded-lg border border-cyan-100 bg-white/90 px-4 py-4 shadow-sm">
+            <p class="font-mono text-[10px] text-ink-dim">TOTAL</p>
+            <strong class="mt-2 block font-mono text-2xl">100</strong>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="mt-4 flex flex-wrap items-center gap-2 rounded-lg border border-edge bg-surface-0 p-3" aria-label="评测规则章节">
+      <span class="mr-1 px-2 text-xs font-semibold text-ink-dim">快速定位</span>
+      <a href="#score-profile" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">统一评分</a>
+      <a href="#workflow-axes" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">Workflow 四轴</a>
+      <a href="#evidence-contract" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">证据合同</a>
+      <a href="#formulas" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">公式</a>
+      <a href="#decision-policy" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">结论规则</a>
+      <a href="#hard-gates" class="rounded-md border border-edge-soft bg-surface-1 px-3 py-2 text-xs font-semibold text-ink-muted hover:border-blue-200 hover:bg-blue-50 hover:text-accent">硬门禁</a>
+    </nav>
+
+    <div class="mt-4 grid gap-4 lg:grid-cols-2">
+      <div class="rounded-lg border border-blue-200 bg-blue-50 px-5 py-4">
+        <div class="flex gap-3">
+          <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 font-mono text-xs font-semibold text-white">i</span>
+          <div>
+            <p class="text-sm font-semibold text-blue-950">整套规则随任务冻结</p>
+            <p class="mt-1 text-xs leading-6 text-blue-900">
+              本页展示当前新建任务采用的规则版本。创建任务时，系统会固定基准代码版本、候选代码版本、双方执行方案、阶段产物目录和评分规则版本。
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="rounded-lg border border-cyan-200 bg-cyan-50 px-5 py-4">
+        <div class="flex gap-3">
+          <span class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-cyan-600 font-mono text-xs font-semibold text-white">U</span>
+          <div>
+            <p class="text-sm font-semibold text-cyan-950">所有工作流统一评分</p>
+            <p class="mt-1 text-xs leading-6 text-cyan-900">
+              双方实际形成的 Markdown 进入各自 Workflow 证据语料；评分不依赖固定阶段、文件名、文件数量或两侧产物一一对应。
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <section id="score-profile"
+             class="mt-4 scroll-mt-4 overflow-hidden rounded-xl border border-edge bg-surface-0 shadow-sm"
+             data-scoring-profile="{{ rulebook.profile.profile_id }}">
+      <div class="grid border-b border-edge lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <div class="bg-gradient-to-br from-blue-50 to-cyan-50 px-6 py-6">
+          <p class="font-mono text-xs tracking-[0.16em] text-blue-700">UNIFIED SCORING PROFILE</p>
+          <h2 class="mt-3 text-xl font-semibold text-ink">统一评测综合分</h2>
+          <p class="mt-3 font-mono text-[11px] text-blue-700">{{ rulebook.profile.version }}</p>
+          <p class="mt-5 text-xs leading-6 text-ink-muted">
+            三个分项先独立计算和展示，再合成为 0–100 分。Case、Adapter 和任务创建人都不能临时修改权重。
+          </p>
+        </div>
+        <div class="p-5 sm:p-6">
+          <div class="grid gap-3 sm:grid-cols-3">
+            {% for component in rulebook.components %}
+            <article class="rounded-lg border border-edge bg-surface-1 p-4" data-component="{{ component.key }}" data-group-weight="{{ component.weight }}">
+              <div class="flex items-start justify-between gap-3">
+                <h3 class="text-sm font-semibold text-ink">{{ component.label }}</h3>
+                <strong class="font-mono text-2xl text-accent">{{ component.weight }}</strong>
+              </div>
+              <p class="mt-3 text-xs leading-5 text-ink-muted">{{ component.description }}</p>
+            </article>
+            {% endfor %}
+          </div>
+          <div class="mt-4 flex h-2 overflow-hidden rounded-full bg-slate-100" aria-label="统一评分权重构成">
+            {% for component in rulebook.components %}
+            <span class="{% if loop.index == 1 %}bg-blue-600{% elif loop.index == 2 %}bg-cyan-500{% else %}bg-amber-400{% endif %}"
+                  style="width: {{ component.weight }}%"
+                  title="{{ component.label }} {{ component.weight }} 分"></span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="score-contract" class="mt-4 scroll-mt-4 overflow-hidden rounded-xl border border-edge bg-surface-0 shadow-sm"
+             data-score-contract="anchored-v1">
+      <div class="grid lg:grid-cols-[17rem_minmax(0,1fr)]">
+        <div class="bg-amber-50 px-5 py-5 sm:px-6">
+          <p class="font-mono text-[10px] tracking-[0.16em] text-amber-700">SEMANTIC SCORE ANCHORS</p>
+          <h2 class="mt-2 text-base font-semibold text-amber-950">AI 语义轴只允许五档</h2>
+          <p class="mt-3 text-xs leading-6 text-amber-900">
+            每个语义轴必须引用冻结的业务要求和允许范围内的执行证据；低于 100 分必须列出明确扣分项，AI 不能覆盖确定性检查或硬门禁。
+          </p>
+        </div>
+        <ol class="grid gap-px bg-edge sm:grid-cols-5">
+          {% for anchor in score_anchor_rules %}
+          <li class="bg-surface-0 px-4 py-5" data-score-anchor="{{ anchor.score }}">
+            <strong class="font-mono text-2xl text-ink">{{ anchor.score }}</strong>
+            <p class="mt-2 text-[11px] leading-5 text-ink-muted">{{ anchor.meaning }}</p>
+          </li>
+          {% endfor %}
+        </ol>
+      </div>
+    </section>
+
+    <section id="workflow-axes" class="mt-4 scroll-mt-4 space-y-4">
+      <article class="overflow-hidden rounded-xl border border-edge bg-surface-0 shadow-sm" data-unified-workflow-rubric="true">
+        <div class="grid border-b border-edge lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <div class="bg-gradient-to-br from-cyan-50 to-white px-6 py-6">
+            <p class="font-mono text-xs tracking-[0.16em] text-cyan-700">UNIFIED WORKFLOW RUBRIC</p>
+            <h2 class="mt-3 text-xl font-semibold text-ink">统一 Workflow 四轴</h2>
+            <p class="mt-4 text-xs leading-6 text-ink-muted">所有工作流使用同一套语义评分轴；文件名、文件数量、阶段数量和工作流变体不形成分差。</p>
+          </div>
+          <div class="p-5 sm:p-6">
+            <div class="overflow-hidden rounded-lg border border-edge">
+              <table class="w-full table-fixed text-left">
+                <thead class="bg-surface-1 text-[11px] font-semibold text-ink-dim">
+                  <tr><th class="px-4 py-3">Framework Workflow Quality 评分轴</th><th class="w-20 px-3 py-3 text-right">权重</th></tr>
+                </thead>
+                <tbody class="divide-y divide-edge-soft">
+                  {% for axis in rulebook.workflow_axes %}
+                  <tr data-workflow-axis="{{ axis.key }}">
+                    <td class="px-4 py-3">
+                      <p class="text-xs font-semibold text-ink">{{ axis.label }}</p>
+                      <p class="mt-1 text-[11px] leading-5 text-ink-muted">{{ axis.description }}</p>
+                      <p class="mt-1 break-all font-mono text-[10px] text-ink-dim">{{ axis.key }}</p>
+                    </td>
+                    <td class="px-3 py-3 text-right font-mono text-lg font-semibold text-accent">{{ axis.weight }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section id="evidence-contract" class="mt-4 scroll-mt-4 overflow-hidden rounded-xl border border-edge bg-surface-0 shadow-sm">
+      <div class="border-b border-edge px-5 py-5 sm:px-6">
+        <p class="font-mono text-xs tracking-[0.16em] text-accent">FROZEN EVIDENCE BUNDLE</p>
+        <h2 class="mt-2 text-lg font-semibold text-ink">阶段产物与代码分别冻结后交给 Judge</h2>
+        <p class="mt-2 max-w-4xl text-xs leading-6 text-ink-muted">
+          平台递归收集双方各自 <code>docs/specs/completed/{feature}/**/*.md</code>，同时冻结初始 revision 到最终 revision 的代码 diff、变更后代码和测试。Judge 不能自由浏览工作区。
+        </p>
+      </div>
+      <div class="grid gap-px bg-edge md:grid-cols-3">
+        <article class="bg-white p-4"><h3 class="text-sm font-semibold text-ink">Outcome 硬门禁</h3><p class="mt-2 text-xs leading-5 text-ink-muted">F2P 或 P2P 确定性失败时，业务结果记 0 分，但工作流质量继续独立评分；PASS 后调用 Outcome Judge，ERROR/超时标记为不确定。</p></article>
+        <article class="bg-white p-4"><h3 class="text-sm font-semibold text-ink">Outcome 语义评分</h3><p class="mt-2 text-xs leading-5 text-ink-muted">Requirement 满足度 90%，本次交付实现质量 10%；需求满足轴必须覆盖全部冻结 Requirement，并同时引用业务校验与实现证据。默认评价生产代码，只有 Requirement 明确要求测试交付物时才评价对应测试代码。阶段产物只辅助理解和定位实现。</p></article>
+        <article class="bg-white p-4"><h3 class="text-sm font-semibold text-ink">Workflow 语义评分</h3><p class="mt-2 text-xs leading-5 text-ink-muted">对实际存在的 Markdown 证据按四个固定轴各 25% 评分，不按固定产物数量、名称或阶段绑定评分。</p></article>
+      </div>
+      <div class="border-t border-blue-200 bg-blue-50 px-5 py-4">
+        <p class="text-sm font-semibold text-blue-950">Outcome 内部评分</p>
+        <div class="mt-3 grid gap-3 md:grid-cols-2">
+          {% for axis in rulebook.outcome_axes %}
+          <article class="rounded-lg border border-blue-100 bg-white p-4" data-outcome-axis="{{ axis.key }}"><div class="flex justify-between gap-3"><h3 class="text-sm font-semibold text-ink">{{ axis.label }}</h3><strong class="font-mono text-xl text-accent">{{ axis.weight }}%</strong></div><p class="mt-2 text-xs leading-5 text-ink-muted">{{ axis.description }}</p></article>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="border-t border-violet-200 bg-violet-50 px-5 py-4" data-assessment-incompatibility="true">
+        <p class="text-sm font-semibold text-violet-950">Evidence Incompatibility / 证据不兼容</p>
+        <p class="mt-1 text-xs leading-6 text-violet-900">
+          业务验证不确定时，该 Case 不归责且不生成正式推荐。Workflow 证据不完整时不做整条硬拦截：已有证据继续按四轴评分；一侧完全没有可评分 Workflow 证据时保留另一侧 Workflow 展示，但该 Case 双方综合分都只使用 Outcome。
+        </p>
+      </div>
+      <div class="border-t border-amber-200 bg-amber-50 px-5 py-4" data-workflow-terminal-outcome-policy="independent">
+        <p class="text-sm font-semibold text-amber-950">工作流未完成统一为一个问题</p>
+        <p class="mt-1 text-xs leading-6 text-amber-900">
+          未达到冻结执行方案合法终态，或归档所需最终证据没有形成，统一记录为 <code>WORKFLOW_TERMINAL_FAILURE</code>。已有产物仍按四轴评分，不把某个维度或 Workflow 总分强制记 0；它不覆盖可信 Outcome，也不单独否决推荐。任一侧工作流未完成时，双方 Efficiency 均为 N/A。
+        </p>
+      </div>
+    </section>
+
+    <section id="formulas" class="mt-4 scroll-mt-4 overflow-hidden rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-cyan-50/70 shadow-sm">
+      <div class="border-b border-blue-100 px-5 py-5 sm:px-6">
+        <p class="font-mono text-xs tracking-[0.16em] text-blue-700">REPLAYABLE FORMULAS</p>
+        <h2 class="mt-2 text-lg font-semibold text-ink">从单项观测复算到任务结论</h2>
+      </div>
+      <div class="grid gap-px bg-blue-100 md:grid-cols-3">
+        {% for metric in rulebook.efficiency_metrics %}
+        <article class="bg-white p-4" data-efficiency-metric="{{ metric.key }}" data-efficiency-weight="{{ metric.weight }}">
+          <div class="flex items-start justify-between gap-3">
+            <h3 class="text-sm font-semibold text-ink">{{ metric.label }}</h3>
+            <strong class="font-mono text-xl text-accent">{{ metric.weight }}%</strong>
+          </div>
+          <p class="mt-2 text-xs leading-5 text-ink-muted">{{ metric.description }}</p>
+        </article>
+        {% endfor %}
+      </div>
+      <ol class="grid gap-3 p-5 lg:grid-cols-2 sm:p-6">
+        {% for formula in rulebook.formulas %}
+        <li class="relative overflow-hidden rounded-lg border border-blue-100 bg-white p-4 shadow-sm" data-formula-step="{{ loop.index }}">
+          <span class="absolute right-3 top-2 font-mono text-3xl font-semibold text-blue-50">{{ "%02d" | format(loop.index) }}</span>
+          <p class="relative text-xs font-semibold text-blue-800">{{ formula.label }}</p>
+          <code class="relative mt-3 block whitespace-normal break-words rounded-md border border-blue-100 bg-blue-50 px-3 py-3 font-mono text-[11px] leading-5 text-blue-950">{{ formula.formula }}</code>
+          <p class="relative mt-3 text-[11px] leading-5 text-ink-muted">{{ formula.explanation }}</p>
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+
+    <section id="decision-policy" class="mt-4 scroll-mt-4 overflow-hidden rounded-xl border border-blue-100 bg-surface-0 text-ink shadow-sm"
+             data-decision-policy="{{ rulebook.decision_policy.version }}">
+      <div class="border-b border-blue-100 bg-gradient-to-r from-blue-50 via-white to-cyan-50 px-5 py-5 sm:px-6">
+        <p class="font-mono text-xs tracking-[0.16em] text-emerald-700">GATES → COVERAGE → DELTA</p>
+        <h2 class="mt-2 text-xl font-semibold">任务结论如何生成</h2>
+        <p class="mt-2 max-w-4xl text-xs leading-6 text-ink-muted">结论先检查任务级 Global 门禁，再按双方业务验证矩阵决定 Case 是否纳入，最后结合分差、业务回归容错和证据覆盖率给出推荐。</p>
+      </div>
+      <div class="grid gap-px bg-blue-100 md:grid-cols-3">
+        <article class="bg-white p-4"><span class="font-mono text-xs font-semibold text-rose-600">01 / 门禁</span><h3 class="mt-2 text-sm font-semibold">Global 门禁仍阻断任务</h3><p class="mt-2 text-xs leading-5 text-ink-muted">安全、作弊、证据污染和虚假完成仍阻断整批任务；工作流未完成只标注对应侧风险。</p></article>
+        <article class="bg-white p-4"><span class="font-mono text-xs font-semibold text-amber-600">02 / 业务矩阵</span><h3 class="mt-2 text-sm font-semibold">先按业务结果决定是否纳入</h3><p class="mt-2 text-xs leading-5 text-ink-muted">双方都失败则忽略；只有一侧失败时失败侧 Outcome 记 0；业务验证不确定时停止正式推荐。</p></article>
+        <article class="bg-white p-4"><span class="font-mono text-xs font-semibold text-emerald-600">03 / 分差</span><h3 class="mt-2 text-sm font-semibold">再比较 Base 与 Candidate</h3><p class="mt-2 font-mono text-[11px] leading-5 text-emerald-700">{{ rulebook.decision_policy.comparison_formula }}</p></article>
+      </div>
+      <div class="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+        {% for outcome in rulebook.decision_policy.outcomes %}
+        <article class="rounded-lg border border-edge-soft bg-surface-1 p-4" data-decision-outcome="{{ outcome.code }}">
+          <p class="font-mono text-[10px] {% if outcome.tone == 'rose' %}text-rose-700{% elif outcome.tone == 'emerald' %}text-emerald-700{% elif outcome.tone == 'amber' %}text-amber-700{% elif outcome.tone == 'blue' %}text-blue-700{% else %}text-slate-600{% endif %}">{{ outcome.code }}</p>
+          <h3 class="mt-1 text-sm font-semibold">{{ outcome.label }}</h3>
+          <code class="mt-3 block whitespace-normal break-words font-mono text-[10px] leading-5 text-ink-muted">{{ outcome.condition }}</code>
+          <p class="mt-2 text-[11px] leading-5 text-ink-muted">{{ outcome.effect }}</p>
+        </article>
+        {% endfor %}
+      </div>
+      <details id="hard-gates" class="group border-t border-edge" data-hard-gates-summary="true">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 px-5 py-4 sm:px-6"><span><strong class="text-sm text-ink">门禁范围仍保留：Case + 整个任务</strong><span class="mt-1 block text-xs text-ink-muted">展开查看 {{ rulebook.case_hard_gates|length }} 个 Case 门禁和 {{ rulebook.global_hard_gates|length }} 个 Global 门禁</span></span><span class="font-mono text-lg text-blue-600 group-open:rotate-45">＋</span></summary>
+        <div class="grid border-t border-edge lg:grid-cols-2">
+          <div class="p-5 sm:p-6"><h3 class="text-sm font-semibold text-amber-900">CASE / 单个 Case</h3><ul class="mt-3 grid gap-2 sm:grid-cols-2">{% for gate in rulebook.case_hard_gates %}<li class="rounded-md border border-amber-100 bg-amber-50/60 p-3" data-hard-gate="{{ gate.gate_id }}" data-gate-scope="CASE"><p class="text-xs font-semibold text-amber-900">{{ gate.label }}</p><p class="mt-1 text-[11px] leading-5 text-ink-muted">{{ gate.description }}</p></li>{% endfor %}</ul></div>
+          <div class="border-t border-rose-100 p-5 lg:border-l lg:border-t-0 sm:p-6"><h3 class="text-sm font-semibold text-rose-900">GLOBAL / 整个任务</h3><ul class="mt-3 grid gap-2 sm:grid-cols-2">{% for gate in rulebook.global_hard_gates %}<li class="rounded-md border border-rose-100 bg-rose-50/60 p-3" data-hard-gate="{{ gate.gate_id }}" data-gate-scope="GLOBAL"><p class="text-xs font-semibold text-rose-900">{{ gate.label }}</p><p class="mt-1 text-[11px] leading-5 text-ink-muted">{{ gate.description }}</p></li>{% endfor %}</ul></div>
+        </div>
+      </details>
+    </section>
+
+    <footer class="mt-5 flex flex-col gap-3 rounded-lg border border-edge bg-surface-0 px-5 py-4 text-xs text-ink-muted sm:flex-row sm:items-center sm:justify-between">
+      <p>要查看某个 Case 的业务 Gold、隐藏检查和运行环境，请进入 Case 详情；工作流和评分合同以任务冻结快照为准。</p>
+      <a href="/framework-evaluation/cases" class="font-semibold text-accent hover:text-blue-700">前往评测 Case →</a>
+    </footer>
+  </div>
+</section>
+{% endblock %}

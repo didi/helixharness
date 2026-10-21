@@ -1,0 +1,42 @@
+{
+  "projection_version": "1.0",
+  "surface": "skill",
+  "entrypoints": {
+    "apply": [
+      "hosts/codex/skills/apply/SKILL.md",
+      "commands/apply.md"
+    ],
+    "archive": [
+      "hosts/codex/skills/archive/SKILL.md",
+      "commands/archive.md"
+    ],
+    "bug-fix": [
+      "hosts/codex/skills/bug-fix/SKILL.md",
+      "commands/bug-fix.md"
+    ],
+    "config": [
+      "hosts/codex/skills/config/SKILL.md",
+      "commands/config.md"
+    ],
+    "init": [
+      "hosts/codex/skills/init/SKILL.md",
+      "commands/init.md"
+    ],
+    "propose": [
+      "hosts/codex/skills/propose/SKILL.md",
+      "commands/propose.md"
+    ],
+    "status": [
+      "hosts/codex/skills/status/SKILL.md",
+      "commands/status.md"
+    ],
+    "update": [
+      "hosts/codex/skills/update/SKILL.md",
+      "commands/update.md"
+    ],
+    "ut": [
+      "hosts/codex/skills/ut/SKILL.md",
+      "commands/ut.md"
+    ]
+  }
+}

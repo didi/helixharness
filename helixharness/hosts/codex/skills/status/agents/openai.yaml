@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:status"
+  short_description: "只读查看需求阶段、任务进度、阻塞原因和下一步命令。"
+policy:
+  allow_implicit_invocation: true

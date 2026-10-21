@@ -1,0 +1,392 @@
+{% macro candidate_file_diffs(candidate) -%}
+<div class="divide-y divide-edge" data-candidate-file-diffs="true">
+  {% for file in candidate.files %}
+  {% if file.diff_patch %}
+  <details class="group bg-white" data-file-diff="{{ file.path }}">
+    <summary class="grid cursor-pointer list-none gap-2 px-3 py-2.5 transition hover:bg-[#FAFCFF] marker:content-none md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+      <div class="min-w-0">
+        <div class="flex items-center gap-2"><span class="rounded bg-[#EEF4FF] px-1.5 py-0.5 text-[9px] font-semibold text-[#245BDB]">{{ file.change_type }}</span><code class="break-all text-[10px] font-semibold text-ink">{{ file.path }}</code></div>
+      </div>
+      <div class="flex items-center gap-2 text-[10px]"><span class="text-[#237804]">+{{ file.additions }}</span><span class="text-[#A8071A]">−{{ file.deletions }}</span><span class="ml-1 inline-flex items-center gap-1 font-semibold text-accent">展开 Diff<svg class="h-3 w-3 transition-transform group-open:rotate-180" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+    </summary>
+    <pre class="max-h-[520px] overflow-auto border-t border-[#26344B] bg-[#0F172A] p-3 text-[10px] leading-5 text-[#D7E3F4]">{{ file.diff_patch }}</pre>
+  </details>
+  {% endif %}
+  {% endfor %}
+  {% if candidate.diff_truncated %}<div class="bg-[#FFF7E6] px-3 py-2 text-[9px] leading-4 text-[#AD6800]">Candidate Diff 超过保存上限，最后一个文件的末尾内容可能已截断。</div>{% endif %}
+</div>
+{% if candidate.diff_patch and not candidate.has_file_diffs %}<details class="mt-3 overflow-hidden rounded-md border border-[#26344B] bg-[#0F172A]"><summary class="cursor-pointer px-3 py-2 text-[10px] font-semibold text-[#D7E3F4]">查看完整原始 Diff{% if candidate.diff_truncated %}（已截断）{% endif %}</summary><pre class="max-h-[520px] overflow-auto border-t border-[#26344B] p-3 text-[10px] leading-5 text-[#D7E3F4]">{{ candidate.diff_patch }}</pre></details>{% endif %}
+{%- endmacro %}
+
+<div class="p-6" data-evolution-page="{{ page_id }}">
+  <header class="flex items-start justify-between gap-4 border-b border-edge pb-3 mb-5">
+    <div class="min-w-0">
+      {% if active_path == '/evolution/summary' %}
+      <h1 class="text-[22px] font-bold text-ink font-serif">HelixHarness <em class="not-italic text-accent">自进化</em></h1>
+      {% elif active_path == '/evolution/hypotheses' %}
+      <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">HelixHarness Evolution</div>
+      <h1 class="text-[22px] font-bold text-ink font-serif">进化假设</h1>
+      <p class="mt-1 text-[14px] text-muted">先看问题来源和修改方案，再审阅系统生成的候选版本，决定进入实验或不采纳。</p>
+      {% elif active_path == '/evolution/experiments' %}
+      <div class="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-accent">HelixHarness Evolution</div>
+      <h1 class="text-[22px] font-bold text-ink font-serif">进化实验</h1>
+      <p class="mt-1 text-[14px] text-muted">验证一个已冻结的 Candidate 是否真的改善目标；实验只评测，不再生成或修改代码。</p>
+      {% else %}
+      <div class="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">HelixHarness Evolution</div>
+      <h1 class="text-[22px] font-bold text-ink font-serif">进化配置</h1>
+      <p class="mt-1 text-[13px] text-muted">固定契约保持只读；周期、能力边界以及模型资源均提供真实的保存入口。</p>
+      {% endif %}
+    </div>
+  </header>
+
+  {% if active_path == '/evolution/summary' %}
+  <section class="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4" data-evolution-summary-cards="true">
+    <div class="rounded-xl border border-edge bg-white p-4"><div class="text-[11px] text-muted">周期</div><div class="mt-1 text-[20px] font-semibold">{{ scheduler.interval_hours }} 小时</div><div class="text-[11px] text-muted">先同步，再检查质量</div></div>
+    <div class="rounded-xl border border-edge bg-white p-4"><div class="text-[11px] text-muted">可自动分析</div><div class="mt-1 text-[20px] font-semibold">{{ quality.automation_eligible }} / {{ quality.supported_total }} 份</div><div class="text-[11px] text-muted">合格记录 / 记录总数</div></div>
+    <div class="rounded-xl border border-edge bg-white p-4"><div class="text-[11px] text-muted">累计假设</div><div class="mt-1 text-[20px] font-semibold">{{ summary.hypothesis_count }}</div><div class="mt-1 flex gap-3 text-[11px]"><span class="text-[#0958D9]">修复 {{ summary.hypothesis_counts.REPAIR }} 个</span><span class="text-[#AD6800]">增长 {{ summary.hypothesis_counts.GROWTH }} 个</span></div></div>
+    <div class="rounded-xl border border-edge bg-white p-4"><div class="text-[11px] text-muted">最近一轮自进化</div><div class="mt-1 text-[14px] font-semibold">{{ latest_cycle.state_label if latest_cycle else '尚未运行' }}</div><div class="text-[11px] text-muted">{{ ('本轮开始于 ' ~ (latest_cycle.started_at|beijing_datetime)) if latest_cycle else '还没有运行记录' }}</div>{% if latest_cycle and latest_cycle.state_code == 'AWAITING_HUMAN_SELECTION' %}<a class="mt-2 inline-flex rounded-md border border-[#91CAFF] bg-white px-2.5 py-1 text-[10px] font-semibold text-accent hover:bg-[#F0F7FF]" href="/evolution/hypotheses">查看待处理假设</a>{% elif latest_cycle and latest_cycle.state_code == 'AWAITING_EVALUATION' %}<a class="mt-2 inline-flex rounded-md border border-[#91CAFF] bg-white px-2.5 py-1 text-[10px] font-semibold text-accent hover:bg-[#F0F7FF]" href="/evolution/experiments">查看评测实验与结论</a>{% endif %}</div>
+  </section>
+
+  <figure class="mb-5 overflow-hidden rounded-xl border border-[#DDE7F5] bg-white p-3 shadow-sm sm:p-4" data-evolution-flow-image="true">
+    <div class="overflow-x-auto rounded-lg border border-[#E3EAF5] bg-[#F6F8FC] px-3 py-4 sm:px-6 sm:py-5">
+      <div class="mx-auto w-full min-w-[760px] max-w-[1040px] overflow-hidden rounded-md bg-white shadow-[0_8px_24px_rgba(35,73,135,0.06)]">
+        <img class="h-auto w-full" src="/static/images/evolution-evidence-loop.png" alt="HelixHarness 自进化证据闭环" width="1672" height="941" decoding="async">
+      </div>
+    </div>
+  </figure>
+
+  {% if scheduler.last_error %}<div class="mb-4 rounded-lg border border-[#FFCCC7] bg-[#FFF2F0] p-3 text-[12px] text-[#A8071A]">调度异常：{{ scheduler.last_error }}</div>{% endif %}
+  {% if scheduler.last_remediation_error %}<div class="mb-4 rounded-lg border border-[#FFE58F] bg-[#FFFBE6] p-3 text-[12px] text-[#AD6800]">评测修复发现异常：{{ scheduler.last_remediation_error }}；eval-log 自进化调度未受影响。</div>{% endif %}
+  {% endif %}
+
+  {% if active_path == '/evolution/config' %}
+  <div class="grid gap-4" data-evolution-config="true">
+    {% if config_saved %}<div class="rounded-lg border border-[#B7EB8F] bg-[#F6FFED] px-4 py-3 text-[12px] text-[#237804]">{{ '周期配置已保存并立即生效。' if config_saved == 'schedule' else '能力目录已校验、保存并热更新。' }}</div>{% endif %}
+    {% if config_error %}<div class="rounded-lg border border-[#FFCCC7] bg-[#FFF2F0] px-4 py-3 text-[12px] text-[#A8071A]">{{ config_error }}</div>{% endif %}
+    <section class="rounded-xl border border-edge bg-white p-4" data-config-group="schedule">
+      <div><h2 class="text-[16px] font-semibold text-ink">自动检查</h2><p class="mt-1 text-[12px] leading-5 text-muted">修改后立即更新当前服务，并持久化到 evolution 运行配置。</p></div>
+      <div class="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+        <form class="grid gap-3 sm:grid-cols-3" method="post" action="/evolution/config/schedule" data-config-editor="schedule">
+          <label class="text-[12px] font-semibold text-muted">检查周期（小时）<input class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[14px] font-normal text-ink" type="number" name="interval_hours" min="1" max="720" step="1" value="{{ configuration.schedule.interval_hours }}" required><span class="mt-1 block text-[11px] font-normal leading-4 text-muted">周期到期后，才会同步并分析新证据。</span></label>
+          <label class="text-[12px] font-semibold text-muted">到期检查间隔（秒）<input class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[14px] font-normal text-ink" type="number" name="poll_seconds" min="1" max="86400" step="1" value="{{ configuration.schedule.poll_seconds }}" required><span class="mt-1 block text-[11px] font-normal leading-4 text-muted">每隔多久检查 48 小时周期是否已到；不会触发重复运行。</span></label>
+          <label class="text-[12px] font-semibold text-muted">评测结果检查间隔（秒）<input class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[14px] font-normal text-ink" type="number" name="remediation_poll_seconds" min="0.05" max="3600" step="0.05" value="{{ configuration.schedule.remediation_poll_seconds }}" required><span class="mt-1 block text-[11px] font-normal leading-4 text-muted">每隔多久处理已结束的 Benchmark；符合条件时生成修复假设。</span></label>
+          <div class="sm:col-span-3 flex items-center justify-between gap-3"><span class="text-[11px] text-muted">没有新证据时不会重复创建假设。</span><button class="rounded-md border border-[#91CAFF] bg-[#F0F7FF] px-4 py-2 text-[12px] font-semibold text-accent" type="submit">保存周期配置</button></div>
+        </form>
+        <div class="rounded-lg border border-edge bg-[#FBFCFE] p-3"><div class="text-[13px] font-semibold text-ink">立即检查</div><p class="mt-1 text-[11px] leading-5 text-muted">立即采集并分析证据；在进化假设中审阅候选，再采用进入实验。</p><form class="mt-3" method="post" action="/evolution/run"><button data-evolution-run-button="true" class="w-full rounded-lg bg-accent px-4 py-2 text-[13px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-50" type="submit"{% if manual_cycle.running %} disabled{% endif %}>{{ '正在检查…' if manual_cycle.running else '检查新证据' }}</button></form></div>
+      </div>
+      <div id="evolution-run-status" class="mt-3">
+        {% set refresh_config = false %}
+        {% include 'evolution/_run_status.html' %}
+      </div>
+    </section>
+
+    <section class="grid gap-3 md:grid-cols-3" data-config-group="rule-sources">
+      <article class="h-full rounded-xl border border-edge bg-white p-4" data-config-rule="evidence">
+        <div class="text-[13px] font-semibold text-ink">Log 质量范围</div>
+        <p class="mt-2 text-[14px] font-medium leading-6 text-ink">{{ configuration.evidence.rule_label }}</p>
+        <div class="mt-3 grid gap-1.5" data-evidence-quality-scope="true">{% for status in configuration.evidence.statuses %}<div class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-[11px] {{ status.class }}"><span class="font-semibold">{{ status.label }} <code>{{ status.code }}</code></span><span>{{ status.usage }}</span></div>{% endfor %}</div>
+        <p class="mt-3 text-[11px] leading-5 text-muted">PARTIAL 不能批量进入自动周期，必须人工选定某一份进行演练。</p>
+      </article>
+      <article class="h-full rounded-xl border border-edge bg-white p-4" data-config-rule="capabilities"><div class="text-[13px] font-semibold text-ink">能力边界</div><p class="mt-2 text-[14px] font-medium leading-6 text-ink">当前 {{ configuration.capabilities.count }} 项能力</p><code class="mt-2 block break-all text-[11px] text-muted">{{ configuration.capabilities.path }}</code><p class="mt-2 text-[12px] leading-5 text-muted">可在下方编辑 YAML；保存前会完整校验。</p></article>
+      <article class="h-full rounded-xl border border-edge bg-white p-4" data-config-rule="resources"><div class="text-[13px] font-semibold text-ink">模型与资源</div><p class="mt-2 text-[14px] font-medium leading-6 text-ink">与正式评测共用统一配置</p><p class="mt-2 text-[12px] leading-5 text-muted">模型、预算和并发在统一配置页编辑。</p><a class="mt-3 inline-flex rounded-md border border-[#91CAFF] bg-[#F0F7FF] px-3 py-1.5 text-[12px] font-semibold text-accent" href="/framework-evaluation/config">编辑模型与资源 →</a></article>
+    </section>
+
+    <details class="overflow-hidden rounded-xl border border-edge bg-white" data-config-editor="catalog">
+      <summary class="cursor-pointer px-4 py-3 text-[13px] font-semibold text-ink">能力与改动范围（高级配置）</summary>
+      <form class="border-t border-edge bg-[#FBFCFE] p-4" method="post" action="/evolution/config/catalog">
+        <div id="capability-catalog-help" class="mb-3 rounded-lg border border-[#DDE7F5] bg-[#F3F7FC] px-4 py-3 text-[12px] leading-5 text-muted"><strong class="text-ink">它控制三件事：</strong>问题归到哪个能力、Candidate 允许或禁止修改哪些目录、正式评测可选择哪些 Case。它不会编写假设，也不会自动发布 Candidate。</div>
+        <textarea class="w-full resize-y rounded-lg border border-[#26344B] bg-[#0F172A] p-4 font-mono text-[12px] leading-5 text-[#D7E3F4] outline-none focus:border-[#91CAFF]" style="min-height: 520px;" rows="26" name="catalog_yaml" spellcheck="false" aria-describedby="capability-catalog-help" required>{{ configuration.capabilities.yaml }}</textarea>
+        <div class="mt-3 flex flex-wrap items-center justify-between gap-3"><p class="text-[11px] leading-5 text-muted">保存会直接更新 Git 管理的能力目录；格式、范围和授权字段校验失败时不会覆盖原文件。</p><button class="rounded-md bg-accent px-4 py-2 text-[12px] font-semibold text-white" type="submit">验证并保存能力目录</button></div>
+      </form>
+    </details>
+
+    <section class="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-[#FFE7BA] bg-[#FFFBEF] px-4 py-3 text-[12px] leading-5 text-muted" data-config-group="boundaries"><span class="font-semibold text-[#AD6800]">运行边界</span><span>每轮最多自动处理一个修复假设</span><span>增长必须人工确认</span><span>Candidate 只能人工发布</span></section>
+  </div>
+  {% endif %}
+
+  {% if active_path == '/evolution/hypotheses' or active_path == '/evolution/experiments' %}
+  <style>
+    [data-evolution-readable="true"] .text-\[9px\] { font-size: 11px; }
+    [data-evolution-readable="true"] .text-\[10px\] { font-size: 12px; }
+    [data-evolution-readable="true"] .text-\[11px\] { font-size: 13px; }
+    [data-evolution-readable="true"] .text-\[12px\] { font-size: 14px; }
+    [data-evolution-readable="true"] .text-\[13px\] { font-size: 15px; }
+    [data-evolution-readable="true"] .text-\[14px\] { font-size: 16px; }
+  </style>
+  {% endif %}
+
+  {% if active_path == '/evolution/hypotheses' %}
+  <section class="overflow-hidden rounded-xl border border-edge bg-[#FBFCFE]" data-evolution-hypotheses="true" data-evolution-readable="true"{% if source_remediation and source_remediation.status == 'PENDING' %} data-source-remediation-status="PENDING" hx-get="{{ source_poll_url }}" hx-trigger="every 5s" hx-select="[data-evolution-hypotheses]" hx-target="this" hx-swap="outerHTML"{% elif source_remediation %} data-source-remediation-status="{{ source_remediation.status }}"{% endif %}>
+    <div class="border-b border-edge bg-white px-5 py-4">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="min-w-0 flex-1 lg:flex lg:items-baseline lg:gap-4"><h2 class="shrink-0 text-[14px] font-semibold">待判断的能力改进</h2><p class="mt-1 text-[11px] leading-5 text-muted lg:mt-0 lg:whitespace-nowrap">系统根据假设自动生成并冻结候选版本；人工审阅实际改动后，只决定进入实验或不采纳。</p></div>
+        <div class="rounded-full border border-edge bg-surface-1 px-3 py-1 text-[10px] text-muted">共 {{ pagination.total }} 条</div>
+      </div>
+    </div>
+    {% if filters.source_run_id %}
+    <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#FFE7BA] bg-[#FFFBEF] px-5 py-3 text-[11px]" data-source-run-filter="{{ filters.source_run_id }}">
+      <div><span class="font-semibold text-[#AD6800]">来源评测任务</span><code class="ml-2 break-all text-[10px] text-ink">{{ filters.source_run_id }}</code><span class="ml-2 text-muted">仅显示基于该任务不采纳结论形成的进化假设。</span></div>
+      <div class="flex gap-2"><a class="rounded border border-[#FFE7BA] bg-white px-3 py-1.5 font-semibold text-[#AD6800]" href="/framework-evaluation/runs/{{ filters.source_run_id }}/view">返回评测详情</a><a class="rounded border border-edge bg-white px-3 py-1.5 text-muted" href="/evolution/hypotheses">查看全部假设</a></div>
+    </div>
+    {% endif %}
+    <form class="grid gap-3 border-b border-edge bg-white px-5 py-4 md:grid-cols-[minmax(180px,1fr)_150px_130px_170px_auto]" method="get" action="/evolution/hypotheses" data-evolution-filters="hypotheses">
+      {% if filters.source_run_id %}<input type="hidden" name="source_run_id" value="{{ filters.source_run_id }}">{% endif %}
+      <label class="text-[10px] font-semibold text-muted">关键词<input class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink outline-none focus:border-accent" type="search" name="q" value="{{ filters.q }}" placeholder="标题、改动或能力"></label>
+      <label class="text-[10px] font-semibold text-muted">来源<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="source"><option value="">全部来源</option>{% for option in source_options %}<option value="{{ option.code }}"{% if filters.source == option.code %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+      <label class="text-[10px] font-semibold text-muted">类型<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="kind"><option value="">全部类型</option><option value="REPAIR"{% if filters.kind == 'REPAIR' %} selected{% endif %}>修复</option><option value="GROWTH"{% if filters.kind == 'GROWTH' %} selected{% endif %}>增长</option></select></label>
+      <label class="text-[10px] font-semibold text-muted">状态<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="state"><option value="">全部状态</option>{% for option in hypothesis_statuses %}<option value="{{ option.code }}"{% if filters.state == option.code %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+      <div class="flex items-end gap-2"><button class="rounded-md bg-accent px-4 py-2 text-[11px] font-semibold text-white" type="submit">筛选</button>{% if filters_active %}<a class="rounded-md border border-edge px-3 py-2 text-[11px] text-muted" href="/evolution/hypotheses">清空</a>{% endif %}</div>
+    </form>
+    <details class="border-b border-edge bg-[#F8FAFD] px-5 py-3" data-status-enum="hypotheses">
+      <summary class="cursor-pointer text-[11px] font-semibold text-ink">状态说明（{{ hypothesis_statuses|length }} 个）</summary>
+      <div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-3">{% for option in hypothesis_statuses %}<div class="rounded-md border border-edge bg-white px-3 py-2" data-status-code="{{ option.code }}"><div class="text-[10px] font-semibold text-ink">{{ option.label }} <code class="ml-1 text-muted">{{ option.code }}</code></div><div class="mt-1 text-[10px] leading-4 text-muted">{{ option.description }}</div></div>{% endfor %}</div>
+    </details>
+    {% if hypotheses %}
+    <div class="overflow-x-auto bg-white">
+      <table class="w-full table-fixed text-left text-[11px]" style="min-width: 960px;" data-hypothesis-table="true">
+        <colgroup data-hypothesis-column-layout="balanced">
+          <col style="width: 8%;">
+          <col style="width: 33%;">
+          <col style="width: 20%;">
+          <col style="width: 14%;">
+          <col style="width: 11%;">
+          <col style="width: 14%;">
+        </colgroup>
+        <thead class="border-b border-edge bg-surface-1 text-muted">
+          <tr>
+            <th class="px-4 py-3 text-center font-semibold">类型</th>
+            <th class="px-4 py-3 font-semibold">假设</th>
+            <th class="px-4 py-3 font-semibold">目标能力</th>
+            <th class="px-4 py-3 font-semibold">状态</th>
+            <th class="whitespace-nowrap px-4 py-3 text-right font-semibold" title="假设生成规则或语义分析给出的线索可信度，只用于排序，不代表 Benchmark 得分。">假设可信度</th>
+            <th class="px-5 py-3 text-right font-semibold">详情</th>
+          </tr>
+        </thead>
+        {% for item in hypotheses %}
+        <tbody id="hypothesis-{{ item.hypothesis_id }}" class="border-b border-edge last:border-b-0" data-hypothesis-group="{{ item.hypothesis_id }}">
+          <tr class="bg-white transition-colors hover:bg-[#FAFCFF]" data-hypothesis-row="{{ item.hypothesis_id }}">
+            <td class="px-4 py-4 text-center align-top"><span class="inline-flex whitespace-nowrap rounded px-2 py-1 text-[9px] font-semibold {{ 'bg-[#FFF7E6] text-[#AD6800]' if item.kind == 'GROWTH' else 'bg-[#E6F4FF] text-[#0958D9]' }}">{{ '增长' if item.kind == 'GROWTH' else '修复' }}</span></td>
+            <td class="px-4 py-4 align-top">
+              <div class="font-semibold leading-5 text-ink">{{ item.logical_title }}</div>
+              <div class="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-muted">
+                <span class="inline-flex rounded-full bg-[#EEF4FF] px-2 py-0.5 font-semibold text-[#245BDB]" data-source-label="{{ item.source_label }}">{{ item.source_label }}</span>
+                <span>{{ item.created_at|beijing_datetime }}</span>
+                {% if item.semantic_source == 'PARTIAL_REHEARSAL' %}<span class="rounded bg-[#FFF1F0] px-1.5 py-0.5 font-semibold text-[#A8071A]">不可晋升演练</span>{% endif %}
+              </div>
+            </td>
+            <td class="px-4 py-4 align-top"><div class="text-[11px] font-semibold leading-5 text-ink">{{ item.capability_name }}</div><code class="mt-1 block break-all text-[9px] text-muted">{{ item.capability_id }}</code></td>
+            <td class="px-4 py-4 align-top"><span class="inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-semibold {{ item.state_class }}"{% if item.blocker_reason %} title="{{ item.blocker_reason }}"{% endif %}>{{ item.state_label }}</span>{% if item.experiment and not item.experiment.deleted_at %}<a class="mt-2 block whitespace-nowrap text-[10px] font-semibold text-accent" href="/evolution/experiments#experiment-{{ item.experiment.experiment_id }}">查看实验 →</a>{% endif %}</td>
+            <td class="px-4 py-4 text-right align-top" data-hypothesis-confidence="{{ item.confidence }}"><div class="font-semibold text-ink">{{ '%.0f'|format(item.confidence * 100) }}%</div><div class="mt-1 whitespace-nowrap text-[9px] text-muted">仅用于排序</div></td>
+            <td class="px-5 py-4 text-right align-top">
+              <button class="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-edge bg-white px-2.5 py-1.5 text-[10px] font-semibold text-accent transition hover:border-[#91CAFF] hover:bg-[#F0F7FF]" type="button" data-hypothesis-toggle="{{ item.hypothesis_id }}" aria-controls="hypothesis-detail-{{ item.hypothesis_id }}" aria-expanded="false">
+                <span data-hypothesis-toggle-label>展开详情</span>
+                <svg class="h-3 w-3 transition-transform" data-hypothesis-toggle-icon viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </td>
+          </tr>
+          <tr id="hypothesis-detail-{{ item.hypothesis_id }}" class="hidden" data-hypothesis-detail="{{ item.hypothesis_id }}">
+            <td colspan="6" class="border-t border-[#DDE7F5] bg-[#F8FAFD] px-5 py-5">
+              <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+                <div>
+                  <div class="mb-3 rounded-lg border border-[#91CAFF] bg-[#F0F7FF] px-4 py-3"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">计划怎么改</div><p class="mt-1 text-[13px] font-medium leading-6 text-ink">{{ item.intervention_display or '尚未形成具体修改意图。' }}</p></div>
+                  <div class="grid gap-3 md:grid-cols-3" data-hypothesis-reasoning-grid="compact">
+                  <div class="rounded-lg border border-edge bg-white px-4 py-3"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">为什么要改</div><p class="mt-1 text-[12px] leading-5 text-ink">{{ item.rationale_display or item.rationale }}</p></div>
+                  <div class="rounded-lg border border-edge bg-white px-4 py-3"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">希望改善什么</div><p class="mt-1 text-[12px] leading-5 text-ink">{{ item.expected_effect_display or '尚未记录预期效果' }}</p></div>
+                  <div class="rounded-lg border border-edge bg-white px-4 py-3"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">怎么验证</div><p class="mt-1 text-[12px] leading-5 text-ink">{{ item.validation_plan_display or '使用相同业务场景对修改前后进行比较。' }}</p>{% if item.falsification_condition_display %}<p class="mt-2 border-t border-edge pt-2 text-[11px] leading-5 text-muted">不成立条件：{{ item.falsification_condition_display }}</p>{% endif %}</div>
+                  </div>
+                </div>
+                <aside class="rounded-lg border border-edge bg-white px-4 py-3" data-candidate-preparation="{{ item.candidate_preparation_state }}">
+                  <div class="text-[10px] font-semibold text-muted">档案摘要</div>
+                  <div class="mt-2 text-[11px] leading-5 text-ink">执行记录 {{ item.attempt_count }} 次<br>来源证据 {{ item.evidence_count }} 条</div>
+                  <div class="mt-2 border-t border-edge pt-2 font-mono text-[10px] text-muted">证据 {{ item.source_hash_short }}</div>
+                  {% if item.source_run_id %}<a class="mt-2 block break-all font-mono text-[10px] text-accent" href="/framework-evaluation/runs/{{ item.source_run_id }}/view">来源 Run {{ item.source_run_id }}</a>{% endif %}
+                  {% if item.candidate_preparation_state == 'FAILED' or item.blocker_code in ['CAPABILITY_REMOVED', 'EXPERIMENT_MISSING'] %}<div class="mt-3 rounded-md border border-[#FFCCC7] bg-[#FFF1F0] px-3 py-2 text-[10px] leading-4 text-[#A8071A]"><strong>需要处理：</strong>{{ item.blocker_reason }}</div>{% endif %}
+                  {% if item.selection_state == 'PENDING_DECISION' and not item.candidate and item.candidate_preparation_state == 'RUNNING' %}<button class="mt-3 w-full cursor-wait rounded border border-[#91CAFF] bg-[#F0F7FF] px-3 py-1.5 text-[11px] font-semibold text-accent" disabled>候选版本准备中…</button>{% elif item.candidate_preparable %}<form class="mt-3" method="post" action="/evolution/hypotheses/{{ item.hypothesis_id }}/prepare-candidate"><button class="w-full rounded border border-[#91CAFF] bg-[#F0F7FF] px-3 py-1.5 text-[11px] font-semibold text-accent">{% if item.candidate_preparation_state == 'FAILED' %}重新生成候选版本{% else %}生成候选版本{% endif %}</button></form>{% elif item.manual_selectable %}<form class="mt-3" method="post" action="/evolution/hypotheses/{{ item.hypothesis_id }}/select"><button class="w-full rounded bg-accent px-3 py-1.5 text-[11px] font-semibold text-white">采纳并进入实验</button></form>{% endif %}{% if item.rejectable %}<form class="mt-2" method="post" action="/evolution/hypotheses/{{ item.hypothesis_id }}/ignore"><input type="hidden" name="reason" value="人工判断不采纳"><button class="w-full rounded border border-edge bg-white px-3 py-1.5 text-[11px] font-semibold text-muted" type="submit">不采纳并结束</button></form>{% elif item.selection_state == 'IGNORED' %}<div class="mt-3 rounded-md bg-surface-1 px-3 py-2 text-[10px] leading-4 text-muted">不采纳原因：{{ item.ignore_reason or '人工判断不采纳' }}</div>{% endif %}
+                  {% if item.retry_hypothesis_id %}
+                  <a class="mt-3 block rounded border border-[#91CAFF] bg-[#F0F7FF] px-3 py-2 text-center text-[11px] font-semibold text-accent" href="/evolution/hypotheses#hypothesis-{{ item.retry_hypothesis_id }}">查看重新生成记录 →</a>
+                  {% elif item.experiment_retryable %}
+                  <p class="mt-3 text-[10px] leading-5 text-muted">前次实验在创建评测前被阻断。重新生成会保留原记录，使用最新主分支生成新候选，审阅后再进入实验。</p>
+                  <form class="mt-2" method="post" action="/evolution/experiments/{{ item.experiment.experiment_id }}/retry"><button class="w-full rounded bg-accent px-3 py-2 text-[11px] font-semibold text-white">重新生成候选并审阅</button></form>
+                  {% endif %}
+                  {% if item.retry_of_experiment_id %}<p class="mt-3 break-all text-[10px] leading-5 text-muted">重新生成来源：{{ item.retry_of_experiment_id }}；原实验及候选继续保留。</p>{% endif %}
+                  <div class="mt-4 border-t border-edge pt-3" data-hypothesis-detail-actions="{{ item.hypothesis_id }}">
+                    <div class="text-[10px] font-semibold text-muted">记录管理</div>
+                    <p class="mt-1 text-[9px] leading-4 text-muted">仅从工作台移除，Candidate、评测与来源证据继续保留。</p>
+                    <form class="mt-2" method="post" action="/evolution/hypotheses/{{ item.hypothesis_id }}/delete" data-evolution-delete="hypothesis" data-confirm-message="确定从进化假设列表删除这条记录吗？Candidate、评测和来源证据仍会保留。">
+                      <input type="hidden" name="reason" value="人工从工作台删除">
+                      <button class="w-full rounded-md border border-[#FFCCC7] bg-white px-3 py-1.5 text-[10px] font-semibold text-[#A8071A] transition hover:bg-[#FFF1F0]" type="submit">从假设列表删除</button>
+                    </form>
+                  </div>
+                </aside>
+              </div>
+
+              <section class="mt-3 overflow-hidden rounded-lg border border-edge bg-white" data-hypothesis-code-diff="{{ item.hypothesis_id }}">
+                <div class="flex flex-wrap items-center justify-between gap-2 border-b border-edge px-4 py-3"><div><span class="text-[12px] font-semibold text-ink">候选版本改动</span><span class="ml-2 text-[10px] text-muted">实验只评测这里冻结的代码</span></div>{% if item.candidate.candidate_commit %}<code class="rounded-md bg-surface-1 px-2 py-1 text-[10px] text-muted">{{ item.candidate.candidate_commit[:12] }}</code>{% endif %}</div>
+                {% if item.candidate %}
+                <div class="p-4">
+                  <div class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.45fr)]">
+                    <div class="overflow-hidden rounded-lg border border-edge">
+                      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-[#F8FAFD] px-3 py-2.5"><span class="text-[11px] font-semibold text-ink">变更概览</span><div class="flex items-center gap-2 text-[10px]"><span class="rounded-full bg-white px-2 py-1 text-muted">{{ item.candidate.file_count }} 个文件</span><span class="font-semibold text-[#237804]">+{{ item.candidate.additions }}</span><span class="font-semibold text-[#A8071A]">−{{ item.candidate.deletions }}</span></div></div>
+                      {{ candidate_file_diffs(item.candidate) }}
+                    </div>
+                    <div class="rounded-lg border border-[#B7EB8F] bg-[#F6FFED] p-3"><div class="flex items-center gap-2 text-[11px] font-semibold text-[#237804]"><span class="flex h-5 w-5 items-center justify-center rounded-full bg-[#52C41A] text-white">✓</span>范围校验通过</div><p class="mt-2 text-[10px] leading-5 text-[#3F7A1F]">所有实际改动均位于目标能力允许范围内；越界版本会在生成阶段被阻断。</p><div class="mt-3 flex flex-wrap gap-1">{% for path in item.owned_paths %}<code class="rounded bg-white px-2 py-1 text-[9px] text-[#237804]">{{ path }}</code>{% endfor %}</div></div>
+                  </div>
+                  {% if not item.candidate.diff_patch %}<div class="mt-3 rounded-md bg-surface-1 px-3 py-2 text-[10px] text-muted">候选版本已冻结，但没有保存可展示的原始 Diff。</div>{% endif %}
+                </div>
+                {% elif item.selection_state != 'PENDING_DECISION' %}<div class="p-4 text-[11px] text-muted">历史候选详情不可用，原决策记录仍保留。</div>{% elif item.candidate_preparation_state == 'RUNNING' %}<div class="flex items-center gap-3 p-4 text-[11px] leading-5 text-[#0958D9]"><span class="h-4 w-4 animate-pulse rounded-full bg-[#1677FF]"></span><div><strong>候选版本准备中。</strong> 系统正在后台生成并冻结实际代码版本，完成后即可审阅文件清单和 Diff。</div></div>
+                {% elif item.candidate_preparable and item.candidate_preparation_state != 'FAILED' %}<div class="p-4 text-[11px] leading-5 text-muted">尚无已冻结的候选版本，当前没有生成任务运行。点击“生成候选版本”开始或恢复。</div>{% else %}<div class="p-4 text-[11px] leading-5 text-[#A8071A]"><strong>暂不可生成候选版本。</strong> {{ item.blocker_reason or '请检查目标能力、Case 和评测授权。' }}</div>{% endif %}
+              </section>
+
+              {% if item.quality_issues %}<div class="mt-3 flex flex-wrap gap-2 text-[10px]">{% for issue in item.quality_issues %}<span class="rounded-full bg-[#FFF7E6] px-2.5 py-1 text-[#AD6800]" title="{{ issue.description }}">{{ issue.label }}</span>{% endfor %}</div>{% endif %}
+
+              {% if item.experiment and item.experiment.deleted_at %}
+              <section class="mt-4 rounded-lg border border-edge bg-surface-1 px-4 py-3" data-removed-experiment="{{ item.experiment.experiment_id }}"><div class="text-[11px] font-semibold">关联实验已从列表移除</div><p class="mt-1 text-[10px] text-muted">该假设的采纳记录仍保留。原实验状态：{{ item.experiment.state_label }}。</p><p class="mt-1 break-words text-[10px] text-muted">{{ item.experiment.reason }}</p></section>
+              {% elif item.experiment %}<section class="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#CFE3FF] bg-[#F3F8FF] px-4 py-3" data-hypothesis-experiment-link="{{ item.experiment.experiment_id }}"><div><div class="text-[11px] font-semibold text-ink">该假设已进入实验</div><p class="mt-1 text-[10px] text-muted">假设阶段已经终止；Benchmark 状态、结论和后续处理都在实验页面维护。</p></div><a class="rounded-md bg-accent px-3 py-2 text-[11px] font-semibold text-white" href="/evolution/experiments#experiment-{{ item.experiment.experiment_id }}">查看对应实验 →</a></section>{% endif %}
+              {% if item.generation_basis or item.regression_scope %}<details class="group mt-3 overflow-hidden rounded-lg border border-edge bg-white" data-hypothesis-generation-basis="{{ item.hypothesis_id }}"><summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 marker:content-none"><span><strong class="block text-[11px] text-ink">生成依据与评测范围</strong><span class="mt-0.5 block text-[9px] text-muted">实际上报、评测明细和回归范围，仅用于追溯，默认收起</span></span><svg class="h-3.5 w-3.5 shrink-0 text-muted transition-transform group-open:rotate-180" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></summary><div class="divide-y divide-edge border-t border-edge bg-[#F8FAFD]">{% for basis in item.generation_basis %}<div class="grid gap-1 px-4 py-3 md:grid-cols-[7rem_minmax(0,1fr)]"><span class="text-[9px] font-semibold text-muted">{{ basis.label }}</span><p class="break-all text-[10px] leading-5 text-ink">{{ basis.value }}</p></div>{% endfor %}{% if item.regression_scope %}<div class="grid gap-1 px-4 py-3 md:grid-cols-[7rem_minmax(0,1fr)]"><span class="text-[9px] font-semibold text-muted">回归范围</span><p class="break-all text-[10px] leading-5 text-ink">{{ item.regression_scope|join('、') }}</p></div>{% endif %}</div></details>{% endif %}
+            </td>
+          </tr>
+        </tbody>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}<div class="p-6 text-[12px] leading-6 text-muted">{% if filters.source_run_id and source_remediation and source_remediation.status == 'PENDING' %}<strong class="text-ink">后台正在检查该评测任务。</strong> 完成后会自动刷新；只有证据充分的 Candidate 独有问题才会形成修复假设。{% elif filters.source_run_id and source_remediation and source_remediation.status == 'NOT_ELIGIBLE' %}<strong class="text-ink">该评测任务没有可生成的修复假设。</strong> {{ source_remediation.reason or '没有发现证据充分的 Candidate 独有问题。' }}{% elif filters.source_run_id and source_remediation and source_remediation.status == 'FAILED' %}<strong class="text-[#A8071A]">评测修复检查失败。</strong> {{ source_remediation.reason or '请查看自进化调度状态。' }}{% elif filters.source_run_id and source_remediation and source_remediation.status == 'READY' %}<strong class="text-[#A8071A]">修复假设记录暂不可见。</strong> 后台已完成生成，但当前筛选没有找到对应记录，请查看全部假设或检查数据一致性。{% elif filters.source_run_id %}<strong class="text-ink">该历史任务没有进化回收记录。</strong> 可返回评测详情查看原始结论。{% elif filters_active %}<strong class="text-ink">没有符合当前筛选条件的假设。</strong> 可以清空筛选后查看全部记录。{% elif quality.automation_eligible == 0 %}<strong class="text-ink">当前没有可生成假设的证据。</strong> 共发现 {{ quality.supported_total }} 份 HelixHarness eval-log，其中 0 份“合格”；“部分可用”和“无效”数据只展示，不会交给 AI 生成假设。{% else %}<strong class="text-ink">当前没有新的可执行假设。</strong> 已有 {{ quality.automation_eligible }} 份合格证据，但尚未匹配出新的能力改进机会，或重复假设已被抑制。{% endif %}</div>{% endif %}
+    {% if pagination.page_count > 1 %}<nav class="flex items-center justify-between border-t border-edge bg-white px-5 py-3 text-[11px] text-muted" aria-label="进化假设分页"><a class="rounded border border-edge px-3 py-1.5 {{ 'pointer-events-none opacity-40' if not pagination.previous_url else '' }}" href="{{ pagination.previous_url or '#' }}">上一页</a><span>第 {{ pagination.page }} / {{ pagination.page_count }} 页</span><a class="rounded border border-edge px-3 py-1.5 {{ 'pointer-events-none opacity-40' if not pagination.next_url else '' }}" href="{{ pagination.next_url or '#' }}">下一页</a></nav>{% else %}<div class="border-t border-edge bg-white px-5 py-3 text-center text-[10px] text-muted">第 {{ pagination.page }} / {{ pagination.page_count }} 页</div>{% endif %}
+  </section>
+  {% endif %}
+
+  {% if active_path == '/evolution/experiments' %}
+  <section class="overflow-hidden rounded-xl border border-edge bg-[#F8FAFD]" data-evolution-experiments="true" data-evolution-readable="true">
+    <div class="border-b border-edge bg-white px-5 py-4">
+      <div class="min-w-0 lg:flex lg:items-baseline lg:gap-4"><h2 class="shrink-0 text-[14px] font-semibold">假设决定要不要做，实验记录做完后的结果</h2><p class="mt-1 text-[11px] leading-5 text-muted lg:mt-0 lg:whitespace-nowrap">Candidate 在“进化假设”中已经生成、审阅并冻结。进化实验不再改代码，只对这个确定的 commit 执行 Benchmark，保留评测过程和最终结论。</p></div>
+      <div class="mt-3 grid gap-2 text-[10px] md:grid-cols-3" data-experiment-flow="compact"><div class="flex items-center gap-3 rounded-lg border border-[#D6E7FF] bg-[#F3F8FF] px-3 py-2.5"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-semibold text-white">1</span><div><strong class="block text-ink">冻结 Candidate</strong><span class="text-muted">实验前已确定完整 Diff</span></div></div><div class="flex items-center gap-3 rounded-lg border border-[#D6E7FF] bg-[#F3F8FF] px-3 py-2.5"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-semibold text-white">2</span><div><strong class="block text-ink">Benchmark 执行</strong><span class="text-muted">复用冻结 Case 做受控对比</span></div></div><div class="flex items-center gap-3 rounded-lg border border-[#D6E7FF] bg-[#F3F8FF] px-3 py-2.5"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent font-semibold text-white">3</span><div><strong class="block text-ink">形成结论</strong><span class="text-muted">采纳、拒绝或证据不足</span></div></div></div>
+    </div>
+    <form class="grid gap-3 border-b border-edge bg-white px-5 py-4 md:grid-cols-[minmax(180px,1fr)_150px_130px_170px_auto]" method="get" action="/evolution/experiments" data-evolution-filters="experiments">
+      <label class="text-[10px] font-semibold text-muted">关键词<input class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" type="search" name="q" value="{{ filters.q }}" placeholder="标题、改动或结论"></label>
+      <label class="text-[10px] font-semibold text-muted">来源<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="source"><option value="">全部来源</option>{% for option in source_options %}<option value="{{ option.code }}"{% if filters.source == option.code %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+      <label class="text-[10px] font-semibold text-muted">类型<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="kind"><option value="">全部类型</option><option value="REPAIR"{% if filters.kind == 'REPAIR' %} selected{% endif %}>修复</option><option value="GROWTH"{% if filters.kind == 'GROWTH' %} selected{% endif %}>增长</option></select></label>
+      <label class="text-[10px] font-semibold text-muted">状态<select class="mt-1 w-full rounded-md border border-edge bg-white px-3 py-2 text-[11px] font-normal text-ink" name="state"><option value="">全部状态</option>{% for option in experiment_statuses %}<option value="{{ option.code }}"{% if filters.state == option.code %} selected{% endif %}>{{ option.label }}</option>{% endfor %}</select></label>
+      <div class="flex items-end gap-2"><button class="rounded-md bg-accent px-4 py-2 text-[11px] font-semibold text-white" type="submit">筛选</button>{% if filters_active %}<a class="rounded-md border border-edge px-3 py-2 text-[11px] text-muted" href="/evolution/experiments">清空</a>{% endif %}</div>
+    </form>
+    <details class="border-b border-edge bg-white px-5 py-3" data-status-enum="experiments"><summary class="cursor-pointer text-[11px] font-semibold text-ink">状态说明（{{ experiment_statuses|length }} 个）</summary><div class="mt-3 grid gap-2 md:grid-cols-2 lg:grid-cols-4">{% for option in experiment_statuses %}<div class="rounded-md border border-edge bg-surface-1 px-3 py-2"><div class="text-[10px] font-semibold text-ink">{{ option.label }} <code class="ml-1 text-muted">{{ option.code }}</code></div><div class="mt-1 text-[10px] leading-4 text-muted">{{ option.description }}</div></div>{% endfor %}</div></details>
+    {% if experiments %}
+    <div class="overflow-x-auto bg-white">
+      <table class="w-full table-fixed text-left text-[11px]" style="min-width: 960px;" data-experiment-table="true">
+        <colgroup data-experiment-column-layout="balanced">
+          <col style="width: 8%;">
+          <col style="width: 30%;">
+          <col style="width: 19%;">
+          <col style="width: 14%;">
+          <col style="width: 15%;">
+          <col style="width: 14%;">
+        </colgroup>
+        <thead class="border-b border-edge bg-[#F7F9FC] text-[10px] text-muted">
+          <tr>
+            <th class="px-4 py-3 text-center font-semibold">类型</th>
+            <th class="px-4 py-3 font-semibold">实验</th>
+            <th class="px-4 py-3 font-semibold">目标能力</th>
+            <th class="px-4 py-3 font-semibold">状态</th>
+            <th class="px-4 py-3 font-semibold">更新时间</th>
+            <th class="px-5 py-3 text-right font-semibold">详情</th>
+          </tr>
+        </thead>
+        {% for item in experiments %}
+        <tbody id="experiment-{{ item.experiment_id }}" class="border-b border-edge last:border-b-0" data-experiment-group="{{ item.experiment_id }}">
+          <tr class="bg-white transition-colors hover:bg-[#FAFCFF]" data-experiment-row="{{ item.experiment_id }}">
+            <td class="px-4 py-4 text-center align-top"><span class="inline-flex whitespace-nowrap rounded px-2 py-1 text-[9px] font-semibold {{ 'bg-[#E6F4FF] text-[#0958D9]' if item.kind == 'REPAIR' else 'bg-[#FFF7E6] text-[#AD6800]' }}">{{ '修复' if item.kind == 'REPAIR' else '增长' }}</span></td>
+            <td class="px-4 py-4 align-top">
+              <div class="font-semibold leading-5 text-ink">{{ item.title }}</div>
+              <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                <span class="rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[9px] font-semibold text-[#245BDB]" data-source-label="{{ item.source_label }}">{{ item.source_label }}</span>
+                <code class="text-[9px] text-muted">{{ item.experiment_id }}</code>
+                <a class="text-[9px] font-semibold text-accent" href="/evolution/hypotheses#hypothesis-{{ item.hypothesis_id }}">来源假设 →</a>
+              </div>
+            </td>
+            <td class="px-4 py-4 align-top"><div class="font-semibold leading-5 text-ink">{{ item.capability_name }}</div><code class="mt-1 block break-all text-[9px] text-muted">{{ item.capability_id }}</code></td>
+            <td class="px-4 py-4 align-top"><span class="inline-flex whitespace-nowrap rounded-full px-2 py-1 text-[9px] font-semibold {{ item.state_class }}">{{ item.state_label }}</span><div class="mt-1 text-[9px] leading-4 text-muted">{{ item.next_step }}</div></td>
+            <td class="whitespace-nowrap px-4 py-4 align-top text-[10px] leading-4 text-muted">{{ item.updated_at|beijing_datetime }}</td>
+            <td class="px-5 py-4 text-right align-top">
+              <button class="inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-edge bg-white px-2.5 py-1.5 text-[10px] font-semibold text-accent transition hover:border-[#91CAFF] hover:bg-[#F0F7FF]" type="button" data-experiment-toggle="{{ item.experiment_id }}" aria-controls="experiment-detail-{{ item.experiment_id }}" aria-expanded="false"><span data-experiment-toggle-label>展开详情</span><svg class="h-3 w-3 transition-transform" data-experiment-toggle-icon viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 6 4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </td>
+          </tr>
+          <tr id="experiment-detail-{{ item.experiment_id }}" class="hidden" data-experiment-detail="{{ item.experiment_id }}">
+            <td colspan="6" class="border-t border-[#DDE7F5] bg-[#F8FAFD] px-5 py-5">
+              <div class="grid gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(280px,0.75fr)]">
+                <section class="overflow-hidden rounded-lg border border-[#91CAFF] bg-[#F0F7FF]">
+                  <div class="border-b border-[#CFE3FF] px-4 py-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-accent">实际代码改动（实验输入）</div>
+                  {% if item.candidate %}<div class="p-4"><div class="mb-3 flex flex-wrap items-center gap-2 text-[10px]"><span class="rounded-full bg-white px-2 py-1 text-muted">{{ item.candidate.file_count }} 个文件</span><span class="font-semibold text-[#237804]">+{{ item.candidate.additions }}</span><span class="font-semibold text-[#A8071A]">−{{ item.candidate.deletions }}</span></div><div class="overflow-hidden rounded-md border border-[#CFE3FF] bg-white">{{ candidate_file_diffs(item.candidate) }}</div></div>{% else %}<div class="p-4 text-[11px] text-muted">该历史实验没有可展示的候选版本快照。</div>{% endif %}
+                </section>
+                <div class="grid content-start gap-3">
+                  <section class="rounded-lg border border-edge bg-white p-4"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Benchmark 执行</div><p class="mt-2 text-[12px] leading-5 text-ink">{{ item.validation_plan }}</p>{% if item.evaluation_plan.case_ids %}<div class="mt-2 flex flex-wrap gap-1">{% for case_id in item.evaluation_plan.case_ids %}<code class="rounded bg-surface-1 px-2 py-1 text-[9px]">{{ case_id }}</code>{% endfor %}</div>{% endif %}{% if item.benchmark_run_id %}<a class="mt-3 inline-block break-all text-[10px] font-semibold text-accent" href="/framework-evaluation/runs/{{ item.benchmark_run_id }}/view">查看 Benchmark Run {{ item.benchmark_run_id }}</a>{% endif %}</section>
+                  <section class="rounded-lg border border-edge bg-white p-4"><div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">评测结论</div><p class="mt-2 text-[12px] font-medium leading-5 text-ink">{{ item.decision_reason or item.state_description }}</p><p class="mt-2 text-[10px] leading-4 text-muted">{{ item.state_description }}</p></section>
+                  <section class="rounded-lg border border-[#FFCCC7] bg-[#FFF9F8] p-4" data-experiment-detail-actions="{{ item.experiment_id }}">
+                    <div class="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#A8071A]">记录管理</div>
+                    <p class="mt-2 text-[10px] leading-4 text-muted">仅从实验列表移除；Candidate、Benchmark Run 与评测证据继续保留。</p>
+                    <form class="mt-3" method="post" action="/evolution/experiments/{{ item.experiment_id }}/delete" data-evolution-delete="experiment" data-confirm-message="确定从进化实验列表删除这条记录吗？Candidate、Benchmark Run 和评测证据仍会保留。">
+                      <input type="hidden" name="reason" value="人工从工作台删除">
+                      <button class="w-full rounded-md border border-[#FFCCC7] bg-white px-3 py-1.5 text-[10px] font-semibold text-[#A8071A] transition hover:bg-[#FFF1F0]" type="submit">从实验列表删除</button>
+                    </form>
+                  </section>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+        {% endfor %}
+      </table>
+    </div>
+    {% else %}<div class="bg-white p-6 text-[12px] text-muted">{% if filters_active %}没有符合当前筛选条件的实验。{% else %}尚无实验。先在“进化假设”中选择一条具备正式 Case 的假设；系统不会自动发布 Candidate。{% endif %}</div>{% endif %}
+    <nav class="flex items-center justify-between border-t border-edge bg-white px-5 py-3 text-[11px] text-muted" aria-label="进化实验分页"><a class="rounded border border-edge px-3 py-1.5 {{ 'pointer-events-none opacity-40' if not pagination.previous_url else '' }}" href="{{ pagination.previous_url or '#' }}">上一页</a><span>第 {{ pagination.page }} / {{ pagination.page_count }} 页 · 共 {{ pagination.total }} 条</span><a class="rounded border border-edge px-3 py-1.5 {{ 'pointer-events-none opacity-40' if not pagination.next_url else '' }}" href="{{ pagination.next_url or '#' }}">下一页</a></nav>
+  </section>
+  {% endif %}
+  <script>
+    window.toggleEvolutionDossier = function(kind, button, forceOpen, updateHash) {
+      var table = button.closest('[data-' + kind + '-table]');
+      if (!table) return;
+      var id = button.getAttribute('data-' + kind + '-toggle');
+      var detail = table.querySelector('[data-' + kind + '-detail="' + id + '"]');
+      if (!detail) return;
+      var willOpen = forceOpen === true || (forceOpen !== false && detail.classList.contains('hidden'));
+      table.querySelectorAll('[data-' + kind + '-detail]').forEach(function(row) { row.classList.add('hidden'); });
+      table.querySelectorAll('[data-' + kind + '-toggle]').forEach(function(toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.querySelector('[data-' + kind + '-toggle-label]').textContent = '展开详情';
+        toggle.querySelector('[data-' + kind + '-toggle-icon]').classList.remove('rotate-180');
+      });
+      if (willOpen) {
+        detail.classList.remove('hidden');
+        button.setAttribute('aria-expanded', 'true');
+        button.querySelector('[data-' + kind + '-toggle-label]').textContent = '收起详情';
+        button.querySelector('[data-' + kind + '-toggle-icon]').classList.add('rotate-180');
+      }
+      if (updateHash !== false) {
+        var targetHash = willOpen ? '#' + kind + '-' + encodeURIComponent(id) : '';
+        history.replaceState(null, '', window.location.pathname + window.location.search + targetHash);
+      }
+    };
+    window.restoreEvolutionDossier = function() {
+      var match = window.location.hash.match(/^#(hypothesis|experiment)-(.+)$/);
+      if (!match) return;
+      var kind = match[1];
+      var id = decodeURIComponent(match[2]);
+      var button = document.querySelector('[data-' + kind + '-toggle="' + id + '"]');
+      if (button) window.toggleEvolutionDossier(kind, button, true, false);
+    };
+    if (!window.__evolutionDossierEventsBound) {
+      document.addEventListener('click', function(event) {
+        var hypothesisButton = event.target.closest('[data-hypothesis-toggle]');
+        var experimentButton = event.target.closest('[data-experiment-toggle]');
+        if (hypothesisButton) window.toggleEvolutionDossier('hypothesis', hypothesisButton);
+        if (experimentButton) window.toggleEvolutionDossier('experiment', experimentButton);
+      });
+      document.addEventListener('submit', function(event) {
+        var form = event.target.closest('[data-evolution-delete]');
+        if (form && !window.confirm(form.getAttribute('data-confirm-message'))) event.preventDefault();
+      });
+      window.__evolutionDossierEventsBound = true;
+    }
+    window.restoreEvolutionDossier();
+    if (document.querySelector('[data-candidate-preparation="RUNNING"]')) {
+      window.setTimeout(function() { window.location.reload(); }, 5000);
+    }
+  </script>
+</div>

@@ -1,0 +1,31 @@
+<div class="p-6">
+  <header class="border-b border-edge pb-2.5 mb-5">
+    <h1 class="text-[22px] font-bold text-ink">问题反馈</h1>
+    <p class="mt-1 text-xs text-ink-muted">查看用户明确确认后发送的 HelixHarness 使用问题。共 {{ total }} 条。</p>
+  </header>
+  <div class="soft-note mb-5">
+    反馈地址由 HelixHarness 发布方统一提供；需要改用自己的平台时，在
+    <code>~/.helixharness/feedback/config.json</code> 中设置 <code>endpoint</code> 覆盖默认地址。
+    接收服务需保持运行；平台不可达时反馈保存在本地待发队列。
+  </div>
+  <form method="get" action="/feedback" class="mb-5">
+    <label>反馈分类 <select name="category">
+      <option value="">全部</option>
+      {% for key, label in categories.items() %}<option value="{{ key }}" {% if category == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+    </select></label>
+    <button type="submit" class="btn-secondary">筛选</button>
+  </form>
+  <table class="helixharness-config-table">
+    <thead><tr><th>时间</th><th>分类</th><th>反馈内容</th><th>宿主 / 版本</th><th>详情</th></tr></thead>
+    <tbody>{% for row in rows %}<tr>
+      <td>{{ row.created_at | beijing_datetime }}</td><td>{{ categories.get(row.category, row.category) }}</td>
+      <td style="white-space:pre-wrap;overflow-wrap:anywhere">{{ row.text[:200] }}</td>
+      <td>{{ row.host }} / {{ row.plugin_version or '—' }}</td>
+      <td><a href="/feedback/detail/{{ row.feedback_id }}">查看详情</a></td>
+    </tr>{% else %}<tr><td colspan="5">暂无反馈。配置好平台地址后，可在编码助手中使用 feedback Skill 提交。</td></tr>{% endfor %}</tbody>
+  </table>
+  <p class="mt-4">第 {{ page }} / {{ pages }} 页
+    {% if page > 1 %}<a href="/feedback?page={{ page - 1 }}&category={{ category }}">上一页</a>{% endif %}
+    {% if page < pages %}<a href="/feedback?page={{ page + 1 }}&category={{ category }}">下一页</a>{% endif %}
+  </p>
+</div>

@@ -1,0 +1,31 @@
+# Local credentials and host state (the plugin manifests are public source).
+.env
+.env.*
+!.env.example
+.idea/
+.DS_Store
+.claude/
+.codex/
+.helixharness/
+.secrets/
+
+# Development and runtime products.
+.venv/
+node_modules/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.playwright-cli/
+.cache/
+logs/
+*.log
+build/
+dist/
+site/
+/output/
+
+# Application telemetry is not a source example.
+**/docs/eval/
+# Demo databases are generated at runtime from bundled synthetic source examples.

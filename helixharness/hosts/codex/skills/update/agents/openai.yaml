@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:update"
+  short_description: "检查并升级 HelixHarness plugin。"
+policy:
+  allow_implicit_invocation: true

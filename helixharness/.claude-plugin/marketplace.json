@@ -1,0 +1,17 @@
+{
+  "name": "helixharness-marketplace",
+  "owner": {
+    "name": "helixharness-marketplace"
+  },
+  "metadata": {
+    "description": "Plugin marketplace for the HelixHarness repository, exposing the helixharness workflow plugin for Claude Code and Codex"
+  },
+  "plugins": [
+    {
+      "name": "helix",
+      "description": "HelixHarness workflow plugin for Claude Code and Codex with commands and reusable skills",
+      "source": ".",
+      "version": "1.0.0"
+    }
+  ]
+}

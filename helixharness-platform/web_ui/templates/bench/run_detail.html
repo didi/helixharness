@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% block title %}评测任务详情{% endblock %}
+{% block content %}
+{% macro job_diagnostics(job, side) -%}
+  {% if job and (job.turn_evidence or (job.terminal_reason and job.terminal_reason != 'COMPLETED') or job.error) %}
+  <details class="mt-2 min-w-[16rem] rounded-md border border-slate-200 bg-slate-50 text-left font-sans" data-job-diagnostics="{{ side }}" data-poll-state-key="job-diagnostics:{{ job.case_id }}:{{ side }}">
+    <summary class="cursor-pointer px-2.5 py-2 text-[10px] font-semibold text-slate-600">执行诊断{% if job.turn_evidence %} · {{ job.turn_evidence|length }} 个轮次{% endif %}</summary>
+    <div class="space-y-2 border-t border-slate-200 p-2.5">
+      {% if job.terminal_reason and job.terminal_reason != 'COMPLETED' %}<p class="break-all font-mono text-[9px] text-red-700" data-terminal-reason="{{ job.terminal_reason }}">终止原因：{{ job.terminal_reason }}</p>{% endif %}
+      {% if job.error %}<p class="whitespace-pre-wrap break-words text-[10px] leading-5 text-red-700">{{ job.error }}</p>{% endif %}
+      {% for turn in job.turn_evidence %}
+      <article class="rounded border border-slate-200 bg-white p-2" data-turn-evidence="{{ turn.turn_sequence }}">
+        <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-slate-500"><strong class="text-slate-700">#{{ turn.turn_sequence }} {{ turn.input_kind }}</strong><span>{{ turn.classification }}</span>{% if turn.workflow_step_id %}<code>{{ turn.workflow_step_id }}</code>{% endif %}{% if turn.duration_ms is not none %}<span>{{ turn.duration_ms }}ms</span>{% endif %}</div>
+        {% if turn.input_text %}<pre class="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-50 p-1.5 text-[9px] leading-4 text-slate-600">{{ turn.input_text }}</pre>{% endif %}
+        {% if turn.final_response %}<pre class="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded bg-slate-950 p-2 text-[9px] leading-4 text-slate-200">{{ turn.final_response }}</pre>{% endif %}
+        {% if turn.error and turn.error.message %}<p class="mt-1 whitespace-pre-wrap break-words text-[9px] leading-4 text-red-700">{{ turn.error.message }}</p>{% endif %}
+        {% for event in turn.events %}{% if event.summary or event.payload.reason %}<p class="mt-1 text-[9px] leading-4 text-amber-700">{{ event.summary }}{% if event.payload.reason %} · {{ event.payload.reason }}{% endif %}</p>{% endif %}{% endfor %}
+      </article>
+      {% endfor %}
+    </div>
+  </details>
+  {% endif %}
+{%- endmacro %}
+<style>
+  @keyframes run-detail-spin { to { transform:rotate(360deg); } }
+  @keyframes run-detail-flow { from { transform:translateX(-100%); } to { transform:translateX(360%); } }
+  .run-detail-spinner { animation:run-detail-spin .85s linear infinite; }
+  .run-detail-flow { width:33.333%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);animation:run-detail-flow 1.6s ease-in-out infinite; }
+  .run-detail-shell { max-width:1280px; }
+  .run-detail-total-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .run-detail-component-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr)); }
+  [data-case-hard-gate-facts]:empty { display:none; }
+  @media (max-width:719px) { .run-detail-component-grid { grid-template-columns:1fr; } }
+  @media (max-width:559px) { .run-detail-total-grid { grid-template-columns:1fr; } }
+  @media (prefers-reduced-motion:reduce) { .run-detail-spinner,.run-detail-flow { animation-duration:2.4s; } }
+</style>
+<section id="v2-run-detail-{{ run.run_id }}" class="min-h-[calc(100vh-56px)] bg-slate-100/70 p-4 sm:p-6"
+         data-new-run-detail="true" data-stable-poll="true" data-poll-signature="{{ detail_poll_signature }}" style="opacity:1"
+         {% if run.status in ['QUEUED','RUNNING'] %}hx-get="/framework-evaluation/runs/{{ run.run_id }}/view" hx-trigger="every 5s" hx-select="[data-new-run-detail]" hx-target="this" hx-swap="outerHTML"{% endif %}>
+  <div class="run-detail-shell mx-auto">
+    <header class="overflow-hidden rounded-xl bg-slate-950 text-white shadow-sm">
+      <div class="px-6 py-6 sm:px-8">
+        <a href="/framework-evaluation/runs" class="text-xs font-semibold text-cyan-300 hover:text-cyan-200">← 返回评测任务</a>
+        <div class="mt-5 flex flex-wrap items-start justify-between gap-4">
+          <div class="min-w-0">
+            <p class="font-mono text-[10px] font-semibold tracking-[.18em] text-slate-400">CANDIDATE BRANCH</p>
+            <h1 class="mt-1 break-all text-2xl font-semibold tracking-tight">{{ run.candidate_version.label }}</h1>
+            <p class="mt-2 break-all font-mono text-[11px] text-slate-400">{{ run.candidate_version.commit or '未记录准确 Commit' }}</p>
+            <div class="mt-4 flex flex-wrap items-center gap-2 text-xs text-slate-300"><span class="rounded bg-white/10 px-2 py-1">对比 {{ run.base_version.label }}</span><span>·</span><span>{{ run.comparison_label }}</span><span>·</span><span>{{ run.scenario_ids|length }} 个 Case</span></div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold {% if run.status == 'COMPLETED' %}bg-emerald-400/15 text-emerald-200{% elif run.status == 'FAILED' %}bg-red-400/15 text-red-200{% elif run.status == 'PAUSED' %}bg-cyan-400/15 text-cyan-200{% elif run.status == 'SUSPENDED' %}bg-violet-400/15 text-violet-200{% else %}bg-amber-400/15 text-amber-200{% endif %}">{% if run.status in ['QUEUED','RUNNING'] %}<i class="run-detail-spinner h-3.5 w-3.5 rounded-full border-2 border-amber-200/30 border-t-amber-200"></i>{% endif %}{{ run.status_label }}</span>
+            {% if run.status == 'QUEUED' %}<form method="post" action="/framework-evaluation/runs/{{ run.run_id }}/suspend"><button type="submit" class="rounded-md bg-violet-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-violet-200">暂停排队</button></form>{% endif %}
+            {% if run.status == 'SUSPENDED' %}<form method="post" action="/framework-evaluation/runs/{{ run.run_id }}/resume"><button type="submit" class="rounded-md bg-violet-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-violet-200">恢复排队</button></form>{% endif %}
+            {% if run.status == 'PAUSED' %}<form method="post" action="/framework-evaluation/runs/{{ run.run_id }}/resume"><button type="submit" class="rounded-md bg-cyan-300 px-3 py-1.5 text-xs font-semibold text-slate-950 hover:bg-cyan-200">从断点重试</button></form>{% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="grid border-t border-white/10 bg-slate-900 sm:grid-cols-3">
+        <div class="border-b border-white/10 px-6 py-4 sm:border-b-0 sm:border-r"><p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">任务 ID</p><p class="mt-1 break-all font-mono text-xs text-white">{{ run.run_id }}</p></div>
+        <div class="border-b border-white/10 px-6 py-4 sm:border-b-0 sm:border-r"><p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">创建信息</p><p class="mt-1 text-xs text-white">{{ run.created_by }} · {{ run.created_at | beijing_datetime }}</p></div>
+        <div class="px-6 py-4"><p class="text-[10px] font-semibold uppercase tracking-wider text-slate-400">任务用途</p><p class="mt-1 text-xs text-white">{{ run.purpose_label | default(run.run_kind_label) }} · {{ run.comparison_label }}</p></div>
+      </div>
+    </header>
+
+    {% if run.status == 'PAUSED' %}
+    <section class="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 px-5 py-4 text-cyan-950 shadow-sm">
+      <h2 class="text-sm font-semibold">{{ run.pause_error.title }}</h2>
+      <p class="mt-1 text-xs leading-5">{{ run.pause_error.summary }}点击“从断点重试”后，平台会优先从最近有效 checkpoint 继续；checkpoint 不存在时，会从失败侧起点重新执行，已完成的其他侧不会重跑。</p>
+      {% if run.error %}<p class="mt-2 break-words font-mono text-[11px] leading-5 text-cyan-800">{{ run.error }}</p>{% endif %}
+    </section>
+    {% elif run.status == 'SUSPENDED' %}
+    <section class="mt-4 rounded-xl border border-violet-200 bg-violet-50 px-5 py-4 text-violet-950 shadow-sm">
+      <h2 class="text-sm font-semibold">该任务已暂停排队</h2>
+      <p class="mt-1 text-xs leading-5">任务 ID、冻结配置和全部 Case 均已保留，也不会被 Worker 领取；点击“恢复排队”后继续进入原执行通道。</p>
+    </section>
+    {% endif %}
+
+    <section class="mt-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm" data-detail-progress="{{ run.progress.percentage }}">
+      <div class="flex flex-wrap items-center justify-between gap-3"><div><h2 class="text-sm font-semibold text-slate-950">执行进度</h2><p class="mt-1 text-xs text-slate-500">{{ run.progress.active_label }}</p></div><span class="font-mono text-xl font-semibold text-slate-900">{{ run.progress.percentage }}%</span></div>
+      <div class="relative mt-4 h-2 overflow-hidden rounded-full bg-slate-100"><div class="h-full rounded-full {% if run.status == 'FAILED' %}bg-red-500{% elif run.status == 'COMPLETED' %}bg-emerald-500{% else %}bg-blue-500{% endif %}" style="width:{{ run.progress.percentage }}%"></div>{% if run.status in ['QUEUED','RUNNING'] %}<div class="run-detail-flow absolute inset-y-0"></div>{% endif %}</div>
+      <div class="mt-4 grid gap-3 {% if not run.base_only %}sm:grid-cols-2{% endif %}">
+        {% for side in (['BASE'] if run.base_only else ['BASE','CANDIDATE']) %}
+        <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"><div class="flex items-center justify-between"><span class="text-xs font-semibold text-slate-800">{{ '基准版本 Base' if side == 'BASE' else '候选版本 Candidate' }}</span><span class="font-mono text-[11px] text-slate-500">{{ run.progress.sides[side].completed }}/{{ run.progress.sides[side].total }}</span></div><p class="mt-1 text-[11px] text-slate-500">{% if run.progress.sides[side].running %}正在执行 {{ run.progress.sides[side].running }} 个 Case{% elif run.progress.sides[side].failed %}{{ run.progress.sides[side].failed }} 个 Case 执行失败{% elif run.progress.sides[side].completed == run.progress.sides[side].total %}该侧执行已完成{% else %}等待执行{% endif %}</p></div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% set task_and_workflow %}
+    <section class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-task-content-layout="horizontal">
+      <header class="border-b border-slate-100 px-5 py-4"><h2 class="text-sm font-semibold text-slate-950">任务内容</h2><p class="mt-1 text-xs text-slate-500">本次任务冻结的 Case、模型与统一证据合同。</p></header>
+      <div class="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(12rem,.65fr)_minmax(12rem,.65fr)_minmax(0,1fr)]">
+        <div class="min-w-0 rounded-lg border border-slate-200 bg-slate-50/70 p-3" data-task-cases="true">
+          <p class="text-[10px] font-semibold text-slate-500">冻结 Case · {{ run.scenario_ids|length }} 个</p>
+          <div class="mt-2 flex flex-wrap gap-2">{% for case_id in run.scenario_ids %}<a href="/framework-evaluation/cases/{{ case_id }}" class="max-w-full break-all rounded-md border border-slate-200 bg-white px-2.5 py-1.5 font-mono text-[10px] text-blue-700 hover:border-blue-300">{{ case_id }}</a>{% endfor %}</div>
+        </div>
+        <div class="rounded-lg border border-blue-100 bg-blue-50/50 p-3" data-frozen-model="execution"><p class="text-[10px] font-semibold text-blue-700">执行模型</p><p class="mt-1 break-all font-mono text-xs text-slate-800">{{ run.runtime.execution_model or '未记录' }}</p><p class="mt-1 text-[10px] text-slate-500">推理强度 · {{ run.runtime.execution_reasoning_effort or '未记录' }}</p></div>
+        <div class="rounded-lg border border-cyan-100 bg-cyan-50/50 p-3" data-frozen-model="judge"><p class="text-[10px] font-semibold text-cyan-700">Judge 模型</p><p class="mt-1 break-all font-mono text-xs text-slate-800">{{ run.runtime.judge_model or '未记录' }}</p><p class="mt-1 text-[10px] text-slate-500">推理强度 · {{ run.runtime.judge_reasoning_effort or '未记录' }}</p></div>
+        <div class="rounded-lg border border-slate-200 bg-white p-3"><p class="text-[10px] font-semibold text-slate-500">统一证据合同</p><p class="mt-1 text-[11px] leading-5 text-slate-700">阶段产物从双方各自的 completed feature 目录递归收集，代码证据来自本次冻结执行的最终变化。</p></div>
+      </div>
+    </section>
+
+    <section class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-workflow-comparison="base-left-candidate-right">
+      <header class="border-b border-slate-100 px-5 py-4"><h2 class="text-sm font-semibold text-slate-950">版本与工作流</h2><p class="mt-1 text-xs text-slate-500">{% if run.base_only %}本任务仅执行冻结的 Base 版本，不创建 Candidate 执行侧。{% else %}左侧固定 Base，右侧固定 Candidate；执行始终以创建时冻结的准确 Commit 为准。{% endif %}</p></header>
+      <div class="grid gap-px bg-slate-200 {% if not run.base_only %}lg:grid-cols-2{% endif %}">
+        {% for side, label, version, tone in ([('BASE', 'Base', run.base_version, 'slate')] if run.base_only else [('BASE', 'Base', run.base_version, 'slate'), ('CANDIDATE', 'Candidate', run.candidate_version, 'blue')]) %}
+        <article class="min-w-0 bg-white px-5 py-4" data-workflow-side="{{ side }}">
+          <div class="flex flex-wrap items-center justify-between gap-2"><div><span class="rounded px-2 py-0.5 text-[10px] font-bold {% if tone == 'blue' %}bg-blue-50 text-blue-700{% else %}bg-slate-100 text-slate-600{% endif %}">{{ label }}</span><strong class="ml-2 text-sm text-slate-900">{{ version.label }}</strong></div><code class="break-all text-[10px] text-slate-500">{{ version.commit or '未记录' }}</code></div>
+          <details open class="mt-3 rounded-lg border border-slate-100 bg-slate-50" data-workflow-details="{{ label|lower }}" data-poll-state-key="workflow:{{ label|lower }}">
+            <summary class="cursor-pointer px-3 py-2 text-[11px] font-semibold text-slate-600">工作流执行详情 · {{ version.workflow_stages|length }} 个阶段</summary>
+            <ol class="space-y-2 border-t border-slate-100 px-3 py-3">
+              {% for stage in version.workflow_stages %}
+              <li class="flex items-start gap-2 rounded-md border px-3 py-2 {% if stage.status == 'COMPLETED' %}border-emerald-200 bg-emerald-50{% elif stage.status == 'RUNNING' %}border-blue-200 bg-blue-50{% elif stage.status == 'PARTIAL' %}border-cyan-200 bg-cyan-50{% elif stage.status == 'FAILED' %}border-red-200 bg-red-50{% else %}border-slate-200 bg-white{% endif %}" data-workflow-stage="{{ stage.stage_id }}" data-stage-status="{{ stage.status }}">
+                <span class="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold {% if stage.status == 'COMPLETED' %}bg-emerald-600 text-white{% elif stage.status == 'RUNNING' %}run-detail-spinner border-2 border-blue-200 border-t-blue-600{% elif stage.status == 'PARTIAL' %}bg-cyan-600 text-white{% elif stage.status == 'FAILED' %}bg-red-600 text-white{% else %}border border-slate-300 bg-white text-slate-400{% endif %}">{% if stage.status == 'COMPLETED' %}✓{% elif stage.status == 'PARTIAL' %}{{ stage.completed_jobs }}{% elif stage.status == 'FAILED' %}!{% elif stage.status == 'PENDING' %}{{ loop.index }}{% endif %}</span>
+                <span class="min-w-0 flex-1"><code class="block break-all text-[10px] leading-5 {% if stage.status == 'COMPLETED' %}font-semibold text-emerald-800{% elif stage.status == 'RUNNING' %}font-semibold text-blue-800{% elif stage.status == 'FAILED' %}text-red-700{% else %}text-slate-600{% endif %}">{{ stage.command }}</code><span class="mt-0.5 block text-[9px] {% if stage.status == 'COMPLETED' %}text-emerald-700{% elif stage.status == 'RUNNING' %}text-blue-700{% elif stage.status == 'PARTIAL' %}text-cyan-700{% elif stage.status == 'FAILED' %}text-red-600{% else %}text-slate-400{% endif %}">{% if stage.status == 'COMPLETED' %}已完成{% if stage.total_jobs > 1 %} · {{ stage.completed_jobs }}/{{ stage.total_jobs }} 个 Case{% endif %}{% elif stage.status == 'RUNNING' %}执行中{% if stage.total_jobs > 1 %} · {{ stage.completed_jobs }}/{{ stage.total_jobs }} 个 Case 已完成{% endif %}{% elif stage.status == 'PARTIAL' %}{{ stage.completed_jobs }}/{{ stage.total_jobs }} 个 Case 已完成{% elif stage.status == 'FAILED' %}执行在此阶段前后失败{% else %}等待执行{% endif %}</span></span>
+              </li>
+              {% else %}<li class="text-[11px] text-slate-500">未配置工作流命令</li>{% endfor %}
+            </ol>
+          </details>
+        </article>
+        {% endfor %}
+      </div>
+    </section>
+    {% endset %}
+
+    {% if report %}
+    <section class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-trusted-evaluation-result="true">
+      <header class="border-b border-slate-100 px-5 py-5"><p class="text-[10px] font-bold uppercase tracking-[.15em] text-blue-700">TRUSTED RESULT · REVISION {{ report.sequence_number }}</p><h2 class="mt-1 text-lg font-semibold text-slate-950">{{ report.recommendation_label }}</h2><div class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">{% if report.status_badge %}<span class="inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold {% if report.status_badge.tone == 'warning' %}border-amber-300 bg-amber-100 text-amber-900{% else %}border-red-300 bg-red-100 text-red-800{% endif %}" data-comparison-warning="{{ report.status }}">{{ report.status_badge.label }}</span>{% endif %}<span>推荐基于 {{ report.comparable_case_count }}/{{ report.selected_case_count }} 个可比较 Case</span></div></header>
+      <div class="border-b border-slate-100 bg-slate-50/70 p-5" data-overall-score-priority="true">
+        <div class="run-detail-total-grid gap-3">
+          <article class="rounded-xl border border-slate-300 bg-white px-5 py-4 shadow-sm" data-overall-score="BASE"><p class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-500">Base 总得分</p><strong class="mt-2 block font-mono text-4xl font-semibold tracking-tight text-slate-800">{{ report.base_unified_score if report.base_unified_score is not none else '—' }}</strong></article>
+          <article class="rounded-xl border border-blue-300 bg-blue-600 px-5 py-4 text-white shadow-sm" data-overall-score="CANDIDATE"><p class="text-[10px] font-bold uppercase tracking-[.12em] text-blue-100">Candidate 总得分</p><div class="mt-2 flex items-end justify-between gap-3"><strong class="font-mono text-4xl font-semibold tracking-tight">{{ report.candidate_unified_score if report.candidate_unified_score is not none else '—' }}</strong>{% if report.unified_delta is not none %}<span class="rounded-full bg-white/15 px-3 py-1 font-mono text-sm font-semibold">{{ '+' if report.unified_delta > 0 else '' }}{{ report.unified_delta }}</span>{% endif %}</div></article>
+        </div>
+        <div class="run-detail-component-grid mt-3 gap-3" data-overall-component-scores="true">
+          {% for label, base_value, candidate_value in [('业务结果质量', report.base_outcome_quality, report.candidate_outcome_quality), ('框架工作流质量', report.base_workflow_quality, report.candidate_workflow_quality), ('执行效率', report.base_efficiency, report.candidate_efficiency)] %}
+          <article class="rounded-lg border border-slate-200 bg-white px-4 py-3"><p class="text-[10px] font-semibold text-slate-500">{{ label }} · B / C</p><p class="mt-2 font-mono text-lg font-semibold text-slate-800"><span>{{ base_value if base_value is not none else 'N/A' }}</span><span class="mx-2 text-slate-300">/</span><span class="text-blue-700">{{ candidate_value if candidate_value is not none else 'N/A' }}</span></p></article>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="divide-y divide-slate-200" data-case-comparison-layout="cards">
+        {% for case in report.cases %}
+          {% set job_row = run.case_jobs_by_id.get(case.case_id, {}) %}{% set base_job = job_row.get('BASE') %}{% set candidate_job = job_row.get('CANDIDATE') %}
+          <article class="bg-white p-5" data-case-comparison-card="{{ case.case_id }}">
+            <header class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div class="min-w-0"><p class="text-[9px] font-bold uppercase tracking-[.12em] text-slate-400">Case</p><h3 class="mt-1 break-all font-mono text-xs font-semibold text-slate-900">{{ case.case_id }}</h3></div>
+              {% if case.incompatibility_reasons %}<span class="inline-flex self-start rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-[10px] font-semibold text-amber-800" data-incompatibility-summary="true">暂不计入综合比较</span>{% endif %}
+            </header>
+            {% if hard_gate_facts %}
+            <div class="mt-3 space-y-2 empty:hidden" data-case-hard-gate-facts="{{ case.case_id }}">
+              {% for group in hard_gate_facts.case_gate_groups.get(case.case_id, []) %}
+              <article class="overflow-hidden rounded-lg border border-red-200 bg-red-50" data-factual-hard-gate-group="{{ group.side }}">
+                <header class="flex flex-wrap items-center justify-between gap-2 border-b border-red-100 px-3 py-2.5">
+                  <strong class="text-[11px] text-red-900">{{ group.side_label }} 问题 · {{ group.gates|length }} 项</strong>
+                  <span class="rounded bg-red-100 px-2 py-0.5 text-[9px] font-semibold text-red-700">平台确定性事实</span>
+                </header>
+                <ul class="divide-y divide-red-100 px-3">
+                  {% for gate in group.gates %}<li class="flex items-start gap-2 py-2 text-[11px] font-semibold leading-5 text-red-900" data-factual-hard-gate="true" data-factual-hard-gate-side="{{ group.side }}"><span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-red-500"></span><span>{{ gate.label }}</span></li>{% endfor %}
+                </ul>
+                {% if group.side_fact %}<div class="flex flex-wrap gap-x-3 gap-y-1 border-t border-red-100 bg-white/45 px-3 py-2 text-[9px] text-slate-600"><span>执行终态：{{ group.side_fact.terminal_status_label }}</span><span>业务验证：{{ group.side_fact.verification_status_label }}</span>{% if group.side_fact.initialization_status_label %}<span>初始化：{{ group.side_fact.initialization_status_label }}</span>{% endif %}<span>已收集产物：{{ group.side_fact.artifact_evidence_count }}</span></div>{% endif %}
+              </article>
+              {% endfor %}
+            </div>
+            {% endif %}
+            <div class="run-detail-total-grid mt-4 gap-3" data-case-total-score-row="true">
+              <section class="min-w-0 rounded-xl border border-slate-300 bg-slate-50 px-4 py-4"><p class="text-[10px] font-bold uppercase tracking-[.1em] text-slate-500">Base 总得分</p><strong class="mt-1 block font-mono text-3xl font-semibold text-slate-800">{{ case.base.unified_score if case.base.unified_score is not none else '—' }}</strong>{% if base_job %}<span class="mt-1 block whitespace-nowrap text-[9px] text-slate-500" data-execution-summary="BASE">{{ status_labels.get(base_job.status, base_job.status) }} · {{ base_job.attempt_number }} 次尝试</span>{{ job_diagnostics(base_job, 'BASE') }}{% endif %}</section>
+              <section class="min-w-0 rounded-xl border border-blue-300 bg-blue-50 px-4 py-4"><p class="text-[10px] font-bold uppercase tracking-[.1em] text-blue-600">Candidate 总得分</p><strong class="mt-1 block font-mono text-3xl font-semibold text-blue-800">{{ case.candidate.unified_score if case.candidate.unified_score is not none else '—' }}</strong>{% if candidate_job %}<span class="mt-1 block whitespace-nowrap text-[9px] text-blue-600" data-execution-summary="CANDIDATE">{{ status_labels.get(candidate_job.status, candidate_job.status) }} · {{ candidate_job.attempt_number }} 次尝试</span>{{ job_diagnostics(candidate_job, 'CANDIDATE') }}{% endif %}</section>
+            </div>
+            <div class="run-detail-component-grid mt-3 gap-3" data-case-component-score-row="true">
+              <section class="rounded-lg border border-slate-200 bg-white p-3"><p class="text-[9px] font-semibold text-slate-500">业务质量 · B / C</p><strong class="mt-2 block font-mono text-base text-slate-800">{{ case.base.outcome_quality }} <span class="mx-1 text-slate-300">/</span> <span class="text-blue-700">{{ case.candidate.outcome_quality }}</span></strong></section>
+              <section class="rounded-lg border border-slate-200 bg-white p-3"><p class="text-[9px] font-semibold text-slate-500">工作流 · B / C</p><strong class="mt-2 block font-mono text-base text-slate-800">{{ case.base.framework_workflow_quality if case.base.framework_workflow_quality is not none else '—' }} <span class="mx-1 text-slate-300">/</span> <span class="text-blue-700">{{ case.candidate.framework_workflow_quality if case.candidate.framework_workflow_quality is not none else '—' }}</span></strong></section>
+              <section class="rounded-lg border border-slate-200 bg-white p-3" data-case-efficiency="true"><p class="text-[9px] font-semibold text-slate-500">执行效率 · B / C</p><strong class="mt-2 block font-mono text-base text-slate-800">{{ case.base.efficiency if case.base.efficiency is not none else 'N/A' }} <span class="mx-1 text-slate-300">/</span> <span class="text-blue-700">{{ case.candidate.efficiency if case.candidate.efficiency is not none else 'N/A' }}</span></strong></section>
+            </div>
+            <details class="mt-4 rounded-lg border border-slate-200 bg-slate-50/60" data-case-score-details="{{ case.case_id }}" data-poll-state-key="case-score:{{ case.case_id }}">
+                  <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[11px] font-semibold text-slate-700 marker:content-none"><span>评分与 Judge 判定依据</span><span class="font-normal text-slate-400">{% if case.ai_judgment_available %}默认折叠 · 展开查看 AI 评分理由、扣分原因与证据{% else %}本次没有可展示的 Judge 文字分析{% endif %}</span></summary>
+                  <div class="grid gap-4 border-t border-slate-200 p-4 lg:grid-cols-2">
+                    {% for side_key, side_label in [('base', 'Base'), ('candidate', 'Candidate')] %}
+                    {% set side_result = case.get(side_key) %}
+                    <section class="min-w-0 rounded-lg border {% if side_key == 'candidate' %}border-blue-200 bg-blue-50/30{% else %}border-slate-200 bg-slate-50/60{% endif %}" data-side-score-details="{{ side_key|upper }}">
+                      <header class="border-b {% if side_key == 'candidate' %}border-blue-100{% else %}border-slate-200{% endif %} px-4 py-3"><h3 class="text-xs font-bold {% if side_key == 'candidate' %}text-blue-800{% else %}text-slate-800{% endif %}">{{ side_label }} 评分构成</h3></header>
+                      <div class="grid grid-cols-3 gap-px bg-slate-200">{% for component in side_result.score_components %}<div class="bg-white px-3 py-2"><span class="block text-[9px] text-slate-400">{{ component.label }}{% if component.weight is not none %} · {{ component.weight }}%{% endif %}</span><strong class="mt-1 block font-mono text-sm text-slate-800">{{ component.score if component.score is not none else 'N/A' }}</strong></div>{% endfor %}</div>
+                      <div class="space-y-2 p-3">
+                        {% for detail in side_result.score_details %}
+                        <article class="rounded-md border border-slate-200 bg-white p-3" data-score-axis="{{ detail.axis }}">
+                          <div class="flex flex-wrap items-start justify-between gap-2"><div><span class="block text-[9px] font-semibold text-slate-400">{{ detail.category }}</span><h4 class="mt-0.5 text-[11px] font-semibold text-slate-800">{{ detail.label }} <code class="font-normal text-slate-400">{{ detail.axis }}</code></h4></div><span class="rounded bg-slate-950 px-2 py-1 font-mono text-xs font-bold text-white">{{ detail.score }}{% if detail.weight is not none %}<small class="ml-1 font-sans font-normal text-slate-300">权重 {{ detail.weight }}%</small>{% endif %}</span></div>
+                          {% if detail.rationale %}<p class="mt-2 text-[10px] leading-5 text-slate-600">{{ detail.rationale }}</p>{% else %}<p class="mt-2 text-[10px] text-slate-400">该历史结果只保留了单项分数，没有单项文字判定。</p>{% endif %}
+                          {% if detail.deductions %}<div class="mt-2 rounded bg-amber-50 px-2.5 py-2 text-[10px] leading-5 text-amber-900"><strong>扣分原因：</strong>{{ detail.deductions|join('；') }}</div>{% endif %}
+                          {% if detail.limitations %}<div class="mt-2 rounded bg-slate-50 px-2.5 py-2 text-[10px] leading-5 text-slate-600"><strong>证据限制：</strong>{{ detail.limitations|join('；') }}</div>{% endif %}
+                          {% if detail.evidence_ids %}<details class="mt-2" data-poll-state-key="evidence:{{ case.case_id }}:{{ side_key }}:{{ detail.axis }}"><summary class="cursor-pointer text-[9px] font-semibold text-blue-700">查看引用证据 · {{ detail.evidence_ids|length }} 项</summary><p class="mt-1 break-all font-mono text-[9px] leading-4 text-slate-500">{{ detail.evidence_ids|join(' · ') }}</p></details>{% endif %}
+                        </article>
+                        {% else %}<p class="rounded-md border border-dashed border-slate-300 bg-white px-3 py-4 text-center text-[10px] text-slate-500">该侧没有可展示的单项评分记录。</p>{% endfor %}
+                      </div>
+                    </section>
+                    {% endfor %}
+                  </div>
+                  {% if case.efficiency_basis %}
+                  <section class="mx-4 mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3" data-efficiency-score-basis="true" data-efficiency-summary="compact">
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                      <div><h4 class="text-[11px] font-semibold text-slate-800">执行效率依据</h4><p class="mt-1 text-[9px] text-slate-400">按可归责资源计分，排队与 Judge 耗时不计入。</p></div>
+                      <p class="font-mono text-[11px] font-semibold text-slate-700" data-efficiency-persisted-scores="true">Base {{ case.efficiency_basis.base_score }} <span class="mx-1 text-slate-300">/</span> <span class="text-blue-700">Candidate {{ case.efficiency_basis.candidate_score }}</span></p>
+                    </div>
+                    <div class="mt-3 grid gap-px overflow-hidden rounded-md border border-slate-200 bg-slate-200 sm:grid-cols-3" data-efficiency-metrics="true">
+                      {% for metric in case.efficiency_basis.metrics %}<div class="bg-slate-50 px-3 py-2.5" data-efficiency-metric="{{ metric.key }}"><p class="text-[9px] font-semibold text-slate-500">{{ metric.label }} · {{ metric.weight }}%</p><p class="mt-1 font-mono text-[10px] text-slate-700">B {{ metric.base_value }} {{ metric.unit }} <span class="mx-1 text-slate-300">/</span> <span class="text-blue-700">C {{ metric.candidate_value }} {{ metric.unit }}</span></p></div>{% endfor %}
+                    </div>
+                  </section>
+                  {% endif %}
+            </details>
+          </article>
+        {% endfor %}
+      </div>
+      {% if report.global_hard_gates %}<div class="border-t border-red-100 bg-red-50 px-5 py-4"><p class="text-xs font-semibold text-red-800">全局强制门禁</p><div class="mt-2 flex flex-wrap gap-2">{% for gate in report.global_hard_gates %}<span class="rounded bg-white px-2 py-1 text-[10px] font-semibold text-red-700">{{ gate }}</span>{% endfor %}</div></div>{% endif %}
+    </section>
+    {{ task_and_workflow }}
+    {% if hard_gate_facts %}
+    <details class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-key-execution-evidence="true" data-poll-state-key="key-execution-evidence">
+      <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 marker:content-none"><span><strong class="block text-sm text-slate-900">关键执行证据</strong><small class="mt-1 block text-[10px] text-slate-500">默认折叠 · 门禁证据包 {{ hard_gate_facts.evidence_count }} 项</small></span><span class="text-xs font-semibold text-blue-700">展开查看</span></summary>
+      <div class="border-t border-slate-200 p-5">
+        <details class="text-right"><summary class="cursor-pointer text-[9px] font-semibold text-slate-500">审计标识</summary><p class="mt-1 break-all font-mono text-[8px] leading-4 text-slate-400">Calculation {{ hard_gate_facts.calculation_id }}<br>Report SHA256 {{ hard_gate_facts.report_hash }}</p></details>
+        <div class="mt-3 space-y-1.5">{% for item in hard_gate_facts.evidence %}<p class="rounded border border-slate-200 bg-slate-50 px-3 py-2 text-[9px] leading-4 text-slate-600"><code class="mr-1 text-blue-600">{{ item.ref_id }}</code>{{ item.summary }}</p>{% else %}<p class="rounded border border-dashed border-slate-300 bg-slate-50 px-3 py-4 text-center text-[9px] text-slate-400">当前仅有逐 Case 门禁事实，没有额外失败轮次或检查摘要。</p>{% endfor %}</div>
+        <div class="mt-3">{% include "bench/partials/hard_gate_ai_analysis.html" with context %}</div>
+      </div>
+    </details>
+    {% endif %}
+    {% else %}
+    {{ task_and_workflow }}
+    <section class="mt-4 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm" data-pending-case-execution="true">
+      <header class="border-b border-slate-100 px-5 py-4"><h2 class="text-sm font-semibold text-slate-800">{% if run.base_only and run.status == 'COMPLETED' %}Base 验证已完成{% else %}评测结果尚未生成{% endif %}</h2><p class="mt-1 text-xs text-slate-500">{% if run.base_only %}本任务只执行 Base；真实执行结果用于“已验证可跑通”标记，不生成 Candidate 对比分数。{% else %}先展示按 Case 对齐的 Base / Candidate 执行状态；全部完成后生成评分结论。{% endif %}</p>{% if run.error %}<p class="mt-3 rounded-lg {% if run.status == 'PAUSED' %}bg-cyan-50 text-cyan-800{% else %}bg-red-50 text-red-700{% endif %} px-4 py-3 text-left text-xs leading-5">{{ run.error }}</p>{% endif %}</header>
+      <div class="w-full overflow-x-auto"><table class="w-full table-fixed text-left text-xs" style="width:100%;table-layout:fixed" data-pending-execution-table="full-width"><colgroup><col style="width:{{ '60%' if run.base_only else '46%' }}"><col style="width:{{ '40%' if run.base_only else '27%' }}">{% if not run.base_only %}<col style="width:27%">{% endif %}</colgroup><thead class="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-500"><tr><th class="px-5 py-3">Case</th><th class="px-4 py-3">Base</th>{% if not run.base_only %}<th class="px-4 py-3">Candidate</th>{% endif %}</tr></thead><tbody class="divide-y divide-slate-100">{% for row in run.case_jobs %}<tr><td class="break-all px-5 py-4 font-mono text-[10px] font-semibold text-slate-800">{{ row.case_id }}</td>{% for side in (['BASE'] if run.base_only else ['BASE','CANDIDATE']) %}{% set job = row.get(side) %}<td class="px-4 py-4 align-top">{% if job %}<span class="text-[10px] font-semibold {% if job.status == 'FAILED' %}text-red-700{% elif job.status == 'COMPLETED' %}text-emerald-700{% elif job.status == 'RUNNING' %}text-blue-700{% else %}text-slate-500{% endif %}" data-execution-summary="{{ side }}">{{ status_labels.get(job.status, job.status) }} · {{ job.attempt_number }} 次尝试</span>{{ job_diagnostics(job, side) }}{% else %}<span class="text-slate-400">—</span>{% endif %}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+    </section>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

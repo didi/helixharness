@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:feedback"
+  short_description: "HelixHarness 使用问题反馈通道。当用户在 /helix:* 命令与工作流中遇到问题并表现出困扰时主动使用：命令..."
+policy:
+  allow_implicit_invocation: true

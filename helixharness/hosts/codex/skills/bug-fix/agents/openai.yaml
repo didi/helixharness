@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:bug-fix"
+  short_description: "修订未归档需求并复用原 Apply 基线。"
+policy:
+  allow_implicit_invocation: true

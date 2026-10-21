@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:ut"
+  short_description: "单元测试生成与维护命令。基于知识库和活跃需求，逐层扫描代码并生成/维护单测，运行验证并检查逻辑缺陷，确保覆盖率达标。"
+policy:
+  allow_implicit_invocation: true

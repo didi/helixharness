@@ -1,0 +1,48 @@
+<section id="hard-gate-ai-analysis-{{ run_id }}" class="rounded-lg border border-violet-200 bg-violet-50/40 p-4" data-hard-gate-ai-analysis="true">
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div>
+      <div class="flex flex-wrap items-center gap-2">
+        <h4 class="text-xs font-bold text-violet-950">AI 根因分析</h4>
+        <span class="rounded-full border border-violet-200 bg-white px-2 py-0.5 text-[9px] font-bold text-violet-700">仅供辅助判断</span>
+        {% if hard_gate_analysis.exists and not hard_gate_analysis.is_current %}<span class="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-bold text-amber-800">历史计算结果</span>{% endif %}
+      </div>
+      <p class="mt-1 text-[10px] leading-5 text-slate-600">只分析下方已冻结的事实证据；不会修改分数、门禁、可比较性或推荐结论。</p>
+    </div>
+    {% if hard_gate_analysis.can_analyze %}
+    <form hx-post="/framework-evaluation/runs/{{ run_id }}/ai-analysis" hx-target="#hard-gate-ai-analysis-{{ run_id }}" hx-swap="outerHTML" hx-disabled-elt="button" hx-indicator="#hard-gate-ai-loading-{{ run_id }}">
+      <button type="submit" class="inline-flex items-center gap-2 rounded-md bg-violet-700 px-3 py-2 text-[10px] font-bold text-white hover:bg-violet-600 disabled:cursor-wait disabled:opacity-60">
+        <span id="hard-gate-ai-loading-{{ run_id }}" class="htmx-indicator h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white"></span>
+        {{ '重新分析' if hard_gate_analysis.exists else 'AI 分析根因' }}
+      </button>
+    </form>
+    {% else %}
+    <button type="button" disabled class="cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-[10px] font-bold text-slate-400">AI 分析不可用</button>
+    {% endif %}
+  </div>
+
+  {% if hard_gate_analysis.request_error %}<p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-5 text-red-700" data-ai-analysis-error="true">{{ hard_gate_analysis.request_error }}</p>{% endif %}
+  {% if hard_gate_analysis.unavailable_reason %}<p class="mt-3 rounded-md border border-slate-200 bg-white px-3 py-2 text-[10px] text-slate-500">{{ hard_gate_analysis.unavailable_reason }}</p>{% endif %}
+
+  {% if hard_gate_analysis.exists and hard_gate_analysis.status == 'READY' %}
+  <div class="mt-4 border-t border-violet-100 pt-4" data-ai-analysis-ready="true">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-slate-400"><span>{{ hard_gate_analysis.model }}</span><span>推理强度 {{ hard_gate_analysis.reasoning_effort }}</span><span>{{ hard_gate_analysis.created_at | beijing_datetime }}</span></div>
+    <p class="mt-2 text-[11px] font-semibold leading-5 text-slate-800">{{ hard_gate_analysis.overall_summary }}</p>
+    <div class="mt-3 space-y-3">
+      {% for finding in hard_gate_analysis.findings %}
+      <article class="rounded-md border border-violet-100 bg-white p-3" data-ai-gate-finding="{{ finding.gate_id }}">
+        <div class="flex flex-wrap items-center gap-2"><span class="rounded bg-red-50 px-2 py-0.5 text-[9px] font-bold text-red-700">{{ finding.side_label }} · {{ finding.gate_label }}</span><span class="text-[9px] text-slate-400">{{ finding.case_id }}</span><span class="rounded bg-violet-50 px-2 py-0.5 text-[9px] font-semibold text-violet-700">归因：{{ finding.attribution_label }} · 置信度 {{ finding.confidence_label }}</span></div>
+        <p class="mt-2 text-[10px] font-semibold leading-5 text-slate-700">{{ finding.summary }}</p>
+        {% if finding.root_causes %}<div class="mt-2 text-[10px] leading-5 text-slate-600"><strong>可能根因：</strong>{{ finding.root_causes|join('；') }}</div>{% endif %}
+        {% if finding.evidence_refs %}<div class="mt-2 rounded bg-slate-50 px-2.5 py-2 text-[9px] leading-4 text-slate-600"><strong>引用事实：</strong>{% for ref in finding.evidence_refs %}<span class="block"><code class="text-violet-700">{{ ref.ref_id }}</code> · {{ ref.claim }}</span>{% endfor %}</div>{% endif %}
+        {% if finding.counterevidence %}<p class="mt-2 text-[9px] leading-4 text-amber-700"><strong>反证/限制：</strong>{{ finding.counterevidence|join('；') }}</p>{% endif %}
+        {% if finding.recommended_actions %}<p class="mt-2 text-[9px] leading-4 text-emerald-700"><strong>建议动作：</strong>{{ finding.recommended_actions|join('；') }}</p>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif hard_gate_analysis.exists and hard_gate_analysis.status == 'FAILED' %}
+  <p class="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-5 text-red-700" data-ai-analysis-failed="true">上次分析失败：{{ hard_gate_analysis.stored_error or '未生成有效的结构化分析' }}</p>
+  {% elif not hard_gate_analysis.request_error %}
+  <p class="mt-3 rounded-md border border-dashed border-violet-200 bg-white/70 px-3 py-3 text-[10px] leading-5 text-slate-500">尚未调用 AI。需要进一步判断“门禁为何被触发”时，再主动点击分析。</p>
+  {% endif %}
+</section>

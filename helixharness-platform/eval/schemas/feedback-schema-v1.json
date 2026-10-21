@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helixharness.local/schema/feedback-document-v1.json",
+  "title": "HelixHarness feedback document schema 1.0",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "feedback_id",
+    "created_at",
+    "text",
+    "category",
+    "plugin_version",
+    "host",
+    "os",
+    "python_version",
+    "user_name",
+    "project",
+    "session",
+    "feature",
+    "current_command",
+    "git_head",
+    "related_entry_ids"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "feedback_id": {
+      "type": "string",
+      "pattern": "^fbk-[0-9a-f]{16}$"
+    },
+    "created_at": {"$ref": "#/$defs/timestamp"},
+    "text": {"$ref": "#/$defs/feedbackText"},
+    "category": {
+      "enum": ["bug", "docs_unclear", "process_stuck", "suggestion", "uncategorized"]
+    },
+    "plugin_version": {"$ref": "#/$defs/nullableVersion"},
+    "host": {"type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}(?![\\s\\S])"},
+    "os": {"type": "string", "minLength": 1, "maxLength": 32},
+    "python_version": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "user_name": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1, "maxLength": 256}
+      ]
+    },
+    "project": {"type": "string", "pattern": "^prj_[0-9a-f]{16}$"},
+    "session": {
+      "oneOf": [
+        {"type": "string", "pattern": "^ses_[0-9a-f]{24}$"},
+        {"const": "unknown"}
+      ]
+    },
+    "feature": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^(?!\\s)(?!.*\\s$)(?!\\.$|\\.\\.$)[^/\\\\\\u0000-\\u001F\\u007F]+$"
+        }
+      ]
+    },
+    "current_command": {"const": "feedback"},
+    "git_head": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "pattern": "^[0-9a-f]{4,40}$"}
+      ]
+    },
+    "related_entry_ids": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$",
+        "description": "Opaque entry id copied verbatim from the feature's eval-log; the format authority is eval-log, not this schema"
+      }
+    }
+  },
+  "$defs": {
+    "timestamp": {"type": "string", "format": "date-time", "pattern": "Z$"},
+    "feedbackText": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "nullableVersion": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string", "minLength": 1, "maxLength": 64}
+      ]
+    }
+  }
+}

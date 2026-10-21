@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helixharness.local/schema/eval-ledger-v1.json",
+  "title": "HelixHarness fixed-evidence ledger 1.0",
+  "$defs": {
+    "fixedEntry": {
+      "type": "object",
+      "required": [
+        "entry_id",
+        "helixharness_version",
+        "command",
+        "stage_kind",
+        "attempt",
+        "trigger",
+        "platform",
+        "session_hash",
+        "started_at",
+        "ended_at",
+        "status",
+        "actor",
+        "checkpoint",
+        "artifacts",
+        "quality"
+      ],
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "pattern": "^entry-[0-9a-f]{16}$"
+        },
+        "logical_stage_run_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Deprecated compatibility field accepted only from earlier ledgers with the same field structure."
+        },
+        "helixharness_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "phase": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Deprecated compatibility field accepted only from earlier ledgers with the same field structure."
+        },
+        "stage_kind": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stage_profile": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempt": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Ordinal of explicit invocations of the same command and phase for this requirement; interaction turns inside one invocation do not increment it."
+        },
+        "trigger": {
+          "type": "string",
+          "minLength": 1
+        },
+        "platform": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        "session_hash": {
+          "type": "string",
+          "anyOf": [
+            {
+              "pattern": "^session-[0-9a-f]{16}(?:[0-9a-f]{16})?$"
+            },
+            {
+              "const": "session-unavailable"
+            }
+          ]
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "ended_at": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "in_progress",
+            "continued",
+            "completed",
+            "blocked",
+            "partial",
+            "decision_needed",
+            "failed"
+          ]
+        },
+        "end_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "actor": {
+          "type": "object",
+          "required": [
+            "user_name",
+            "user_name_source"
+          ],
+          "properties": {
+            "user_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "user_name_source": {
+              "enum": [
+                "git_config_local_user_name",
+                "git_config_global_user_name",
+                "unavailable"
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        "checkpoint": {
+          "type": "object"
+        },
+        "workflow": {
+          "type": "object"
+        },
+        "artifacts": {
+          "type": [
+            "array",
+            "object"
+          ]
+        },
+        "quality": {
+          "type": "object"
+        },
+        "worktree_delta": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "required": [
+    "schema",
+    "schema_version",
+    "feature",
+    "project",
+    "requirement",
+    "created_at",
+    "last_updated",
+    "status",
+    "entries"
+  ],
+  "properties": {
+    "schema": {
+      "const": "helixharness-eval-ledger/1.0"
+    },
+    "schema_version": {
+      "const": "1.0"
+    },
+    "feature": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "project": {
+      "type": "object"
+    },
+    "requirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "name"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^req_[0-9a-f]{24}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "last_updated": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "in_progress",
+        "archived"
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/fixedEntry"
+      }
+    }
+  }
+}

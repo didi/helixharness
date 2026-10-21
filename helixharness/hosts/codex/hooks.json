@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionStart \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionEnd \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

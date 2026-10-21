@@ -1,0 +1,10 @@
+{
+  "name": "helix",
+  "description": "HelixHarness 面向 Agent 的双宿主研发工作流插件，提供命令与可复用技能。",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "license": "Apache-2.0",
+  "version": "1.0.0",
+  "hooks": "./hosts/claude-code/hooks.json"
+}

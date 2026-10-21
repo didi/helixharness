@@ -1,0 +1,65 @@
+<section id="evaluation-resource-status"
+         class="overflow-hidden rounded-xl border border-edge bg-white shadow-sm"
+         data-resource-pools="workload-v2"
+         data-stable-poll="true"
+         data-poll-signature="{{ resource_pool_signature }}"
+         style="opacity: 1"
+         hx-get="/framework-evaluation/resource-status"
+         hx-trigger="every 5s"
+         hx-swap="outerHTML">
+  <div class="flex flex-col gap-2 border-b border-edge-soft bg-gradient-to-r from-slate-50 via-white to-blue-50 px-5 py-4 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <p class="font-mono text-[10px] tracking-[0.18em] text-blue-700">LIVE RESOURCE POOLS</p>
+      <h2 class="mt-1 text-base font-semibold text-ink">当前评测资源占用</h2>
+      <p class="mt-1 text-xs leading-5 text-ink-muted">正式评测与自进化评测独立排队；自进化首次验证和修复重评共享一个 Worker 池。本页展示正式评测与自进化评测的 Worker 占用。</p>
+    </div>
+    <p class="text-[11px] text-ink-dim">每 5 秒自动刷新 · 只读</p>
+  </div>
+  <div class="grid gap-px bg-edge md:grid-cols-2">
+    {% for pool in resource_pools %}
+    <article class="relative flex flex-col overflow-hidden bg-white p-4"
+             data-resource-lane="{{ pool.lane }}" data-resource-state="{{ pool.state }}">
+      <span aria-hidden="true" class="absolute inset-x-0 top-0 h-0.5
+          {% if pool.state == 'AVAILABLE' %}bg-emerald-400{% elif pool.state in ['WAITING', 'DEGRADED'] %}bg-amber-400{% else %}bg-rose-400{% endif %}"></span>
+
+      <div class="flex min-w-0 flex-col items-start gap-2 2xl:flex-row 2xl:items-center 2xl:justify-between">
+        <p class="min-w-0 truncate font-mono text-[10px] tracking-[0.14em] text-ink-dim" title="{{ pool.lane }}">
+          {{ pool.lane }}
+        </p>
+        <span class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-[10px] font-semibold
+          {% if pool.state == 'AVAILABLE' %}bg-emerald-50 text-emerald-700{% elif pool.state in ['WAITING', 'DEGRADED'] %}bg-amber-50 text-amber-800{% else %}bg-rose-50 text-rose-700{% endif %}">
+          <span class="h-1.5 w-1.5 rounded-full {% if pool.state == 'AVAILABLE' %}bg-emerald-500{% elif pool.state in ['WAITING', 'DEGRADED'] %}bg-amber-500{% else %}bg-rose-500{% endif %}"></span>
+          {{ pool.state_label }}
+        </span>
+      </div>
+
+      <div class="mt-3">
+        <h3 class="text-[15px] font-semibold leading-6 text-ink">{{ pool.label }}</h3>
+        <p class="mt-1 min-h-8 text-xs leading-4 text-ink-muted">{{ pool.description }}</p>
+      </div>
+
+      <div class="mt-auto pt-4">
+        <dl class="grid grid-cols-3 divide-x divide-edge-soft overflow-hidden rounded-lg border border-edge-soft bg-slate-50/80 text-center"
+            data-resource-metrics="true">
+          <div class="px-1.5 py-2.5">
+            <dt class="whitespace-nowrap text-[10px] text-ink-dim">Worker / 任务上限</dt>
+            <dd class="mt-1 font-mono text-base font-semibold leading-none text-ink">{{ pool.worker_count }} / {{ pool.configured_concurrency }}</dd>
+          </div>
+          <div class="px-1.5 py-2.5" title="忙碌 Worker / 空闲 Worker">
+            <dt class="whitespace-nowrap text-[10px] text-ink-dim">忙 / 闲</dt>
+            <dd class="mt-1 whitespace-nowrap font-mono text-base font-semibold leading-none text-ink">{{ pool.busy_worker_count }} / {{ pool.idle_worker_count }}</dd>
+          </div>
+          <div class="px-1.5 py-2.5">
+            <dt class="whitespace-nowrap text-[10px] text-ink-dim">等待任务</dt>
+            <dd class="mt-1 font-mono text-base font-semibold leading-none text-ink">{{ pool.pending_work_count }}</dd>
+          </div>
+        </dl>
+        <div class="mt-2.5 flex min-w-0 items-center gap-2 border-t border-edge-soft pt-2.5 text-[11px]">
+          <span class="shrink-0 text-ink-dim">当前占用</span>
+          <span class="min-w-0 truncate font-mono text-ink-muted" title="{{ pool.current_item }}">{{ pool.current_item }}</span>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>

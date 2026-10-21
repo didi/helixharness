@@ -1,0 +1,112 @@
+{# 展示维度区块（含标题 + 维度切换 + 明细表），HTMX 局部刷新整块 #}
+{% set date_query = ('&runtime_period=' ~ runtime_period ~ '&runtime_start=' ~ (runtime_start | urlencode) ~ '&runtime_end=' ~ (runtime_end | urlencode)) if runtime_period and (runtime_period != 'all' or runtime_start or runtime_end) else '' %}
+{% set recent_query = ('&recent_days=' ~ recent_days) if recent_days and recent_days != 1 else '' %}
+<div id="detail-section" data-view="{{ view_mode }}">
+  {# 标题 + 维度切换 #}
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-[13px] font-semibold text-ink">展示维度</span>
+    <div class="flex gap-1.5">
+      <a href="/?view=project{{ date_query }}{{ recent_query }}"
+         hx-get="/partial/detail?view=project{{ date_query }}{{ recent_query }}" hx-push-url="/?view=project{{ date_query }}{{ recent_query }}" hx-target="#detail-section" hx-swap="outerHTML"
+         class="px-3 py-1 text-xs rounded-md transition-colors cursor-pointer
+                {% if view_mode != 'user' %}bg-accent text-white{% else %}bg-surface-0 border border-edge text-ink-muted hover:text-ink{% endif %}">
+        按需求维度
+      </a>
+      <a href="/?view=user{{ date_query }}{{ recent_query }}"
+         hx-get="/partial/detail?view=user{{ date_query }}{{ recent_query }}" hx-push-url="/?view=user{{ date_query }}{{ recent_query }}" hx-target="#detail-section" hx-swap="outerHTML"
+         class="px-3 py-1 text-xs rounded-md transition-colors cursor-pointer
+                {% if view_mode == 'user' %}bg-accent text-white{% else %}bg-surface-0 border border-edge text-ink-muted hover:text-ink{% endif %}">
+        按用户维度
+      </a>
+    </div>
+  </div>
+
+  {# 明细表 #}
+  <div class="helixharness-paginated">{{ detail_html | safe }}</div>
+
+  {# 分页控件（JS 自动生成，含每页条数选择器） #}
+  <script>
+  (function() {
+    document.querySelectorAll('.helixharness-overview-controls input[name="view"], .helixharness-runtime-filter input[name="view"]').forEach(function(input) {
+      input.value = {{ view_mode | tojson }};
+    });
+    var wrap = document.querySelector('#detail-section .helixharness-paginated');
+    if (!wrap) return;
+    var tbody = wrap.querySelector('table.helixharness-main-table tbody') || wrap.querySelector('table tbody');
+    if (!tbody) return;
+    var rows = Array.from(tbody.children).filter(function(row) {
+      return row.tagName === 'TR';
+    });
+    var total = rows.length;
+    if (total === 0) return;
+
+    var STORAGE_KEY = 'helixharness-page-size';
+    var SIZES = [5, 10, 50, 100];
+    var saved = parseInt(localStorage.getItem(STORAGE_KEY)) || 5;
+    var PER = SIZES.indexOf(saved) >= 0 ? saved : 5;
+    var current = 1;
+
+    // 创建分页栏
+    var pager = document.createElement('div');
+    pager.className = 'helixharness-pager';
+    wrap.appendChild(pager);
+
+    function getPages() { return Math.ceil(total / PER); }
+
+    function render() {
+      var pages = getPages();
+      if (current > pages) current = pages;
+      if (current < 1) current = 1;
+      var start = (current - 1) * PER;
+      var end = start + PER;
+      rows.forEach(function(r, i) {
+        r.style.display = (i >= start && i < end) ? '' : 'none';
+      });
+
+      // 页码按钮 + 信息 + 条数选择器，全部在一行居中
+      var html = '';
+      if (current > 1) {
+        html += '<button data-p="' + (current - 1) + '" class="helixharness-page-btn">‹ 上一页</button>';
+      }
+      var pStart = Math.max(1, current - 2);
+      var pEnd = Math.min(pages, current + 2);
+      if (pStart > 1) { html += '<button data-p="1" class="helixharness-page-btn">1</button>'; if (pStart > 2) html += '<span class="helixharness-page-ellipsis">…</span>'; }
+      for (var p = pStart; p <= pEnd; p++) {
+        html += '<button data-p="' + p + '" class="helixharness-page-btn' + (p === current ? ' active' : '') + '">' + p + '</button>';
+      }
+      if (pEnd < pages) { if (pEnd < pages - 1) html += '<span class="helixharness-page-ellipsis">…</span>'; html += '<button data-p="' + pages + '" class="helixharness-page-btn">' + pages + '</button>'; }
+      if (current < pages) {
+        html += '<button data-p="' + (current + 1) + '" class="helixharness-page-btn">下一页 ›</button>';
+      }
+      html += '<span class="helixharness-page-info">' + current + '/' + pages + ' 页 · 共 ' + total + ' 条</span>';
+      html += '<span class="helixharness-page-divider"></span>';
+      html += '<span class="helixharness-page-label">每页</span>';
+      html += '<select id="helixharness-page-size" class="helixharness-page-select">';
+      for (var i = 0; i < SIZES.length; i++) {
+        html += '<option value="' + SIZES[i] + '"' + (SIZES[i] === PER ? ' selected' : '') + '>' + SIZES[i] + ' 条</option>';
+      }
+      html += '</select>';
+
+      pager.innerHTML = html;
+    }
+
+    pager.addEventListener('click', function(e) {
+      var btn = e.target.closest('button[data-p]');
+      if (!btn) return;
+      current = parseInt(btn.getAttribute('data-p'));
+      render();
+      wrap.scrollIntoView({behavior:'smooth', block:'start'});
+    });
+
+    pager.addEventListener('change', function(e) {
+      if (e.target.id !== 'helixharness-page-size') return;
+      PER = parseInt(e.target.value) || 5;
+      localStorage.setItem(STORAGE_KEY, String(PER));
+      current = 1;
+      render();
+    });
+
+    render();
+  })();
+  </script>
+</div>

@@ -1,0 +1,11 @@
+{
+  "name": "helixharness-platform",
+  "owner": {"name": "HelixHarness"},
+  "plugins": [
+    {
+      "name": "helixharness-case-creator",
+      "source": ".",
+      "description": "Create and validate portable HelixHarness evaluation Cases"
+    }
+  ]
+}

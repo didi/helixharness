@@ -1,0 +1,181 @@
+{# 数据看板总览：复用现有 usage_loader HTML（过渡期直接渲染）#}
+<style>
+  .helixharness-evolution-entry {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 16px;
+    overflow: hidden;
+    border: 1px solid #91CAFF;
+    border-radius: 10px;
+    background: #F7FBFF;
+    box-shadow: 0 8px 22px rgba(22, 119, 255, 0.09);
+    color: #17233D;
+    text-decoration: none;
+    transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  .helixharness-evolution-entry::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 5px;
+    background: #13A8A8;
+  }
+  .helixharness-evolution-entry:hover {
+    transform: translateY(-2px);
+    border-color: #4096FF;
+    box-shadow: 0 13px 30px rgba(22, 119, 255, 0.15);
+  }
+  .helixharness-evolution-entry-mark {
+    display: grid;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 50%;
+    background: #E8F8F5;
+    color: #078F8F;
+  }
+  .helixharness-evolution-entry-mark svg { width: 23px; height: 23px; }
+  .helixharness-evolution-entry-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; }
+  .helixharness-evolution-entry-title { font-size: 16px; font-weight: 800; color: #17233D; }
+  .helixharness-evolution-entry-title b { color: #0958D9; font-weight: 800; }
+  .helixharness-evolution-entry-source { font-size: 12.5px; color: #344563; }
+  .helixharness-evolution-entry-source b { color: #078F8F; font-weight: 800; }
+  .helixharness-evolution-entry-explain { max-width: 1120px; font-size: 11.5px; line-height: 1.55; color: #667085; }
+  .helixharness-evolution-entry-action {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 13px;
+    border-radius: 7px;
+    background: #1677FF;
+    color: #FFFFFF;
+    font-size: 13px;
+    font-weight: 750;
+  }
+  .helixharness-evolution-entry:hover .helixharness-evolution-entry-action span { transform: translateX(3px); }
+  .helixharness-evolution-entry-action span { transition: transform .16s ease; }
+  @media (max-width: 640px) {
+    .helixharness-evolution-entry { align-items: flex-start; flex-wrap: wrap; }
+    .helixharness-evolution-entry-copy { min-width: calc(100% - 60px); }
+    .helixharness-evolution-entry-action { margin-left: 56px; }
+  }
+</style>
+<div class="p-6">
+  <header class="border-b border-edge pb-2.5 mb-4">
+    <h1 class="text-[22px] font-bold text-ink font-serif">数据看板 <em class="not-italic text-accent">总览</em></h1>
+  </header>
+
+  {# 全局概览（总体视图，不受维度切换影响）#}
+  <div class="mb-5">
+    <div>{{ global_html | safe }}</div>
+  </div>
+
+  {% if evolution_entry %}
+  <div class="mb-5">
+    <a href="{{ evolution_entry.href }}" class="helixharness-evolution-entry" data-evolution-entry="true">
+      <span class="helixharness-evolution-entry-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 21v-8"></path>
+          <path d="M12 13c0-4.5 3-7 7-7 0 4.5-2.5 7-7 7Z"></path>
+          <path d="M12 16c0-3.7-2.6-5.8-6-5.8 0 3.8 2.1 5.8 6 5.8Z"></path>
+        </svg>
+      </span>
+      <span class="helixharness-evolution-entry-copy">
+        <span class="helixharness-evolution-entry-title">
+          数据上报已产生 <b>{{ evolution_entry.hypothesis_count }}</b> 个自进化假设{% if evolution_entry.experiment_count %}，其中 <b>{{ evolution_entry.experiment_count }}</b> 个已进入实验流程{% endif %}
+        </span>
+        {% if evolution_entry.eligible_eval %}
+        <span class="helixharness-evolution-entry-source">
+          来源：<b>{{ evolution_entry.eligible_eval }}</b> 个来自合格 HelixHarness eval-log 与已关联异步上报的假设
+        </span>
+        {% endif %}
+        <span class="helixharness-evolution-entry-explain">系统每 48 小时检查一次当前全部合格 HelixHarness 数据。AI 会用全部事实作为上下文，综合固定流程事实、已关联的交互与工具明细、资源使用，以及 checkpoint commit 的代码变更摘要；只有新增或发生变化的事实可以触发待验证假设，旧事实不会被重复生成。进入实验不代表已经改进生效。</span>
+      </span>
+      <span class="helixharness-evolution-entry-action">查看自进化 <span aria-hidden="true">→</span></span>
+    </a>
+  </div>
+  {% endif %}
+
+  {# 展示维度区块（标题 + 维度切换 + 明细表），HTMX 局部刷新 #}
+  {% set detail_html = detail_html %}
+  {% set view_mode = view_mode %}
+  {% include "eval/detail_section.html" %}
+</div>
+
+{# 问题反馈跳转定位 + 浮层关闭按钮（本分支增强，不改 usage_loader）：
+   - master 的需求详情面板 id 前缀随维度变化（helixharness-requirement-{i}-feature-detail-* / helixharness-user-{i}-feature-detail-*），
+     用「含 -feature-detail- 且以 slug(feature) 结尾」匹配定位；slug 规则对齐 usage_loader._html_id
+   - 通过 feature 查询参数定位需求详情浮层 #}
+<script>
+  (() => {
+    const params = new URLSearchParams(location.search);
+    // 与后端 _html_id 一致：连续非法字符替换为单个 -，去首尾 -，小写，空为 item
+    const slug = (value) => {
+      const text = String(value || "")
+        .replace(/[^A-Za-z0-9_-]+/g, "-")
+        .replace(/^-+/, "").replace(/-+$/, "")
+        .toLowerCase();
+      return text || "item";
+    };
+
+    // 按 feature 后缀匹配浮层并展开。
+    const feature = params.get("feature");
+    if (!feature || !/^[^\s]{1,128}$/.test(feature)) return;
+    const panel = document.querySelector(
+      `[id*="-feature-detail-"][id$="-${slug(feature)}"]`
+    );
+    if (!panel || !panel.classList.contains("helixharness-detail-page")) return;
+    if (location.hash !== "#" + panel.id) location.hash = panel.id; // :target 原生展开
+    panel.scrollTop = 0;
+    panel.style.outline = "2px solid #1677FF";
+    panel.style.outlineOffset = "6px";
+    setTimeout(() => { panel.style.outline = ""; panel.style.outlineOffset = ""; }, 5000);
+  })();
+</script>
+
+<script>
+(() => {
+  // Keep independent HTMX controls aligned with the currently visible scope.
+  const sync = () => {
+    const form = document.querySelector('.helixharness-overview-controls');
+    const runtime = document.querySelector('#helixharness-runtime-overview');
+    const detail = document.querySelector('#detail-section');
+    if (!form || !runtime || !detail) return;
+    const view = detail.dataset.view || 'project';
+    const recentDays = document.querySelector('.helixharness-recent-growth').dataset.days;
+    form.onsubmit = event => {
+      form.querySelectorAll('input[name="recent_days"]').forEach(input => {
+        input.disabled = input.name === event.submitter?.name;
+      });
+    };
+    const values = {view, recent_days: recentDays, runtime_period: runtime.dataset.period,
+      runtime_start: runtime.dataset.start, runtime_end: runtime.dataset.end};
+    Object.entries(values).forEach(([name, value]) => { const input = form.querySelector(`input[name="${name}"]`); if (input) input.value = value || ''; });
+    const updateLink = (link, path, params) => {
+      const query = params.toString();
+      link.href = '/?' + query;
+      link.setAttribute('hx-get', path + '?' + query);
+      if (path === '/partial/detail') link.setAttribute('hx-push-url', '/?' + query);
+      if (window.htmx) htmx.process(link);
+    };
+    detail.querySelectorAll('a[hx-get^="/partial/detail"]').forEach(link => {
+      const targetView = new URL(link.href).searchParams.get('view');
+      updateLink(link, '/partial/detail', new URLSearchParams({...values, view: targetView}));
+    });
+    runtime.querySelectorAll('a[hx-get^="/partial/runtime"]').forEach(link => {
+      const period = new URL(link.href).searchParams.get('runtime_period');
+      updateLink(link, '/partial/runtime', new URLSearchParams({view, recent_days: recentDays, runtime_period: period}));
+    });
+    const runtimeView = runtime.querySelector('input[name="view"]');
+    if (runtimeView) runtimeView.value = view;
+  };
+  if (window.ohDashboardScopeSync) document.body.removeEventListener('htmx:afterSwap', window.ohDashboardScopeSync);
+  window.ohDashboardScopeSync = sync;
+  document.body.addEventListener('htmx:afterSwap', sync);
+  sync();
+})();
+</script>

@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}HelixHarness 评测Case{% endblock %}
+
+{% block content %}
+<style>
+  .case-difficulty { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 999px; padding: .28rem .7rem; font-size: 12px; font-weight: 700; }
+  .case-difficulty--easy { border-color: #bae6fd; background: #e0f2fe; color: #0369a1; }
+  .case-difficulty--medium { border-color: #fde68a; background: #fef3c7; color: #b45309; }
+  .case-difficulty--hard { border-color: #fecdd3; background: #ffe4e6; color: #be123c; }
+  .case-difficulty--unknown { border-color: #e2e8f0; background: #f1f5f9; color: #64748b; }
+  @media(max-width:767px){.scenario-case-head{width:100%;max-width:100%}}
+</style>
+<section class="p-6" data-scenario-case-library="true">
+  <div class="mx-auto max-w-[90rem]">
+    <header class="scenario-case-head overflow-hidden rounded-lg border border-edge bg-slate-950 p-6 text-white">
+      <p class="font-mono text-xs tracking-[0.18em] text-blue-300">EVALUATION INVENTORY</p>
+      <div class="mt-3 flex flex-wrap items-end justify-between gap-5">
+        <div class="max-w-3xl">
+          <h1 class="text-2xl font-semibold">评测Case</h1>
+          <p class="mt-3 text-sm leading-6 text-slate-300">{% if request.app.state.demo_mode | default(false) %}查看合成 Case 的需求与校验依据。示例仅供了解结构，不能用于正式评测。{% else %}集中查看真实仓库 Case。每次评测都会冻结所选版本，后续更新不会改变历史结果。{% endif %}</p>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs">
+          <span class="rounded-md bg-slate-900 px-4 py-2"><strong id="case-count" class="font-mono text-xl text-white">{{ case_count }}</strong><span class="ml-1 text-slate-300">个 Case</span></span>
+          <span class="rounded-md bg-emerald-950 px-4 py-2 text-emerald-200"><strong class="font-mono text-xl text-white">{{ selectable_count }}</strong><span class="ml-1">个可评测</span></span>
+        </div>
+      </div>
+      <div class="mt-5"><a href="/framework-evaluation/runs/new" class="inline-flex rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-500">发起评测</a></div>
+    </header>
+
+    <aside class="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">
+      每个 Case 都包含业务目标、仓库基线和校验依据；评测方式与两侧执行命令在发起评测时统一配置。
+    </aside>
+
+    {% if deleted_case_id %}
+    <div class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800" role="status">
+      已从当前 Case 库删除 <code class="font-semibold">{{ deleted_case_id }}</code>；历史版本和既有评测记录仍保留。
+    </div>
+    {% endif %}
+
+    <form method="get" action="/framework-evaluation/cases" class="mt-4 grid gap-3 rounded-lg border border-edge bg-white p-4 md:grid-cols-2 xl:grid-cols-[minmax(16rem,1fr)_10rem_12rem_12rem_auto] xl:items-end">
+      <input type="hidden" name="page" value="1">
+      <input type="hidden" name="page_size" value="{{ pagination.page_size }}">
+      <label class="text-xs font-semibold text-ink-muted">搜索<input type="search" name="q" value="{{ filters.q }}" placeholder="Case ID、标题或仓库" class="mt-1 block w-full rounded-md border border-edge px-3 py-2 text-sm font-normal text-ink"></label>
+      <label class="text-xs font-semibold text-ink-muted">评测就绪状态<select name="readiness" class="mt-1 block w-full rounded-md border border-edge px-3 py-2 text-sm font-normal text-ink"><option value="">全部</option><option value="AVAILABLE"{% if filters.readiness == 'AVAILABLE' %} selected{% endif %}>可评测</option><option value="PENDING"{% if filters.readiness == 'PENDING' %} selected{% endif %}>待确定性校准</option></select></label>
+      <label class="text-xs font-semibold text-ink-muted">仓库模式<select name="repository_mode" class="mt-1 block w-full rounded-md border border-edge px-3 py-2 text-sm font-normal text-ink"><option value="">全部</option><option value="SINGLE_REPOSITORY"{% if filters.repository_mode == 'SINGLE_REPOSITORY' %} selected{% endif %}>单仓</option><option value="MULTI_REPOSITORY"{% if filters.repository_mode == 'MULTI_REPOSITORY' %} selected{% endif %}>多仓</option></select></label>
+      <label class="text-xs font-semibold text-ink-muted">排序<select name="sort" class="mt-1 block w-full rounded-md border border-edge px-3 py-2 text-sm font-normal text-ink"><option value="availability"{% if filters.sort == 'availability' %} selected{% endif %}>可评测优先</option><option value="published_desc"{% if filters.sort == 'published_desc' %} selected{% endif %}>最近发布</option><option value="title"{% if filters.sort == 'title' %} selected{% endif %}>标题</option><option value="case_id"{% if filters.sort == 'case_id' %} selected{% endif %}>Case ID</option></select></label>
+      <button type="submit" class="rounded-md bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800">筛选</button>
+    </form>
+
+    <div id="case-results" class="mt-4 overflow-hidden rounded-lg border border-edge bg-white" aria-live="polite">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-edge bg-white px-5 py-3 text-xs text-ink-dim">
+        <span>共 {{ pagination.total_items }} 个当前 Case{% if pagination.total_items %}，当前显示 {{ pagination.first_item }}–{{ pagination.last_item }}{% endif %}</span>
+        <span>第 {{ pagination.page }} / {{ pagination.total_pages }} 页</span>
+      </div>
+      <div class="border-b border-edge-soft bg-sky-50/55 px-5 py-2.5 text-[11px] leading-5 text-sky-900" data-case-difficulty-rule="business-code-delta">
+        <strong>难度口径：</strong>按基准提交 → 目标提交的业务代码新增与删除行数分档；简单 ≤ 100 行，中等 101–1000 行，困难 &gt; 1000 行。测试、文档、普通配置和生成代码不计入，且难度不参与评分。
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[60rem] table-fixed border-collapse text-left">
+          <colgroup><col class="w-[32%]"><col class="w-[25%]"><col class="w-[14%]"><col class="w-[13%]"><col class="w-[16%]"></colgroup>
+          <thead class="border-b border-edge bg-surface-1 text-xs font-semibold text-ink-dim"><tr><th class="px-5 py-3">Case</th><th class="px-4 py-3">仓库与环境</th><th class="px-4 py-3" data-case-difficulty-column="true">难度</th><th class="px-4 py-3">状态</th><th class="px-4 py-3">操作</th></tr></thead>
+          <tbody class="divide-y divide-edge-soft bg-white">
+          {% for entry in case_entries %}
+            <tr class="align-top transition-colors hover:bg-slate-50/70" data-scenario-case-id="{{ entry.case_id }}">
+              <td class="px-5 py-4"><h2 class="text-sm font-semibold leading-5 text-ink"><a href="{{ entry.detail_url }}" class="hover:text-accent">{{ entry.title }}</a></h2><code class="mt-1.5 block break-all text-[11px] text-ink-dim">{{ entry.case_id }}</code></td>
+              <td class="px-4 py-4 text-xs leading-5 text-ink-muted"><span class="mb-1.5 inline-flex rounded-full bg-violet-50 px-2 py-0.5 font-semibold text-violet-700" data-repository-mode="{{ entry.repository_mode }}">{{ entry.repository_mode_label }}</span><strong class="block text-ink">{{ entry.repository_id }}{% if entry.repository_count > 1 %} 等 {{ entry.repository_count }} 个仓库{% endif %}</strong><span>{{ entry.runtime_label }}</span></td>
+              <td class="px-4 py-4 text-xs"><span class="case-difficulty case-difficulty--{% if entry.difficulty == 'EASY' %}easy{% elif entry.difficulty == 'MEDIUM' %}medium{% elif entry.difficulty == 'HARD' %}hard{% else %}unknown{% endif %}" data-case-difficulty="{{ entry.difficulty }}">{{ entry.difficulty_label }}</span>{% if entry.difficulty_evidence %}<span class="mt-2 block leading-5 text-ink-dim" title="仅表示业务代码改动规模，不参与评分">{{ entry.difficulty_evidence }}</span>{% endif %}</td>
+              <td class="px-4 py-4 text-xs"><div class="flex flex-wrap gap-1.5"><span class="inline-flex rounded-full px-2.5 py-1 font-semibold {% if entry.selectable %}bg-emerald-50 text-emerald-700{% else %}bg-amber-50 text-amber-700{% endif %}">{{ entry.readiness_label }}</span>{% if entry.formal_run_verified %}<span class="inline-flex rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700" data-formal-run-verified="true" title="当前 Case 版本曾在正式评测中完整执行，并通过全部确定性业务校验">已验证可跑通</span>{% endif %}</div></td>
+              <td class="px-4 py-4">
+                <div class="flex flex-wrap gap-2">
+                  <a href="{{ entry.detail_url }}" class="inline-flex rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">详情</a>
+                  <form method="post" action="/framework-evaluation/cases/{{ entry.case_id }}/delete" data-case-delete="true" onsubmit="return confirmPermanentDelete(this, '确定从当前 Case 库删除“{{ entry.title }}”吗？历史版本和既有评测记录会保留；未完成任务正在使用时不会删除。')">
+                    <input type="hidden" name="confirmation" value="{{ entry.case_id }}">
+                    <button type="submit" data-permanent-delete-submit="true" class="rounded-md border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">删除</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="px-5 py-12 text-center text-sm text-ink-dim">没有符合当前条件的Case。</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <nav class="flex flex-wrap items-center justify-end gap-1 border-t border-edge bg-surface-1 px-5 py-4" aria-label="Case 分页">
+        {% if pagination.previous_url %}<a href="{{ pagination.previous_url }}" class="rounded-md border border-edge bg-white px-3 py-2 text-xs font-semibold">上一页</a>{% else %}<span class="rounded-md border border-edge bg-slate-50 px-3 py-2 text-xs text-ink-dim">上一页</span>{% endif %}
+        {% for item in pagination.page_items %}{% if item is none %}<span class="px-2 text-xs text-ink-dim">…</span>{% elif item.page == pagination.page %}<span class="rounded-md bg-slate-950 px-3 py-2 font-mono text-xs font-semibold text-white">{{ item.page }}</span>{% else %}<a href="{{ item.url }}" class="rounded-md border border-edge bg-white px-3 py-2 font-mono text-xs font-semibold">{{ item.page }}</a>{% endif %}{% endfor %}
+        {% if pagination.next_url %}<a href="{{ pagination.next_url }}" class="rounded-md border border-edge bg-white px-3 py-2 text-xs font-semibold">下一页</a>{% else %}<span class="rounded-md border border-edge bg-slate-50 px-3 py-2 text-xs text-ink-dim">下一页</span>{% endif %}
+      </nav>
+    </div>
+  </div>
+</section>
+{% endblock %}

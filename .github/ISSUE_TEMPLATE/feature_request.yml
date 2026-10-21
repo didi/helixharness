@@ -1,0 +1,20 @@
+name: Feature request / 功能建议
+description: Describe a use case and observable acceptance criteria.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case / 问题与场景
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome / 期望结果
+      description: What should a user be able to do? How would you verify it?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and constraints / 替代方案与约束

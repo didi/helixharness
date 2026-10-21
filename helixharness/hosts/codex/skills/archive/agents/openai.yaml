@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:archive"
+  short_description: "校验完成证据，更新知识并归档需求。"
+policy:
+  allow_implicit_invocation: true

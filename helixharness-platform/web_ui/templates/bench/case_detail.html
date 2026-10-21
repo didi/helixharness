@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}{{ detail.title }} · Case 详情{% endblock %}
+
+{% block content %}
+<style>
+  .case-map { --map-ink: #14213d; --map-line: #dbe3ef; color: var(--map-ink); }
+  .case-map__hero { position: relative; overflow: hidden; border-radius: 22px; color: #f8fafc; background: radial-gradient(circle at 84% 10%, rgba(45,212,191,.18), transparent 25%), radial-gradient(circle at 10% 100%, rgba(59,130,246,.2), transparent 34%), #101a31; box-shadow: 0 26px 70px -50px rgba(15,23,42,.95); }
+  .case-map__hero::before { content: ""; position: absolute; inset: 0; opacity: .16; background-image: linear-gradient(rgba(255,255,255,.09) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.09) 1px, transparent 1px); background-size: 34px 34px; mask-image: linear-gradient(90deg, #000, transparent 78%); pointer-events: none; }
+  .case-map__hero-grid { position: relative; z-index: 1; display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: 2rem; align-items: center; padding: 2.25rem; }
+  .case-map__hero-meta { display: grid; gap: 1rem; min-width: 0; border: 1px solid rgba(255,255,255,.12); border-radius: 16px; background: rgba(255,255,255,.07); padding: 1.25rem; backdrop-filter: blur(10px); }
+  .case-map__hero-interval { grid-column: 1 / -1; display: grid; grid-template-columns: auto minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: .75rem; border-top: 1px solid rgba(255,255,255,.12); padding-top: 1.25rem; }
+  .case-map__hero-target { display: grid; grid-template-columns: auto minmax(0,1fr); align-items: center; gap: .75rem; }
+  .case-map__eyebrow { color: #2563eb; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 10px; font-weight: 800; letter-spacing: .2em; }
+  .case-map__hero .case-map__eyebrow { color: #7dd3fc; }
+  .case-map__panel { border: 1px solid var(--map-line); border-radius: 16px; background: rgba(255,255,255,.96); box-shadow: 0 18px 48px -44px rgba(15,23,42,.7); }
+  .case-map__layout { display: grid; grid-template-columns: 13rem minmax(0, 1fr); gap: 1.5rem; }
+  .case-map__difficulty { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 999px; padding: .38rem .75rem; font-size: 12px; font-weight: 700; }
+  .case-map__difficulty--easy { border-color: rgba(125,211,252,.35); background: rgba(14,165,233,.18); color: #bae6fd; }
+  .case-map__difficulty--medium { border-color: rgba(252,211,77,.35); background: rgba(245,158,11,.18); color: #fde68a; }
+  .case-map__difficulty--hard { border-color: rgba(253,164,175,.35); background: rgba(244,63,94,.18); color: #fecdd3; }
+  .case-map__difficulty--unknown { border-color: rgba(203,213,225,.24); background: rgba(255,255,255,.1); color: #cbd5e1; }
+  .case-map__target-copy { min-width: 0; padding: 2rem; }
+  .case-map__commit-label { display: inline-flex; justify-content: center; border-radius: 999px; padding: .42rem .7rem; font-size: 11px; font-weight: 750; }
+  .case-map__number { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 auto; border-radius: 50%; color: #fff; background: #172554; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; font-weight: 800; }
+  .case-map__requirement { border-left: 3px solid #2563eb; }
+  .case-map__evidence { border-top: 3px solid #38bdf8; }
+  .case-map__checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1.25rem; }
+  .case-map__check { position: relative; overflow: hidden; }
+  .case-map__check::after { content: ""; position: absolute; width: 48px; height: 48px; right: -24px; bottom: -24px; border-radius: 50%; background: currentColor; opacity: .07; }
+  .case-map__command { overflow-x: auto; border: 1px solid #dce5f2; border-radius: 9px; background: #f8fafc; padding: 9px 11px; color: #334155; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; line-height: 1.55; white-space: nowrap; }
+  .case-map__prose { max-width: 72rem; }
+  .case-map__prose h1 { margin: 0 0 22px; border-left: 3px solid #2563eb; border-radius: 0 10px 10px 0; background: #f8fafc; padding: 14px 18px; color: #0f172a; font-size: 21px; font-weight: 750; line-height: 1.45; }
+  .case-map__prose h2 { margin: 24px 0 10px; color: #1e293b; font-size: 16px; font-weight: 750; }
+  .case-map__prose h3 { margin: 20px 0 8px; color: #334155; font-size: 14px; font-weight: 700; }
+  .case-map__prose p { margin: 10px 0; color: #475569; line-height: 1.85; }
+  .case-map__prose ul, .case-map__prose ol { margin: 12px 0; padding-left: 24px; color: #475569; }
+  .case-map__prose ul { list-style: disc; } .case-map__prose ol { list-style: decimal; }
+  .case-map__prose li { margin: 6px 0; line-height: 1.75; }
+  .case-map__prose code { border-radius: 5px; background: #eef2f7; padding: 2px 6px; color: #334155; font-size: 12px; }
+  .case-map__nav { position: sticky; top: 1.5rem; align-self: start; }
+  .case-map__nav a { transition: color .16s ease, transform .16s ease; }
+  .case-map__nav a:hover { color: #2563eb; transform: translateX(3px); }
+  .case-map__asset-grid { display: grid; grid-template-columns: 8rem minmax(11rem, 1fr) minmax(18rem, 2fr); }
+  .case-map__asset-grid > * { min-width: 0; padding: .8rem 1rem; border-bottom: 1px solid #e2e8f0; }
+  @media (max-width: 1023px) { .case-map__hero-grid, .case-map__layout { grid-template-columns: 1fr; } .case-map__nav { position: static; } .case-map__hero-interval { grid-column: auto; grid-template-columns: auto minmax(0,1fr); } .case-map__hero-interval .case-map__interval-arrow { display: none; } .case-map__hero-target { grid-column: 1 / -1; } }
+  @media (max-width: 720px) { .case-map__hero-grid { padding: 1.5rem; } .case-map__target-copy { padding: 1.4rem; } .case-map__asset-grid { grid-template-columns: 1fr; padding: 1rem; border-bottom: 1px solid #e2e8f0; } .case-map__asset-grid > * { padding: .25rem 0; border: 0; } }
+  @media (prefers-reduced-motion: no-preference) { .case-map__panel { animation: case-map-rise .35s ease both; } @keyframes case-map-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } } }
+</style>
+
+<section class="case-map p-6" data-scenario-case-detail="true" data-case-contract-map="latest-v2" data-case-id="{{ detail.case_id }}">
+  <div class="mx-auto max-w-[88rem]">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <a href="/framework-evaluation/cases" class="inline-flex items-center gap-2 text-xs font-semibold text-blue-700 hover:text-blue-900">← 返回评测Case</a>
+      <form method="post" action="/framework-evaluation/cases/{{ detail.case_id }}/delete" data-case-delete="true" onsubmit="return confirmPermanentDelete(this, '确定从当前 Case 库删除“{{ detail.title }}”吗？历史版本和既有评测记录会保留；未完成任务正在使用时不会删除。')">
+        <input type="hidden" name="confirmation" value="{{ detail.case_id }}">
+        <button type="submit" data-permanent-delete-submit="true" class="rounded-md border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50">删除 Case</button>
+      </form>
+    </div>
+
+    {% if delete_error %}
+    <div class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-xs leading-5 text-rose-800" role="alert">{{ delete_error }}</div>
+    {% endif %}
+
+    <header class="case-map__hero mt-4">
+      <div class="case-map__hero-grid">
+        <div class="min-w-0">
+          <p class="case-map__eyebrow">CASE / 评测蓝图</p>
+          <h1 class="mt-4 max-w-4xl text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{{ detail.title }}</h1>
+          <p class="mt-4 break-all font-mono text-xs text-slate-400">{{ detail.case_id }}</p>
+          <div class="mt-6 flex flex-wrap gap-2 text-xs">
+            <span class="rounded-full px-3 py-1.5 font-semibold {% if detail.selectable %}bg-emerald-400/15 text-emerald-200 ring-1 ring-emerald-300/25{% else %}bg-amber-400/15 text-amber-200 ring-1 ring-amber-300/25{% endif %}">{{ detail.readiness_label }}</span>
+            {% if detail.formal_run_verified %}<span class="rounded-full bg-blue-400/15 px-3 py-1.5 font-semibold text-blue-200 ring-1 ring-blue-300/25" data-formal-run-verified="true" title="当前 Case 版本曾在正式评测中完整执行，并通过全部确定性业务校验">已验证可跑通</span>{% endif %}
+            <span class="rounded-full bg-white/10 px-3 py-1.5 text-slate-200 ring-1 ring-white/10">{{ detail.repository_mode_label }}</span>
+            <span class="rounded-full bg-white/10 px-3 py-1.5 text-slate-200 ring-1 ring-white/10">{{ detail.runtime_label }}</span>
+            <span class="case-map__difficulty case-map__difficulty--{% if detail.difficulty == 'EASY' %}easy{% elif detail.difficulty == 'MEDIUM' %}medium{% elif detail.difficulty == 'HARD' %}hard{% else %}unknown{% endif %}">{{ detail.difficulty_label }}难度{% if detail.difficulty_evidence %} · {{ detail.difficulty_evidence }}{% endif %}</span>
+          </div>
+        </div>
+        <dl class="case-map__hero-meta text-xs">
+          <div><dt class="text-slate-400">真实仓库</dt><dd class="mt-1 break-all text-sm font-semibold text-white">{{ detail.repository_id }}</dd></div>
+          <div class="grid grid-cols-2 gap-4 border-t border-white/10 pt-4"><div><dt class="text-slate-400">执行范围</dt><dd class="mt-1 font-semibold text-slate-100">{% if detail.execution_intent == 'BLOCKING_PROBE' %}阻断探测{% else %}完整业务流程{% endif %}</dd></div><div><dt class="text-slate-400">发布时间</dt><dd class="mt-1 font-semibold text-slate-100">{{ detail.published_at | beijing_datetime }}</dd></div></div>
+        </dl>
+        <div class="case-map__hero-interval" data-case-code-interval="inline">
+          {% for repository in detail.repositories %}
+          {% if detail.repository_mode == 'MULTI_REPOSITORY' %}<span class="case-map__commit-label bg-white/10 text-slate-200 ring-1 ring-white/10">{{ repository.repository_id }} · {{ repository.impact }}</span>{% endif %}
+          <span class="case-map__commit-label bg-white/10 text-slate-200 ring-1 ring-white/10">基准提交</span>
+          <code class="min-w-0 break-all text-[11px] leading-5 text-slate-300">{{ repository.base_commit }}</code>
+          <span class="case-map__interval-arrow text-center text-blue-300" aria-hidden="true">→</span>
+          <div class="case-map__hero-target grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3"><span class="case-map__commit-label bg-blue-500 text-white">目标提交</span><code class="min-w-0 break-all text-[11px] leading-5 text-slate-200">{{ repository.solution_commit }}</code></div>
+          {% endfor %}
+        </div>
+      </div>
+    </header>
+
+    <div class="case-map__layout mt-6">
+      <aside class="case-map__nav">
+        <nav class="case-map__panel p-4 text-xs" aria-label="Case 详情目录">
+          <p class="case-map__eyebrow px-2">页面导航</p>
+          <div class="mt-3 grid gap-1 text-slate-600">
+            <a class="rounded-lg px-2 py-2" href="#case-target">01 · 评测目标</a>
+            <a class="rounded-lg px-2 py-2" href="#case-requirements">02 · 结构化验收</a>
+            <a class="rounded-lg px-2 py-2" href="#case-evidence">03 · 需求依据</a>
+            <a class="rounded-lg px-2 py-2" href="#case-checks">04 · 确定性验收</a>
+            <a class="rounded-lg px-2 py-2" href="#case-facts">05 · 已知事实</a>
+            <a class="rounded-lg px-2 py-2" href="#case-technical">06 · 冻结资产</a>
+          </div>
+        </nav>
+      </aside>
+
+      <main class="min-w-0 space-y-6">
+        <section id="case-target" class="case-map__panel scroll-mt-6 overflow-hidden">
+          <article class="case-map__target-copy">
+            <p class="case-map__eyebrow">01 / 评测目标</p>
+            <h2 class="mt-2 text-2xl font-semibold text-slate-950">评测目标</h2>
+            <p class="mt-2 text-sm leading-6 text-slate-500">执行侧看到的完整任务说明；其中的验收口径用于理解任务，正式评分以第二部分冻结的结构化标准为准。</p>
+            <div class="case-map__prose mt-6">{{ initial_request_html }}</div>
+          </article>
+        </section>
+
+        <section id="case-requirements" class="case-map__panel scroll-mt-6 p-6 sm:p-8" data-case-requirement-map="true">
+          <div class="flex flex-wrap items-end justify-between gap-4"><div><p class="case-map__eyebrow">02 / 结构化验收</p><h2 class="mt-2 text-2xl font-semibold text-slate-950">可评分的验收标准</h2><p class="mt-2 text-sm leading-6 text-slate-500">这里不是重复任务说明，而是把评测目标拆成可追溯、可执行的评分合同。</p></div><span class="rounded-full bg-blue-50 px-3 py-1.5 font-mono text-xs font-semibold text-blue-700">{{ detail.requirements | length }} 条要求</span></div>
+          <div class="mt-6 space-y-4">{% for item in detail.requirements %}<article class="case-map__requirement rounded-xl border border-slate-200 bg-slate-50/45 p-5"><div class="flex gap-4"><span class="case-map__number">{{ '%02d' | format(loop.index) }}</span><div class="min-w-0 flex-1"><div class="flex flex-wrap items-baseline gap-x-3 gap-y-1"><code class="text-[11px] font-bold tracking-wide text-blue-700">{{ item.get('requirement_id', 'REQ-' ~ loop.index) }}</code><h3 class="text-base font-semibold leading-7 text-slate-900">{{ item.get('display_statement', item.get('statement', '未声明需求')) }}</h3></div></div></div><div class="mt-5 grid gap-5 lg:grid-cols-2"><div><p class="text-[10px] font-bold tracking-[.14em] text-slate-400">可评分验收标准</p><ul class="mt-2 space-y-2 text-sm leading-6 text-slate-600">{% for criterion in item.get('acceptance_criteria', []) %}<li class="flex gap-2"><span class="mt-2 h-1.5 w-1.5 flex-none rounded-full bg-blue-500"></span><span>{% if criterion is mapping %}{{ criterion.get('statement', criterion.get('description', criterion.get('text', '验收项'))) }}{% else %}{{ criterion }}{% endif %}</span></li>{% else %}<li class="text-slate-400">未单独声明验收标准</li>{% endfor %}</ul></div><div><p class="text-[10px] font-bold tracking-[.14em] text-slate-400">追溯与校验</p><p class="mt-2 text-xs leading-5 text-slate-500">说明这条要求来自哪项需求依据，并由哪些确定性检查验收。</p><div class="mt-3 flex flex-wrap gap-2">{% for evidence_id in item.get('evidence_ids', []) %}<span class="rounded-md bg-sky-50 px-2 py-1 font-mono text-[10px] font-semibold text-sky-700">依据 {{ evidence_id }}</span>{% endfor %}{% for judge_id in item.get('judge_ids', []) %}<span class="rounded-md bg-emerald-50 px-2 py-1 font-mono text-[10px] font-semibold text-emerald-700">检查 {{ judge_id }}</span>{% endfor %}</div></div></div></article>{% else %}<p class="rounded-xl bg-slate-50 p-6 text-sm text-slate-400">未声明业务需求</p>{% endfor %}</div>
+        </section>
+
+        <section id="case-evidence" class="case-map__panel scroll-mt-6 p-6 sm:p-8">
+          <div class="flex flex-wrap items-end justify-between gap-4"><div><p class="case-map__eyebrow">03 / 需求依据</p><h2 class="mt-2 text-2xl font-semibold text-slate-950">需求依据（来源证据）</h2><p class="mt-2 text-sm leading-6 text-slate-500">说明每条业务要求从哪份冻结文件、哪段原文整理而来，用于防止 Case 凭空编写；它不是本次评测的执行结果。</p></div><span class="font-mono text-xs text-slate-400">{{ detail.source_evidence | length }} 个依据</span></div>
+          <div class="mt-6 grid gap-4 xl:grid-cols-2">{% for item in detail.source_evidence %}<article class="case-map__evidence rounded-xl border border-slate-200 p-5"><div class="flex flex-wrap items-center justify-between gap-2"><code class="text-[10px] font-bold text-sky-700">{{ item.get('evidence_id', 'E-' ~ loop.index) }}</code><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600">{{ item.get('kind', '来源文件') }}</span></div><p class="mt-3 text-sm font-semibold leading-6 text-slate-800">{{ item.get('description', item.get('quote', '来源证据')) }}</p><div class="mt-4 rounded-lg bg-slate-50 p-3 font-mono text-[10px] leading-5 text-slate-500"><div class="break-all">{{ item.get('path', '未声明路径') }}</div>{% if item.get('commit') %}<div class="mt-1">Commit {{ item.get('commit')[:12] }}</div>{% endif %}{% if item.get('sha256') %}<div>SHA {{ item.get('sha256')[:12] }}</div>{% endif %}</div></article>{% else %}<p class="rounded-xl bg-slate-50 p-6 text-sm text-slate-400">未声明来源证据</p>{% endfor %}</div>
+        </section>
+
+        <section id="case-checks" class="case-map__panel scroll-mt-6 p-6 sm:p-8" data-case-verification-matrix="true">
+          <div><p class="case-map__eyebrow">04 / 确定性验收</p><h2 class="mt-2 text-2xl font-semibold text-slate-950">业务验收与硬门禁</h2><p class="mt-2 text-sm leading-6 text-slate-500">把业务标准落成平台真实执行的 F2P、P2P 与结果检查；这里的 PASS / FAIL 决定 Outcome 是否具备评分资格。</p></div>
+          <div class="case-map__checks mt-6">
+            {% if detail.execution_tests %}<article data-case-check-group="execution"><div class="flex items-center justify-between"><h3 class="font-semibold text-slate-900">执行测试</h3><span class="rounded-full bg-blue-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-blue-700">{{ detail.execution_tests | length }}</span></div><div class="mt-3 space-y-3">{% for item in detail.execution_tests %}{% set test_evidence = item.get('test_evidence', {}) %}<div class="case-map__check rounded-xl border border-blue-100 bg-blue-50/35 p-4 text-blue-700"><div class="flex items-center justify-between gap-2"><code class="text-[10px] font-bold">{{ item.get('check_id', 'ET-' ~ loop.index) }}</code><span class="rounded bg-white px-2 py-1 text-[9px] font-bold">{% if item.get('kind') == 'FAIL_TO_PASS' %}修复前失败→修复后通过{% elif item.get('kind') == 'PASS_TO_PASS' %}原有能力保持通过{% else %}{{ item.get('kind', '执行测试') }}{% endif %}</span></div><div class="case-map__command mt-3">{{ item.get('argv', []) | join(' ') }}</div><p class="mt-2 text-[10px] text-slate-500">超时 {{ item.get('timeout_seconds', '—') }} 秒{% if test_evidence.get('path_glob') %} · 证据 {{ test_evidence.get('path_glob') }}{% endif %}{% if test_evidence.get('minimum_tests') is not none %} · 至少 {{ test_evidence.get('minimum_tests') }} 项测试{% endif %}{% if test_evidence.get('format') %} · {{ test_evidence.get('format') }}{% endif %}{% if test_evidence.get('required_classes') %} · 必需测试类 {{ test_evidence.get('required_classes') | join('、') }}{% endif %}</p></div>{% endfor %}</div></article>{% endif %}
+            {% if detail.solution_checks %}<article data-case-check-group="solution"><div class="flex items-center justify-between"><h3 class="font-semibold text-slate-900">结果检查</h3><span class="rounded-full bg-emerald-50 px-2.5 py-1 font-mono text-[10px] font-semibold text-emerald-700">{{ detail.solution_checks | length }}</span></div><div class="mt-3 space-y-3">{% for item in detail.solution_checks %}{% set test_evidence = item.get('test_evidence', {}) %}<div class="case-map__check rounded-xl border border-emerald-100 bg-emerald-50/35 p-4 text-emerald-700"><div class="flex items-center justify-between gap-2"><code class="text-[10px] font-bold">{{ item.get('check_id', 'SC-' ~ loop.index) }}</code><span class="rounded bg-white px-2 py-1 text-[9px] font-bold">{{ item.get('scope', '结果范围') }}</span></div><div class="case-map__command mt-3">{{ item.get('argv', []) | join(' ') }}</div><p class="mt-2 text-[10px] text-slate-500">超时 {{ item.get('timeout_seconds', '—') }} 秒{% if test_evidence.get('path_glob') %} · 证据 {{ test_evidence.get('path_glob') }}{% endif %}{% if test_evidence.get('minimum_tests') is not none %} · 至少 {{ test_evidence.get('minimum_tests') }} 项测试{% endif %}{% if test_evidence.get('format') %} · {{ test_evidence.get('format') }}{% endif %}{% if test_evidence.get('required_classes') %} · 必需测试类 {{ test_evidence.get('required_classes') | join('、') }}{% endif %}</p></div>{% endfor %}</div></article>{% endif %}
+          </div>
+        </section>
+
+        <section id="case-facts" class="case-map__panel scroll-mt-6 p-6 sm:p-8">
+          <div><p class="case-map__eyebrow">05 / 已知事实</p><h2 class="mt-2 text-2xl font-semibold text-slate-950">已知事实与缺失处理</h2><p class="mt-2 text-sm leading-6 text-slate-500">提前告诉执行侧哪些事实可以直接使用、哪些可从冻结仓库自行确认，以及关键信息缺失时是否应停止评测。</p></div>
+          <dl class="mt-5 grid gap-3 text-xs md:grid-cols-3"><div class="rounded-xl bg-slate-50 p-4"><dt class="text-slate-400">是否还要询问外部人员</dt><dd class="mt-2 font-semibold text-slate-700">{% if detail.clarification.get('external_confirmation_required') %}需要人工确认{% else %}不需要，答案已冻结{% endif %}</dd></div><div class="rounded-xl bg-slate-50 p-4"><dt class="text-slate-400">仓库内可确认的事实</dt><dd class="mt-2 font-semibold text-slate-700">{% if detail.clarification.get('repository_fact_policy') == 'AGENT_INSPECTS' %}允许 Agent 自行检查冻结仓库{% else %}{{ detail.clarification.get('repository_fact_policy', '未声明') }}{% endif %}</dd></div><div class="rounded-xl bg-slate-50 p-4"><dt class="text-slate-400">关键业务事实找不到时</dt><dd class="mt-2 font-semibold text-slate-700">{% if detail.clarification.get('unknown_business_fact_policy') == 'CASE_INVALID' %}停止并判定 Case 无效{% else %}{{ detail.clarification.get('unknown_business_fact_policy', '未声明') }}{% endif %}</dd></div></dl>
+          <div class="mt-5 grid gap-3 md:grid-cols-2">{% for item in detail.facts %}<article class="rounded-xl border border-amber-200 bg-amber-50/50 p-4"><div class="flex items-center justify-between gap-2"><code class="text-[10px] font-bold text-amber-700">{{ item.get('fact_id', 'F-' ~ loop.index) }}</code><span class="text-[10px] text-amber-700">{{ item.get('source', '冻结事实') }}</span></div><p class="mt-3 text-sm leading-6 text-slate-700">{{ item.get('statement', item.get('answer', item.get('value', '冻结事实'))) }}</p></article>{% else %}<p class="rounded-xl bg-slate-50 p-5 text-sm text-slate-400">未声明预置事实</p>{% endfor %}</div>
+        </section>
+
+        <details id="case-technical" class="case-map__panel group scroll-mt-6 p-5" data-case-technical-appendix="true">
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-4"><span><span class="case-map__eyebrow">06 / 冻结资产</span><strong class="mt-1 block text-base text-slate-900">Case 使用了哪些文件</strong></span><span class="font-mono text-xs font-normal text-slate-400">{{ detail.contract_files | length }} 项 · 展开查看</span></summary>
+          <p class="mt-5 text-sm leading-6 text-slate-500">这里只保留资产、文件和用途。Hash 与契约版本仍由平台保存并校验，不在详情页重复展示；来源记录只用于审计，不参与执行或评分。</p>
+          <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 text-xs">
+            <div class="case-map__asset-grid bg-slate-50 font-semibold text-slate-400"><span>资产</span><span>冻结文件</span><span>用途</span></div>
+            {% for asset in detail.contract_files %}<div class="case-map__asset-grid"><strong class="text-slate-800">{{ asset.label }}</strong><code class="break-all text-[10px] text-blue-700">{{ asset.path }}</code><span class="leading-5 text-slate-600">{{ asset.purpose }}</span></div>{% endfor %}
+          </div>
+        </details>
+      </main>
+    </div>
+  </div>
+</section>
+{% endblock %}

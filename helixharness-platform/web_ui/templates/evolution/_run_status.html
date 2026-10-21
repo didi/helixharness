@@ -1,0 +1,11 @@
+{% if manual_cycle.visible %}
+<div class="rounded-xl border px-4 py-3 text-[12px] leading-5 {{ 'border-blue-200 bg-blue-50 text-blue-900' if manual_cycle.running else ('border-red-200 bg-red-50 text-red-900' if manual_cycle.state == 'FAILED' else 'border-emerald-200 bg-emerald-50 text-emerald-900') }}">
+  <div class="font-semibold">{{ manual_cycle.label }}</div>
+  <div class="mt-1">{{ manual_cycle.description }}</div>
+  {% if manual_cycle.running %}
+  <div hx-get="/evolution/run-status" hx-trigger="every 2s" hx-target="#evolution-run-status" hx-swap="innerHTML"></div>
+  {% elif refresh_config %}
+  <div hx-get="/evolution/config" hx-trigger="load delay:300ms" hx-target="[data-evolution-page='config']" hx-swap="outerHTML"></div>
+  {% endif %}
+</div>
+{% endif %}

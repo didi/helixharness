@@ -1,0 +1,14 @@
+{
+  "schema_version": "framework-eval-clarification-policy.v1",
+  "execution_intent": "FLOW_THROUGH",
+  "external_confirmation_required": false,
+  "unknown_business_fact_policy": "CASE_INVALID",
+  "repository_fact_policy": "AGENT_INSPECTS",
+  "facts": [
+    {
+      "fact_id": "F-1",
+      "statement": "The default status is all; open and done match task status exactly. Invalid status raises ValueError.",
+      "source": "initial-request.md:1"
+    }
+  ]
+}

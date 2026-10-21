@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:propose"
+  short_description: "收敛需求并生成 Spec/Tasks；--loop 自动串联至 Archive。"
+policy:
+  allow_implicit_invocation: true

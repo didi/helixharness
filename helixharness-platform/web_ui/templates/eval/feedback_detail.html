@@ -1,0 +1,14 @@
+<div class="p-6">
+  <a href="/feedback">返回问题反馈</a>
+  <h1 class="text-[22px] font-bold text-ink mt-4">反馈详情</h1>
+  <p>{{ categories.get(document.category, document.category) }} · {{ document.created_at | beijing_datetime }}</p>
+  <div class="soft-note my-4" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ document.text }}</div>
+  <h2 class="font-semibold mt-4">反馈字段</h2>
+  <table class="helixharness-config-table"><tbody>{% for key, label in fields.items() %}
+    <tr><th>{{ label }}</th><td style="overflow-wrap:anywhere">{{ document[key] if document[key] is not none else '—' }}</td></tr>
+  {% endfor %}</tbody></table>
+  <details class="mt-4"><summary>查看完整原始字段</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ document | tojson(indent=2) }}</pre></details>
+  <h2 class="font-semibold mt-4">经用户确认的会话摘录</h2>
+  {% if item.transcript_md %}<pre style="white-space:pre-wrap;overflow-wrap:anywhere">{{ item.transcript_md }}</pre>
+  {% else %}<p>未附带会话摘录。</p>{% endif %}
+</div>

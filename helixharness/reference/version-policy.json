@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "plugin": "helix",
+  "marketplace": "helixharness-marketplace",
+  "latest_version": "1.0.0",
+  "minimum_supported_version": "1.0.0",
+  "force_update_below": "1.0.0",
+  "force_update_message": "请使用当前版本的 HelixHarness。",
+  "releases": [
+    {
+      "version": "1.0.0",
+      "date": "2026-09-10",
+      "update_type": "recommended",
+      "title": "HelixHarness",
+      "changes": [
+        "HelixHarness 三阶段、Workspace、UT 和前端能力；propose --loop 自动完成至 Archive。"
+      ],
+      "restart_required": true
+    }
+  ]
+}
