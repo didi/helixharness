@@ -46,6 +46,19 @@ flowchart LR
     R -->|Verified knowledge, confirmed by you| K
 ```
 
+### Your engineering DNA, made actionable
+
+**Turn team experience into context your agent can use.** HelixHarness organizes project knowledge, engineering constraints, requirements and checks alongside your code, so they can be reviewed, reused and updated as the project evolves.
+
+| Part | The question it answers | Where it lives in your project |
+| --- | --- | --- |
+| **Knowledge · Project understanding** | How does this system work? Which business rules and past decisions matter? | `docs/knowledge/` |
+| **Harness · Engineering constraints** | Which development rules and architectural boundaries must the agent respect? | `docs/harness/` |
+| **Specs · Task contracts** | What are we building, and what evidence will demonstrate completion? | `docs/specs/` |
+| **Hooks · Checks and gates** | Which checks apply at key execution and review stages? | `docs/hooks/` and host hook configuration |
+
+Knowledge and Harness indexes guide context loading. Specs hold each task's scope, plan and verification evidence. Hooks combine host runtime hooks, workflow gates and review checklists; their execution depends on the host and workflow configuration. See the [context loading protocol](helixharness/reference/loading-protocol.md) and [hook setup](docs/installation.md).
+
 ### What knowledge reuse looks like
 
 Suppose a refund feature establishes a state transition rule and a cross-service interface boundary. After implementation and verification, Archive proposes the stable knowledge to retain, and you confirm the update. When the next refund-related feature starts, Propose and Apply can load that knowledge through the index, giving the agent an existing project reference to work from.
@@ -181,6 +194,15 @@ For version evaluation, point the platform at the source Git checkout or a direc
 Telemetry is off until the user explicitly enables it. Async reporting and the optional feedback skill have **no default platform address**. Without a configured destination, feedback cannot be sent; the entrypoint remains available. Configuring an endpoint does not authorize sending feedback: the content and destination still require approval.
 
 Report community bugs through [GitHub Issues](https://github.com/didi/helixharness/issues) after publication; no platform deployment is required. Follow [SECURITY.md](SECURITY.md) for vulnerabilities. [Data and feedback details](docs/user-guide.md#feedback).
+
+## Roadmap
+
+Two planned directions will help more teams shape HelixHarness around their development practices:
+
+- **More coding agents.** Extend support beyond Codex and Claude Code so teams can use HelixHarness with more of their preferred tools.
+- **Configurable workflows.** Let teams configure workflow stages and their order to fit their development process.
+
+These are planned capabilities. The current release supports Codex and Claude Code with the Propose → Apply → Archive workflow. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
 
 ## Documentation and contribution
 

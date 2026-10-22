@@ -46,6 +46,19 @@ flowchart LR
     R -->|经验证的知识，由你确认后沉淀| K
 ```
 
+### 让工程 DNA 参与执行
+
+**把团队经验，变成 Agent 的工作上下文。** HelixHarness 将项目知识、工程约束、需求契约和检查机制组织在业务仓库中，与代码共同维护，让它们可以被评审、复用，并随项目持续更新。
+
+| 组成 | 回答的问题 | 在业务项目中的位置 |
+| --- | --- | --- |
+| **Knowledge · 项目知识** | 系统如何运作？有哪些业务规则和历史决策？ | `docs/knowledge/` |
+| **Harness · 工程约束** | 开发时应该遵守哪些规范与架构边界？ | `docs/harness/` |
+| **Specs · 需求契约** | 这次要做什么，用什么证据证明已经完成？ | `docs/specs/` |
+| **Hooks · 检查机制** | 在关键执行与评审节点，需要完成哪些检查？ | `docs/hooks/` 与宿主 hooks 配置 |
+
+Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需求的范围、计划和验证证据。Hooks 包含宿主运行时钩子、工作流门禁和评审清单，具体执行方式由宿主与工作流配置决定。详见[上下文加载协议](helixharness/reference/loading-protocol.md)与 [hooks 配置说明](docs/installation.md)。
+
 ### 知识复利如何发生
 
 例如，第一次开发退款功能时，确认了退款状态流转规则和跨服务接口边界。实现与验证完成后，Archive 提出值得保留的稳定知识，由你确认后写入项目知识文档。下一次开发退款相关需求时，Propose 和 Apply 就能通过索引读取这些知识，在已有项目事实的基础上继续工作。
@@ -179,6 +192,15 @@ python -m web_ui.demo --port 7860
 统计需要用户明确开启。异步上报和可选反馈功能**默认没有平台地址**；未配置目的地时保留入口，但不能发送反馈。配置地址不等于同意发送，每次反馈内容和实际目的地仍需授权。
 
 公开发布后，普通社区问题直接提交到 [GitHub Issues](https://github.com/didi/helixharness/issues)，不需要先部署平台。漏洞按[安全政策](SECURITY.md)私密报告。详见[数据与反馈说明](docs/user-guide.zh-CN.md#问题反馈)。
+
+## 路线图
+
+接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
+
+- **支持更多 Coding Agent**：在 Codex 和 Claude Code 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
+- **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
+
+以上为规划能力。当前版本支持 Codex 和 Claude Code，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 
