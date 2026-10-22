@@ -2,15 +2,27 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-**An AI development framework grounded in project constraints, with knowledge that compounds across tasks.**
+> **Built to Adapt. Designed to Evolve.**
+>
+> Your team's engineering DNA, carried into AI development.
 
-HelixHarness brings project rules, business knowledge and a complete development workflow to Codex and Claude Code. Guide the agent from requirements through implementation, tests, review and archive—and carry verified project knowledge into the next feature.
+**HelixHarness helps your team build its own AI coding harness on Codex and Claude Code.** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
 
-For framework maintainers, the optional **helixharness-platform** adds observability, version evaluation and evidence-driven evolution to help improve **HelixHarness itself**.
+Start with the plugin. When you want to improve the harness itself, the optional **helixharness-platform** lets maintainers observe usage, compare framework versions and evaluate candidate improvements before adopting them.
 
 **9 commands · Codex / Claude Code · Single repo / multi-repo Workspace · Apache-2.0**
 
-[Quick start](#quick-start) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
+[Quick start](#quick-start) · [The name](#the-story-behind-the-name) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
+
+## The story behind the name
+
+Every team has its own way of building software: the business rules it protects, the architecture it works within, the checks it trusts and the lessons it has learned. Together, these form its **engineering DNA**.
+
+**Helix** evokes the DNA double helix: knowledge carried forward and refined over time. **Harness** gives that knowledge a role in execution—the context, constraints and workflow that guide a coding agent through real project work.
+
+Born from engineering practice in Didi's financial technology team, HelixHarness brings these ideas together. Project knowledge and rules help it adapt to your team; verified lessons retained at Archive give later tasks a stronger starting point. For framework maintainers, observations and controlled evaluations inform the next change, with adoption kept in human hands.
+
+**The code ships. The knowledge stays. The harness evolves.**
 
 ## Why HelixHarness
 
