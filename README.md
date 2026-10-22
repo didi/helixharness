@@ -36,15 +36,7 @@ Born from engineering practice in Didi's financial technology team, HelixHarness
 
 Here, **Harness** means the project constraints and execution rules that guide the agent: what to read, which boundaries to respect and what evidence is required to finish. See the [context loading protocol](helixharness/reference/loading-protocol.md).
 
-```mermaid
-flowchart LR
-    H[Project instructions and Harness constraints] --> P[Propose: scope and acceptance]
-    H --> A[Apply: implement, test and review]
-    K[Indexed project knowledge] --> P
-    K --> A
-    P --> A --> R[Archive: check completion]
-    R -->|Verified knowledge, confirmed by you| K
-```
+![Development workflow: project constraints and knowledge guide Propose and Apply; Archive retains verified knowledge after confirmation](docs/assets/readme-workflow-en.png)
 
 ### Your engineering DNA, made actionable
 
@@ -130,14 +122,7 @@ See [third-party notices](THIRD_PARTY_NOTICES.md) for attribution and related wo
 
 **The evaluation target is the HelixHarness framework version or change.** Development scenarios exercise that framework, and their outcomes provide evidence about its behavior. This platform supports framework iteration; it is not a general service for grading the business code HelixHarness generates.
 
-```mermaid
-flowchart LR
-    O[Observe framework usage] --> H[Form an improvement hypothesis]
-    H --> C[Build a candidate framework version]
-    C --> E[Evaluate Base and Candidate]
-    E --> R[Human review and adoption]
-    R --> O
-```
+![Framework iteration: observe, hypothesize, build a candidate, evaluate, review and adopt, then observe again](docs/assets/readme-evolution-en.png)
 
 ### Three views of framework iteration
 

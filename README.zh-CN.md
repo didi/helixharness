@@ -36,15 +36,7 @@ HelixHarness 起源于滴滴金融技术团队的真实研发实践，将这两�
 
 这里的 **Harness**，指引导 Agent 工作的项目约束与执行规则：该读哪些信息、遵守哪些边界、达到什么证据要求才能完成。详见[上下文加载协议](helixharness/reference/loading-protocol.md)。
 
-```mermaid
-flowchart LR
-    H[项目说明与 Harness 约束] --> P[Propose：明确范围与验收]
-    H --> A[Apply：实现、测试与评审]
-    K[索引化的项目知识] --> P
-    K --> A
-    P --> A --> R[Archive：检查完成条件]
-    R -->|经验证的知识，由你确认后沉淀| K
-```
+![研发流程：项目约束与知识指导 Propose 和 Apply，Archive 经确认后沉淀知识](docs/assets/readme-workflow-zh-CN.png)
 
 ### 让工程 DNA 参与执行
 
@@ -128,14 +120,7 @@ claude plugin install helix@helixharness-marketplace
 
 **评测对象是 HelixHarness 框架的版本或修改。** 开发场景用于驱动框架运行，场景中的结果是判断框架行为的证据。这套平台服务于框架自身迭代，不是通用的业务代码生成质量评测服务。
 
-```mermaid
-flowchart LR
-    O[观测框架使用过程] --> H[形成改进假设]
-    H --> C[生成框架候选版本]
-    C --> E[对照评测 Base 与 Candidate]
-    E --> R[人工评审与采纳]
-    R --> O
-```
+![框架迭代：观测、形成假设、候选修改、对照评测、人工采纳，再持续观测](docs/assets/readme-evolution-zh-CN.png)
 
 ### 三个视角看框架迭代
 
