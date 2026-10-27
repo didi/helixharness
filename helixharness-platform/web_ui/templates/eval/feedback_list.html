@@ -1,31 +1,83 @@
-<div class="p-6">
+{# 数据看板 · 问题反馈：/helix:feedback 提交的显式反馈文档列表 #}
+{% include "eval/feedback_styles.html" %}
+<div class="p-6 helixharness-feedback-page">
   <header class="border-b border-edge pb-2.5 mb-5">
-    <h1 class="text-[22px] font-bold text-ink">问题反馈</h1>
-    <p class="mt-1 text-xs text-ink-muted">查看用户明确确认后发送的 HelixHarness 使用问题。共 {{ total }} 条。</p>
+    <h1 class="text-[22px] font-bold text-ink font-serif">数据看板 <em class="not-italic text-accent">问题反馈</em></h1>
+    <p class="mt-1 text-xs text-ink-muted">
+      查看使用问题与改进建议，按分类、项目、版本和需求筛选。
+    </p>
   </header>
-  <div class="soft-note mb-5">
+
+  <div class="mb-5 px-3 py-2 text-[12px] text-ink-muted bg-surface-1 border border-edge rounded-md">
     反馈地址由 HelixHarness 发布方统一提供；需要改用自己的平台时，在
     <code>~/.helixharness/feedback/config.json</code> 中设置 <code>endpoint</code> 覆盖默认地址。
     接收服务需保持运行；平台不可达时反馈保存在本地待发队列。
   </div>
-  <form method="get" action="/feedback" class="mb-5">
-    <label>反馈分类 <select name="category">
-      <option value="">全部</option>
-      {% for key, label in categories.items() %}<option value="{{ key }}" {% if category == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
-    </select></label>
-    <button type="submit" class="btn-secondary">筛选</button>
+
+  {# ── 统计概览 ── #}
+  <section class="helixharness-feedback-summary" aria-label="反馈概览">
+    <div class="helixharness-feedback-stat">
+      <div class="text-[11px] text-ink-muted">有效反馈</div>
+      <div class="mt-1 text-[24px] font-bold text-accent font-mono">{{ stats.total }}</div>
+    </div>
+    {% for item in stats.by_category %}
+    <div class="helixharness-feedback-stat">
+      <div class="text-[11px] text-ink-muted">{{ category_labels.get(item.key, item.key) }}</div>
+      <div class="mt-1 text-[24px] font-bold text-accent font-mono">{{ item.count }}</div>
+    </div>
+    {% endfor %}
+  </section>
+
+  {# ── 过滤条 ── #}
+  <section class="helixharness-feedback-panel">
+  <h2 class="helixharness-feedback-panel-title">筛选反馈</h2>
+  <form aria-label="筛选反馈" action="/feedback" method="get"
+        class="helixharness-feedback-filters"
+        hx-get="/feedback" hx-target="#feedback-table-zone" hx-swap="outerHTML"
+        hx-select="#feedback-table-zone" hx-push-url="true">
+    <label class="block">
+      <span class="block text-[11px] font-medium text-ink-muted mb-1">分类</span>
+      <select name="category" class="px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+        <option value="">全部</option>
+        {% for key, label in category_labels.items() %}
+        <option value="{{ key }}" {% if filters.get('category') == key %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="block text-[11px] font-medium text-ink-muted mb-1">项目</span>
+      <select name="project" class="px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+        <option value="">全部</option>
+        {% for item in stats.by_project %}
+        <option value="{{ item.key }}" {% if filters.get('project') == item.key %}selected{% endif %}>{{ item.key }}（{{ item.count }}）</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="block text-[11px] font-medium text-ink-muted mb-1">插件版本</span>
+      <select name="plugin_version" class="px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+        <option value="">全部</option>
+        {% for item in stats.by_plugin_version %}
+        <option value="{{ item.key }}" {% if filters.get('plugin_version') == item.key %}selected{% endif %}>{{ item.key }}（{{ item.count }}）</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label class="block">
+      <span class="block text-[11px] font-medium text-ink-muted mb-1">需求 / Feature</span>
+      <input type="text" name="feature" value="{{ filters.get('feature') or '' }}" placeholder="输入完整需求名称"
+             class="w-full px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+    </label>
+    <div class="helixharness-feedback-filter-actions">
+      <button type="submit"
+              class="px-4 py-1.5 text-[12px] font-medium text-white bg-accent rounded-md hover:bg-accent-dark transition-colors">
+        应用筛选
+      </button>
+      <a href="/feedback" class="helixharness-feedback-reset">重置</a>
+    </div>
   </form>
-  <table class="helixharness-config-table">
-    <thead><tr><th>时间</th><th>分类</th><th>反馈内容</th><th>宿主 / 版本</th><th>详情</th></tr></thead>
-    <tbody>{% for row in rows %}<tr>
-      <td>{{ row.created_at | beijing_datetime }}</td><td>{{ categories.get(row.category, row.category) }}</td>
-      <td style="white-space:pre-wrap;overflow-wrap:anywhere">{{ row.text[:200] }}</td>
-      <td>{{ row.host }} / {{ row.plugin_version or '—' }}</td>
-      <td><a href="/feedback/detail/{{ row.feedback_id }}">查看详情</a></td>
-    </tr>{% else %}<tr><td colspan="5">暂无反馈。配置好平台地址后，可在编码助手中使用 feedback Skill 提交。</td></tr>{% endfor %}</tbody>
-  </table>
-  <p class="mt-4">第 {{ page }} / {{ pages }} 页
-    {% if page > 1 %}<a href="/feedback?page={{ page - 1 }}&category={{ category }}">上一页</a>{% endif %}
-    {% if page < pages %}<a href="/feedback?page={{ page + 1 }}&category={{ category }}">下一页</a>{% endif %}
-  </p>
+  </section>
+
+  <div id="feedback-table-zone" aria-live="polite">
+    {% include "eval/feedback_table.html" %}
+  </div>
 </div>

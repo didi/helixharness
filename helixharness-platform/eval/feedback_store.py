@@ -61,20 +61,60 @@ class FeedbackStore:
                 return {"status": "duplicate"}
         return {"status": "accepted"}
 
-    def list_feedback(self, *, category: str = "", limit: int = 20, offset: int = 0) -> list[dict]:
+    def _all_documents(self) -> list[dict]:
         with self._connect() as connection:
             rows = connection.execute(
-                "SELECT payload_json FROM feedback_reports WHERE (? = '' OR category = ?) "
-                "ORDER BY created_at DESC, feedback_id LIMIT ? OFFSET ?",
-                (category, category, limit, offset),
+                "SELECT payload_json FROM feedback_reports ORDER BY created_at DESC, feedback_id"
             ).fetchall()
         return [json.loads(row[0])["document"] for row in rows]
 
-    def count(self, category: str = "") -> int:
-        with self._connect() as connection:
-            return connection.execute(
-                "SELECT COUNT(*) FROM feedback_reports WHERE (? = '' OR category = ?)", (category, category)
-            ).fetchone()[0]
+    @staticmethod
+    def _matches_filters(document: dict, filters: dict[str, str]) -> bool:
+        for field, value in filters.items():
+            if document.get(field) != value:
+                return False
+        return True
+
+    def list_feedback(
+        self, *,
+        category: str = "", project: str = "", plugin_version: str = "", feature: str = "",
+        limit: int = 20, offset: int = 0,
+    ) -> list[dict]:
+        filters = {key: value for key, value in {
+            "category": category, "project": project,
+            "plugin_version": plugin_version, "feature": feature,
+        }.items() if value}
+        matched = [document for document in self._all_documents()
+                   if self._matches_filters(document, filters)]
+        return matched[offset:offset + limit]
+
+    def count(
+        self, *,
+        category: str = "", project: str = "", plugin_version: str = "", feature: str = "",
+    ) -> int:
+        filters = {key: value for key, value in {
+            "category": category, "project": project,
+            "plugin_version": plugin_version, "feature": feature,
+        }.items() if value}
+        return sum(1 for document in self._all_documents()
+                   if self._matches_filters(document, filters))
+
+    def stats(self) -> dict[str, Any]:
+        """按分类/项目/插件版本聚合反馈数量，供列表页统计卡使用。"""
+        from collections import Counter
+
+        documents = self._all_documents()
+
+        def group(field: str) -> list[dict[str, Any]]:
+            counts = Counter(document.get(field) for document in documents if document.get(field))
+            return [{"key": key, "count": count} for key, count in counts.most_common()]
+
+        return {
+            "total": len(documents),
+            "by_category": group("category"),
+            "by_project": group("project"),
+            "by_plugin_version": group("plugin_version"),
+        }
 
     def get(self, feedback_id: str) -> dict | None:
         with self._connect() as connection:
