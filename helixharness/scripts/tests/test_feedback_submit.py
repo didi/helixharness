@@ -46,6 +46,25 @@ class FeedbackTest(unittest.TestCase):
         self.assertEqual([], list(self.repo.iterdir()))
         self.assertEqual(0o600, Path(draft["draft_path"]).stat().st_mode & 0o777)
 
+    def test_prepare_session_hash_matches_ledger_format(self):
+        """反馈的 session 必须与账本同一哈希实现，平台按精确等值关联工作流。"""
+        from telemetry_ledger import _session_hash
+
+        repo = self.repo
+
+        class Adapter:
+            def current_session_context(self, repo):
+                return {"session_id": "raw-session-abc", "session_cwd": str(repo)}
+
+        with mock.patch.object(feedback, "get_host_adapter", return_value=Adapter()):
+            draft = self.prepare(platform="claude-code")
+        document = draft["item"]["document"]
+        self.assertEqual(_session_hash("raw-session-abc"), document["session"])
+        # 旧 ses_<24hex> 格式已从 schema 移除，必须被 prepare 校验拒绝，防止格式回流
+        document["session"] = "ses_" + "0123456789abcdef01234567"
+        with self.assertRaisesRegex(feedback.FeedbackError, "violates schema"):
+            feedback._validate_feedback_document(document)
+
     def test_send_requires_confirmation_and_unchanged_payload(self):
         draft = self.prepare()
         path = Path(draft["draft_path"])
