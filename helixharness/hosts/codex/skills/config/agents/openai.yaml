@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:config"
+  short_description: "查看或修改 HelixHarness 用户配置：统计授权、作用范围、统计与反馈上报地址。"
+policy:
+  allow_implicit_invocation: true

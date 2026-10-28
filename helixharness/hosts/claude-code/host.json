@@ -1,0 +1,48 @@
+{
+  "host_id": "claude-code",
+  "host_api_version": "1.1",
+  "aliases": [
+    "claude"
+  ],
+  "support": {
+    "level": "stable",
+    "display_name": "Claude Code",
+    "evidence": null,
+    "limitations": []
+  },
+  "capabilities": {
+    "command_surface": "native",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "emulated",
+    "workflow_transition": "native",
+    "subagents": "native",
+    "unit_test_workflow": "native",
+    "task_tracking": "native",
+    "project_hooks": "native",
+    "session_events": "native",
+    "telemetry": "native",
+    "plugin_install": "native",
+    "plugin_update": "native",
+    "session_end": "native"
+  },
+  "adapters": {
+    "detector": "python:update_hosts.claude_code:detect_host",
+    "distribution": "resource:.claude-plugin/marketplace.json",
+    "installer": "resource:hosts/claude-code/installer.md",
+    "command_projection": "resource:hosts/claude-code/command-projection.json",
+    "runtime": "resource:hosts/claude-code/runtime.md",
+    "subagent_protocol": "resource:hosts/claude-code/subagent.md",
+    "workflow_transition": "resource:hosts/claude-code/workflow-transition.md",
+    "project_config": "resource:hosts/claude-code/project.json",
+    "project_hooks": "resource:hosts/claude-code/project-hooks.json",
+    "ut": "resource:hosts/claude-code/ut.md",
+    "lifecycle": "resource:hosts/claude-code/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md",
+    "telemetry": "python:telemetry_hosts.claude_code:ClaudeCodeAdapter",
+    "version": "python:update_hosts.claude_code:plugin_version",
+    "update": "python:update_hosts.claude_code:ClaudeCodeUpdateAdapter"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helixharness.local/schema/host-manifest-v1.json",
+  "title": "HelixHarness 宿主清单 1.x",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "host_id",
+    "host_api_version",
+    "aliases",
+    "capabilities",
+    "adapters"
+  ],
+  "properties": {
+    "host_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+    },
+    "host_api_version": {
+      "enum": ["1.1"]
+    },
+    "aliases": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      },
+      "additionalProperties": {
+        "enum": ["native", "emulated", "unsupported"]
+      }
+    },
+    "adapters": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      }
+    },
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "display_name", "evidence", "limitations"],
+      "properties": {
+        "level": {
+          "enum": ["stable", "preview"]
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "evidence": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 256,
+          "pattern": "^evidence/host-e2e/[a-z0-9][a-z0-9._-]{0,63}/[^/]+\\.json$"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "host_api_version": {"const": "1.1"}
+        }
+      },
+      "then": {
+        "properties": {
+          "adapters": {
+            "required": ["command_projection", "installer", "project_hooks"]
+          }
+        }
+      }
+    }
+  ]
+}

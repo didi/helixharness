@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}HelixHarness Platform{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/css/tailwind.css">
+  <script src="/static/vendor/htmx.min.js?v=1.9.12-local3"></script>
+  <style>
+    /* 少量无法用 Tailwind utility 表达的补充样式 */
+    body { color-scheme: light; }
+    /* HTMX 请求中的元素加 opacity 指示 */
+    .htmx-request { opacity: 0.7; }
+    /* 运行态轮询保持原位；状态未变化时由 beforeSwap 直接跳过替换。 */
+    [data-stable-poll].htmx-request { opacity: 1 !important; transition: none !important; }
+    /* 滚动条美化 */
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-thumb { background: #d0d3db; border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+
+    /* ── 数据看板配置页：soft-note 提示框 + helixharness-config-table 仓库表 ── */
+    .soft-note {
+      background: #F5F7FA;
+      border: 1px solid #E5E6EB;
+      border-radius: 6px;
+      color: #4E5969;
+      font-size: 12.5px;
+      line-height: 1.7;
+      padding: 12px 16px;
+      margin-top: 14px;
+    }
+    .soft-note.compact { margin-top: 0; margin-bottom: 14px; padding: 10px 14px; font-size: 12px; }
+    .soft-note b { color: #1677FF; font-weight: 650; }
+    .soft-note.ok { background: #F6FFED; border-color: #B7EB8F; color: #237804; }
+    .soft-note.warn { background: #FFF7E6; border-color: #FFD591; color: #874D00; }
+    .soft-note pre { margin: 8px 0 0; max-height: 180px; overflow: auto; white-space: pre-wrap;
+      font-family: 'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace !important; font-size: 11px; color: #1D2129; }
+    .soft-note code { color: #0958D9; background: #E8F3FF; border: 1px solid #BAE0FF; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
+    .helixharness-config-table { width: 100%; border-collapse: separate; border-spacing: 0; background: #FFFFFF;
+      border: 1px solid #E5E6EB; border-radius: 6px; overflow: hidden; font-size: 12px; }
+    .helixharness-config-table th { text-align: left; background: #F5F7FA; color: #4E5969; padding: 9px 10px;
+      border-bottom: 1px solid #E5E6EB; font-weight: 600; font-size: 11px; }
+    .helixharness-config-table td { padding: 10px; border-bottom: 1px solid #F0F0F0; color: #1D2129; vertical-align: top; }
+    .helixharness-config-table tr:last-child td { border-bottom: 0; }
+    .helixharness-config-table code { color: #0958D9; background: #E8F3FF; border: 1px solid #BAE0FF; border-radius: 4px;
+      padding: 1px 5px; font-size: 11px; word-break: break-all; }
+    .helixharness-config-table small { color: #86909C; font-size: 11px; }
+    .sync-pill { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: 600; }
+    .sync-cloned { background: #E8F3FF; color: #0958D9; }
+    .sync-updated { background: #F6FFED; color: #237804; }
+    .sync-unchanged { background: #F5F7FA; color: #86909C; }
+    .sync-none { background: #F5F7FA; color: #C9CDD4; }
+
+    /* ── 修复 usage_loader 生成的 helixharness-* HTML 在 Tailwind 环境下的兼容问题 ── */
+
+    /* Tailwind preflight 会 reset h4/b/span 的样式，需要恢复 helixharness-stage-block 标题 */
+    .helixharness-stage-block h4 { all: revert-layer; }
+    .helixharness-stage-block h4 { margin: 0 0 7px; color: #1D4ED8; font-size: 12px; font-weight: 800; }
+
+    /* ── tooltip 不被裁剪：让所有 helixharness-* 容器都不裁剪溢出内容 ──
+       关键：原来 <main> 有 overflow-y-auto 会创建裁剪上下文，导致绝对定位的
+       tip-box 被遮挡。改为让页面整体滚动（sticky header 仍吸顶），即可放出 tip。 */
+    main#content { overflow: visible !important; }
+    .helixharness-table-wrap,
+    .helixharness-dimension-panel,
+    .helixharness-dimension-panel .helixharness-table-wrap,
+    .helixharness-dimension-panel .helixharness-table,
+    .helixharness-table,
+    .helixharness-panel,
+    .helixharness-metric { overflow: visible !important; }
+
+    /* tooltip 层级：确保高于一切静态内容 */
+    .helixharness-tip-wrap { position: relative; isolation: isolate; }
+    .helixharness-tip-wrap:hover, .helixharness-tip-wrap:focus-within { z-index: 9999 !important; }
+    .helixharness-tip-box { z-index: 10000 !important; }
+
+    .helixharness-table td { overflow: visible; }
+
+    /* 阶段明细框：统一边框颜色，避免 prior-attempt 和 latest-attempt 混淆 */
+    .helixharness-stage-card { border: 1px solid #D9E8FF; box-shadow: 0 4px 12px rgba(22,119,255,.05) !important; }
+    .helixharness-stage-card.prior-attempt { border: 1px solid #E5E6EB; opacity: 0.7; box-shadow: none !important; }
+    .helixharness-stage-card.latest-attempt { border: 1px solid #91CAFF; }
+    /* 阶段卡片左侧色条：统一为主色，prior 用灰，消除视觉混乱 */
+    .helixharness-stage-card::before { background: #1677FF !important; }
+    .helixharness-stage-card.prior-attempt::before { background: #C9CDD4 !important; }
+
+    /* ── 导航美化 ── */
+    /* 顶栏一级入口：纯文字，选中态用柔和底色 + 主色字，不做明显框 */
+    .topbtn {
+      position: relative;
+      color: #4E5969;
+      transition: all 0.18s ease;
+    }
+    .topbtn.active {
+      background: #1677FF;
+      color: #FFFFFF;
+    }
+    .topbtn:not(.active):hover {
+      background: rgba(22,119,255,0.08);
+      color: #1677FF;
+    }
+
+    /* 左侧边栏：统一底色，不再用 bg-surface-0 白色导致色块拼接 */
+    .app-sidebar {
+      background: #F7F8FA;
+      position: sticky;
+      top: 56px;
+    }
+    /* 侧边栏右侧分隔竖线：从顶到底贯穿，不随导航项长短变化 */
+    .app-sidebar::after {
+      content: "";
+      position: absolute;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: #E5E6EB;
+      z-index: 1;
+    }
+    /* 分组标题 */
+    .nav-group-title {
+      padding: 14px 18px 4px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #86909C;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    /* 导航项：圆角块状，选中态左侧色条 + 柔和蓝底 */
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 1px 8px;
+      padding: 7px 12px;
+      border-radius: 7px;
+      font-size: 13px;
+      color: #4E5969;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .nav-item:hover {
+      background: rgba(22,119,255,0.08);
+      color: #1677FF;
+    }
+    .nav-item.active {
+      background: rgba(22,119,255,0.14);
+      color: #1677FF;
+      font-weight: 600;
+    }
+
+    /* 窄屏把左侧栏折叠成横向模块导航，避免 200px 侧栏挤压主内容。 */
+    @media (max-width: 767px) {
+      header {
+        width: 100vw;
+        max-width: 100vw;
+        min-width: 0;
+        box-sizing: border-box;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+        overflow-x: auto;
+      }
+      header > div:first-child {
+        flex: 0 0 auto;
+        margin-right: 12px !important;
+      }
+      #topbar-seg { flex: 0 0 auto; }
+      #topbar-seg .topbtn {
+        padding-left: 10px !important;
+        padding-right: 10px !important;
+        white-space: nowrap;
+      }
+      body > div.flex.items-start {
+        min-width: 0;
+        flex-direction: column;
+      }
+      .app-sidebar {
+        top: 56px;
+        z-index: 90;
+        display: flex !important;
+        flex-direction: row;
+        align-items: center;
+        width: 100% !important;
+        min-width: 100% !important;
+        height: auto !important;
+        max-height: none;
+        padding: 6px 4px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+      }
+      .app-sidebar::after,
+      .app-sidebar .nav-group-title { display: none !important; }
+      .app-sidebar .nav-item {
+        flex: 0 0 auto;
+        align-self: center;
+        margin: 0 2px;
+        white-space: nowrap;
+      }
+      main#content {
+        width: 100%;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      main#content > section { padding: 12px; }
+    }
+
+    /* ── 全局分页控件（看板详情区 / 弹窗 / 配置页仓库表共用）── */
+    .helixharness-pager { display: flex; align-items: center; justify-content: center; gap: 4px; flex-wrap: wrap; margin-top: 12px; padding: 8px 0; }
+    /* 统计行内分隔线 */
+    .helixharness-stat-divider { display: inline-block; width: 1px; height: 14px; background: #E5E6EB; margin: 0 2px; }
+    .helixharness-page-btn {
+      min-width: 32px; height: 32px; padding: 0 8px;
+      border: 1px solid #E5E6EB; border-radius: 6px;
+      background: #FFFFFF; color: #4E5969;
+      font-size: 12px; font-weight: 500; cursor: pointer;
+      transition: all 0.15s ease;
+      display: inline-flex; align-items: center; justify-content: center;
+      box-sizing: border-box;
+    }
+    .helixharness-page-btn:hover { border-color: #1677FF; color: #1677FF; }
+    .helixharness-page-btn.active { background: #1677FF; border-color: #1677FF; color: #FFFFFF; }
+    .helixharness-page-ellipsis { color: #86909C; font-size: 12px; padding: 0 2px; display: inline-flex; align-items: center; height: 32px; }
+    .helixharness-page-info { color: #86909C; font-size: 11px; margin-left: 8px; display: inline-flex; align-items: center; height: 32px; }
+    .helixharness-page-divider { width: 1px; height: 20px; background: #E5E6EB; margin: 0 6px; display: inline-block; }
+    .helixharness-page-label { font-size: 11px; color: #86909C; display: inline-flex; align-items: center; height: 32px; }
+    .helixharness-page-select {
+      height: 32px; padding: 0 8px;
+      border: 1px solid #E5E6EB; border-radius: 6px;
+      background: #FFFFFF; color: #4E5969;
+      font-size: 12px; cursor: pointer; outline: none;
+      transition: border-color 0.15s ease;
+      box-sizing: border-box;
+      display: inline-flex; align-items: center;
+    }
+    .helixharness-page-select:hover, .helixharness-page-select:focus { border-color: #1677FF; }
+
+    /* 全局禁用按钮样式: HTMX hx-disabled-elt / OOB disabled 后视觉置灰 + 不可点光标 */
+    button:disabled, button[disabled] {
+      opacity: 0.55;
+      cursor: not-allowed;
+      filter: grayscale(0.3);
+    }
+    button:disabled:hover { opacity: 0.55; }
+    @keyframes permanent-delete-spin { to { transform: rotate(360deg); } }
+    .permanent-delete-spinner {
+      width: 0.8rem;
+      height: 0.8rem;
+      border: 2px solid rgba(185, 28, 28, 0.22);
+      border-top-color: currentColor;
+      border-radius: 9999px;
+      animation: permanent-delete-spin 0.7s linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .permanent-delete-spinner { animation-duration: 1.8s; }
+    }
+  </style>
+</head>
+<body class="min-h-full bg-surface-1 font-sans text-ink">
+  {# ── 顶部主导航（sticky 吸顶，随 body 滚动时保持可见）── #}
+  <header class="flex items-center h-[56px] min-h-[56px] px-5 bg-surface-0 border-b border-edge sticky top-0 z-[100]"
+          style="box-shadow: 0 1px 0 rgba(0,0,0,0.03);">
+    {# Logo #}
+    <div class="flex items-center gap-2.5 mr-10 select-none">
+      <div class="w-8 h-8 rounded-[9px] flex items-center justify-center font-bold text-[13px] text-white"
+           style="background: linear-gradient(135deg, #1677FF 0%, #4096FF 100%); box-shadow: 0 2px 8px rgba(22,119,255,0.30);">
+        HH
+      </div>
+      <div class="font-sans text-[15px] font-semibold text-ink leading-tight tracking-tight">
+        HelixHarness<em class="not-italic text-accent font-semibold"> Platform</em>
+      </div>
+    </div>
+    {# 一级入口导航——纯文字，选中态用底色微弱区分，不做明显的框 #}
+    <nav class="flex items-center gap-1" id="topbar-seg">
+      <a href="/"
+         class="topbtn px-3.5 py-1.5 text-[13px] rounded-md font-medium
+                {% if active_section == 'dashboard' %}active{% endif %}">
+        数据看板
+      </a>
+      <a href="/framework-evaluation"
+         class="topbtn px-3.5 py-1.5 text-[13px] rounded-md font-medium
+                {% if active_section == 'framework_evaluation' %}active{% endif %}">
+        评测中心
+      </a>
+      <a href="/evolution/summary"
+         class="topbtn px-3.5 py-1.5 text-[13px] rounded-md font-medium
+                {% if active_section == 'evolution' %}active{% endif %}">
+        自进化
+      </a>
+    </nav>
+    {# 右侧留空（未来可放用户/设置） #}
+    <div class="flex-1"></div>
+  </header>
+
+  {# ── 主体：侧边栏 + 内容区（页面整体滚动，sticky 顶栏吸顶）── #}
+  <div class="flex items-start">
+    {% if sidebar_items %}
+    <aside class="app-sidebar w-[200px] min-w-[200px] sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto pb-3">
+      {% for group_title, items in sidebar_items %}
+      <div class="nav-group-title">{{ group_title }}</div>
+      {% for item_path, item_label, item_active in items %}
+      <a href="{{ item_path }}"
+         data-sidebar-path="{{ item_path }}"
+         {% if item_active %}data-active-sidebar-path="{{ item_path }}"{% endif %}
+         class="nav-item {% if item_active %}active{% endif %}">
+        {{ item_label }}
+      </a>
+      {% endfor %}
+      {% endfor %}
+    </aside>
+    {% endif %}
+
+    <main class="flex-1 min-w-0 min-h-[calc(100vh-56px)]" id="content">
+      {% if request.app.state.demo_mode | default(false) %}
+      <div role="note" style="padding:10px 24px;background:#fff7e6;color:#874d00;border-bottom:1px solid #ffd591">Demo · 全部为合成数据，评测使用 Mock 执行器；分数不代表真实模型能力。</div>
+      {% elif request.state.usage_demo | default(false) %}
+      <div role="note" style="padding:10px 24px;background:#fff7e6;color:#874d00;border-bottom:1px solid #ffd591">合成示例 · 当前看板展示自动生成的示例数据，不计入真实统计或自动进化证据。接入本地项目或 Git 数据源后展示真实数据。</div>
+      {% endif %}
+      {% block content %}{{ content_html | safe if content_html else "" }}{% endblock %}
+    </main>
+  </div>
+
+  {# ── 详情弹窗（.helixharness-detail-page）内的表格分页 ──
+     弹窗通过 CSS :target 显示，监听 hashchange 后对弹窗内 table.helixharness-main-table 分页 #}
+  <script>
+  function confirmPermanentDelete(form, message) {
+    if (form.dataset.deleteSubmitting === 'true') return false;
+    if (!window.confirm(message)) return false;
+
+    var button = form.querySelector('[data-permanent-delete-submit="true"]');
+    form.dataset.deleteSubmitting = 'true';
+    form.setAttribute('aria-busy', 'true');
+    if (button) {
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.classList.add('cursor-wait');
+      button.innerHTML = '<span class="permanent-delete-spinner" aria-hidden="true"></span><span>正在删除…</span>';
+      button.style.display = 'inline-flex';
+      button.style.alignItems = 'center';
+      button.style.gap = '0.4rem';
+    }
+    return true;
+  }
+
+  function confirmRelatedRunDelete(form, message) {
+    var related = form.querySelector('[name="delete_related"]');
+    if (related && !related.checked) {
+      window.alert('当前任务有关联重跑任务。请先单独删除关联任务，或勾选“同时删除关联重跑任务”。');
+      return false;
+    }
+    return confirmPermanentDelete(form, message);
+  }
+
+  function markFormSubmitting(form, label) {
+    var button = form.querySelector('[data-submit-busy="true"]');
+    if (!button || button.disabled) return false;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.textContent = label;
+    form.setAttribute('aria-busy', 'true');
+    return true;
+  }
+
+  (function() {
+    var SIZES = [5, 10, 50, 100];
+    var STORAGE_KEY = 'helixharness-page-size';
+
+    function getPerPage() {
+      var saved = parseInt(localStorage.getItem(STORAGE_KEY)) || 5;
+      return SIZES.indexOf(saved) >= 0 ? saved : 5;
+    }
+
+    function applyPagination(table) {
+      if (table.dataset.ohPaged) return; // 已加过分页
+      var tbody = table.querySelector('tbody');
+      if (!tbody) return;
+      var rows = Array.from(tbody.querySelectorAll('tr'));
+      if (rows.length === 0) return;
+      table.dataset.ohPaged = '1';
+
+      var PER = getPerPage();
+      var current = 1;
+      var total = rows.length;
+
+      // 找到包裹 table 的 helixharness-table-wrap，把 pager 放在它后面
+      var anchor = table.closest('.helixharness-table-wrap') || table;
+      var pager = document.createElement('div');
+      pager.className = 'helixharness-pager';
+      anchor.parentNode.insertBefore(pager, anchor.nextSibling);
+
+      function getPages() { return Math.ceil(total / PER); }
+
+      function render() {
+        var pages = getPages();
+        if (current > pages) current = pages;
+        if (current < 1) current = 1;
+        var start = (current - 1) * PER;
+        var end = start + PER;
+        rows.forEach(function(r, i) { r.style.display = (i >= start && i < end) ? '' : 'none'; });
+
+        var html = '';
+        if (current > 1) html += '<button data-dp="' + (current-1) + '" class="helixharness-page-btn">‹ 上一页</button>';
+        var pStart = Math.max(1, current - 2), pEnd = Math.min(pages, current + 2);
+        if (pStart > 1) { html += '<button data-dp="1" class="helixharness-page-btn">1</button>'; if (pStart > 2) html += '<span class="helixharness-page-ellipsis">…</span>'; }
+        for (var p = pStart; p <= pEnd; p++) html += '<button data-dp="' + p + '" class="helixharness-page-btn' + (p===current?' active':'') + '">' + p + '</button>';
+        if (pEnd < pages) { if (pEnd < pages-1) html += '<span class="helixharness-page-ellipsis">…</span>'; html += '<button data-dp="' + pages + '" class="helixharness-page-btn">' + pages + '</button>'; }
+        if (current < pages) html += '<button data-dp="' + (current+1) + '" class="helixharness-page-btn">下一页 ›</button>';
+        html += '<span class="helixharness-page-info">' + current + '/' + pages + ' 页 · 共 ' + total + ' 条</span>';
+        html += '<span class="helixharness-page-divider"></span><span class="helixharness-page-label">每页</span>';
+        html += '<select class="helixharness-page-select helixharness-dp-size">';
+        for (var i = 0; i < SIZES.length; i++) html += '<option value="' + SIZES[i] + '"' + (SIZES[i]===PER?' selected':'') + '>' + SIZES[i] + ' 条</option>';
+        html += '</select>';
+        pager.innerHTML = html;
+      }
+
+      pager.addEventListener('click', function(e) {
+        var btn = e.target.closest('button[data-dp]');
+        if (!btn) return;
+        current = parseInt(btn.getAttribute('data-dp'));
+        render();
+        table.scrollIntoView({behavior:'smooth', block:'start'});
+      });
+      pager.addEventListener('change', function(e) {
+        if (!e.target.classList.contains('helixharness-dp-size')) return;
+        PER = parseInt(e.target.value) || 5;
+        localStorage.setItem(STORAGE_KEY, String(PER));
+        current = 1;
+        render();
+      });
+
+      render();
+    }
+
+    function paginateActiveDetail() {
+      var dp = document.querySelector('.helixharness-detail-page:target');
+      if (!dp) dp = document.querySelector('.helixharness-detail-page[style*="block"]'); // fallback
+      if (!dp) return;
+      dp.querySelectorAll('table.helixharness-main-table').forEach(applyPagination);
+    }
+
+    window.addEventListener('hashchange', function() { setTimeout(paginateActiveDetail, 50); });
+    document.addEventListener('click', function(e) {
+      var link = e.target.closest('a[href^="#helixharness-"]');
+      if (link) setTimeout(paginateActiveDetail, 100);
+    }, true);
+    // ESC 关闭详情弹窗：跳到 #helixharness-usage-top（和「返回总览」按钮效果一致）
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        var dp = document.querySelector('.helixharness-detail-page:target');
+        if (!dp) dp = document.querySelector('.helixharness-detail-page[style*="display: block"], .helixharness-detail-page[style*="display:block"]');
+        if (dp) {
+          // 跳到总览锚点，CSS :target 失效自动隐藏弹窗
+          window.location.hash = 'helixharness-usage-top';
+        }
+      }
+    });
+    // 页面加载后也检查一次（直接带 hash 打开）
+    setTimeout(paginateActiveDetail, 200);
+  })();
+
+  // ── 后台任务运行时禁用触发按钮 (立即同步 / 重新生成 AI 分析) ──
+  // 监听全局 htmx:afterSwap: 每次 #action-status 被轮询响应刷新后,
+  // 检查里面的 helixharness-task-marker 标记, 据此切换对应按钮 disabled。
+  // 纯声明式, 不依赖 swap 内容里的脚本执行 (HTMX 默认不执行 swap 的 <script>)。
+  function syncTaskButtons() {
+    var box = document.getElementById('action-status');
+    if (!box) return;
+    var markers = box.querySelectorAll('.helixharness-task-marker');
+    // 收集正在运行的任务 id
+    var running = {};
+    markers.forEach(function(m) {
+      if (m.getAttribute('data-running') === '1') {
+        running[m.getAttribute('data-task')] = true;
+      }
+    });
+    // 两个已知任务按钮: 运行中则禁用, 否则恢复
+    ['sync', 'ai_regenerate'].forEach(function(tid) {
+      var btn = document.getElementById(tid + '-btn');
+      if (btn) btn.disabled = !!running[tid];
+    });
+  }
+  document.body.addEventListener('htmx:afterSwap', syncTaskButtons);
+  document.addEventListener('DOMContentLoaded', syncTaskButtons);
+
+  var stablePollDetailStates = {};
+
+  function rememberStablePollDetails(target) {
+    var states = {};
+    target.querySelectorAll('details[data-poll-state-key]').forEach(function(detail) {
+      states[detail.getAttribute('data-poll-state-key')] = detail.open;
+    });
+    stablePollDetailStates[target.id] = states;
+  }
+
+  function restoreStablePollDetails(target) {
+    var states = stablePollDetailStates[target.id];
+    if (!states) return;
+    target.querySelectorAll('details[data-poll-state-key]').forEach(function(detail) {
+      var key = detail.getAttribute('data-poll-state-key');
+      if (Object.prototype.hasOwnProperty.call(states, key)) {
+        detail.open = states[key];
+      }
+    });
+    delete stablePollDetailStates[target.id];
+  }
+
+  // 轮询响应与当前状态一致时保留原 DOM；状态变化时恢复折叠面板的展开状态。
+  document.body.addEventListener('htmx:beforeSwap', function(event) {
+    var target = event.detail.target;
+    if (!target || !target.matches('[data-stable-poll]')) return;
+    var currentSignature = target.getAttribute('data-poll-signature');
+    if (!currentSignature || !target.id) return;
+
+    var response = document.createElement('template');
+    response.innerHTML = event.detail.xhr.responseText.trim();
+    var replacement = response.content.querySelector('#' + target.id);
+    if (
+      replacement &&
+      replacement.getAttribute('data-poll-signature') === currentSignature
+    ) {
+      event.detail.shouldSwap = false;
+      return;
+    }
+    rememberStablePollDetails(target);
+  });
+
+  document.body.addEventListener('htmx:afterSwap', function(event) {
+    var target = event.target;
+    if (!target || !target.matches('[data-stable-poll]') || !target.id) return;
+    restoreStablePollDetails(target);
+  });
+  </script>
+</body>
+</html>

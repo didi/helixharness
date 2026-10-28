@@ -1,0 +1,15 @@
+{
+  "schema_version": "framework-eval-scenario.v2",
+  "case_id": "demo-task-filter",
+  "title": "Task filtering (synthetic demo)",
+  "case_kind": "DEVELOPMENT_FIXTURE",
+  "execution_intent": "FLOW_THROUGH",
+  "initial_request_path": "initial-request.md",
+  "gold_path": "gold.json",
+  "clarification_policy_path": "clarification-policy.json",
+  "workspace_path": "workspace",
+  "runtime": {
+    "language": "PYTHON",
+    "python_version": "3.10"
+  }
+}

@@ -1,0 +1,20 @@
+# Local development and host configuration
+.idea/
+.claude/
+.codex/
+.DS_Store
+.env
+.venv/
+node_modules/
+*.egg-info/
+
+# Python and test caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# Runtime and acceptance output do not belong in the plugin distribution
+/.helixharness/
+/output/
+/docs/eval/

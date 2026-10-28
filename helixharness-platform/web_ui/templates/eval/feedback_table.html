@@ -1,0 +1,72 @@
+{# 反馈列表和分页均随 HTMX 局部刷新；外层目标由列表页提供。 #}
+<section class="helixharness-feedback-panel helixharness-feedback-results" aria-label="反馈列表">
+  <div class="helixharness-feedback-results-heading">
+    <h2 class="helixharness-feedback-panel-title">反馈列表 <span>{{ total }} 条</span></h2>
+    <span class="text-[11px] text-ink-muted">按提交时间倒序</span>
+  </div>
+  <div class="helixharness-feedback-table-scroll" role="region" aria-label="反馈明细" tabindex="0">
+    <table class="helixharness-feedback-table">
+      <colgroup><col style="width:36%"><col style="width:23%"><col style="width:10%"><col style="width:10%"><col style="width:15%"><col style="width:6%"></colgroup>
+      <thead><tr>
+        <th scope="col">反馈内容</th><th scope="col">项目 / 需求</th><th scope="col">分类</th>
+        <th scope="col">插件版本</th><th scope="col">提交人 / 时间</th><th scope="col" class="helixharness-feedback-action">操作</th>
+      </tr></thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <td><a class="helixharness-feedback-copy" href="/feedback/detail/{{ row.feedback_id }}" title="{{ row.text }}">{{ row.text or '暂无反馈内容' }}</a></td>
+          <td><div class="helixharness-feedback-feature">{{ row.feature or '未关联需求' }}</div><div class="helixharness-feedback-project" title="{{ row.project or '' }}">{{ row.project or '未关联项目' }}</div></td>
+          <td><span class="helixharness-feedback-category {% if row.category == 'bug' %}is-bug{% elif row.category == 'suggestion' %}is-suggestion{% endif %}">{{ category_labels.get(row.category, row.category or '未分类') }}</span></td>
+          <td><span class="helixharness-feedback-version">{{ row.plugin_version or '—' }}</span></td>
+          <td><div class="helixharness-feedback-feature">{{ row.user_name or '—' }}</div><time class="helixharness-feedback-time">{{ row.created_at | beijing_datetime }}</time></td>
+          <td class="helixharness-feedback-action"><a href="/feedback/detail/{{ row.feedback_id }}" class="text-accent hover:underline">详情 ›</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6"><div class="helixharness-feedback-empty"><b>暂无反馈</b><p>当前筛选条件下没有反馈文档，请调整筛选条件或重置。</p><a href="/feedback" class="text-accent hover:underline">重置筛选</a></div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% set total_pages = ((total + page_size - 1) / page_size) | int %}
+<div class="helixharness-feedback-pagination">
+  <div class="flex items-center gap-1">
+    {% if total_pages > 1 %}
+    {% if page > 1 %}
+    <button class="px-2 py-1 border border-edge rounded-md hover:border-accent hover:text-accent transition-colors"
+            hx-get="/feedback/partial/table{{ base_query }}{{ '&' if base_query else '?' }}page={{ page - 1 }}&page_size={{ page_size }}"
+            hx-target="#feedback-table-zone" hx-swap="innerHTML">‹ 上一页</button>
+    {% endif %}
+    {% for p in pages %}
+      {% if p == '…' %}
+      <span class="px-1">…</span>
+      {% elif p == page %}
+      <span class="px-2.5 py-1 rounded-md bg-accent text-white">{{ p }}</span>
+      {% else %}
+      <button class="px-2.5 py-1 border border-edge rounded-md hover:border-accent hover:text-accent transition-colors"
+              hx-get="/feedback/partial/table{{ base_query }}{{ '&' if base_query else '?' }}page={{ p }}&page_size={{ page_size }}"
+              hx-target="#feedback-table-zone" hx-swap="innerHTML">{{ p }}</button>
+      {% endif %}
+    {% endfor %}
+    {% if page < total_pages %}
+    <button class="px-2 py-1 border border-edge rounded-md hover:border-accent hover:text-accent transition-colors"
+            hx-get="/feedback/partial/table{{ base_query }}{{ '&' if base_query else '?' }}page={{ page + 1 }}&page_size={{ page_size }}"
+            hx-target="#feedback-table-zone" hx-swap="innerHTML">下一页 ›</button>
+    {% endif %}
+    {% endif %}
+  </div>
+  {% if total %}
+  <div class="flex items-center gap-1.5">
+    <span>共 {{ total }} 条{% if total_pages > 1 %} · 第 {{ page }} / {{ total_pages }} 页{% endif %} · 每页</span>
+    <select class="px-1.5 py-0.5 border border-edge rounded-md bg-surface-1 text-[12px]"
+            name="page_size" aria-label="每页条数"
+            hx-get="/feedback/partial/table{{ base_query }}{{ '&' if base_query else '?' }}page=1"
+            hx-include="this" hx-trigger="change" hx-target="#feedback-table-zone" hx-swap="innerHTML">
+      {% for option in page_sizes %}
+      <option value="{{ option }}" {% if option == page_size %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
+</div>
+
+</section>

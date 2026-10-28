@@ -1,0 +1,263 @@
+{# 配置页 · 仓库表片段（HTMX swap 目标）#}
+<div class="mb-2 flex items-center justify-between gap-4" data-repo-list-header="true">
+  <div class="flex min-w-0 items-baseline gap-3">
+    <h4 class="shrink-0 text-[14px] font-semibold text-ink">项目库列表</h4>
+    {% if last_run and last_run.has_data %}
+    <span class="inline-flex min-w-0 items-center gap-1.5 text-[11px] text-ink-dim">
+      <span class="shrink-0">最近同步</span>
+      <span id="helixharness-last-run-time" class="truncate tabular-nums text-ink-muted" data-ts="{{ last_run.finished_at }}">{{ last_run.finished_at or "—" }}</span>
+    </span>
+    {% elif repos %}
+    <span class="text-[11px] text-ink-dim">尚未同步</span>
+    {% endif %}
+  </div>
+  <button class="shrink-0 text-[11px] text-accent hover:underline"
+          hx-get="/config/repo-table" hx-target="#repo-table-zone" hx-swap="innerHTML">
+    刷新
+  </button>
+</div>
+
+{% if flash %}
+<div class="mb-3 px-3.5 py-2 rounded-md text-[12px]
+            {% if '未找到' in flash or '请先' in flash %}bg-accent-warm/15 border border-accent-warm/30 text-accent-warm
+            {% else %}bg-success/10 border border-success/30 text-success{% endif %}">
+  {{ flash }}
+</div>
+{% endif %}
+
+{# 统计信息：统一视觉、单行平铺，窄宽度允许横向滚动 #}
+<div class="mb-3 flex flex-nowrap items-center gap-2 overflow-x-auto pb-0.5 text-[11px] whitespace-nowrap" data-repo-summary="true">
+  {% if last_run and last_run.has_data %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">成功 <b class="tabular-nums text-ink">{{ last_run.succeeded }}</b></span>
+  {% if last_run.cloned > 0 %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">新克隆 <b class="tabular-nums text-ink">{{ last_run.cloned }}</b></span>
+  {% endif %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">有更新 <b class="tabular-nums text-ink">{{ last_run.updated }}</b></span>
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">已是最新 <b class="tabular-nums text-ink">{{ last_run.unchanged }}</b></span>
+  {% if last_run.failed > 0 %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">失败 <b class="tabular-nums text-ink">{{ last_run.failed }}</b></span>
+  {% endif %}
+  {% elif repos %}
+  <span class="inline-flex shrink-0 items-center rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">暂无同步执行记录</span>
+  {% endif %}
+  {% if repos %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">有 eval 数据仓库 <b class="tabular-nums text-ink" data-eval-repo-count="true">{{ eval_summary.repo_count }}</b> 个</span>
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">有效 eval 数据 <b class="tabular-nums text-ink" data-valid-eval-count="true">{{ eval_summary.valid_count }}</b> 条</span>
+  {% if eval_summary.invalid_count > 0 %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">无效 eval 数据 <b class="tabular-nums text-ink" data-invalid-eval-count="true">{{ eval_summary.invalid_count }}</b> 条</span>
+  {% endif %}
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">共 <b class="tabular-nums text-ink">{{ repos | length }}</b> 个仓库</span>
+  <span class="inline-flex shrink-0 items-center gap-1 rounded-md border border-edge-soft bg-surface-1 px-2.5 py-1 text-ink-muted" data-repo-stat="true">已启用 <b class="tabular-nums text-ink">{{ repos | selectattr('enabled') | list | length }}</b></span>
+  {% endif %}
+</div>
+
+{# 筛选栏 #}
+{% if repos %}
+<div class="flex items-center gap-2 mb-3 flex-wrap text-[11px]" id="repo-filters">
+  <select id="repo-filter-status" class="px-2 py-1 border border-edge rounded bg-surface-1 text-ink-muted focus:border-accent focus:outline-none">
+    <option value="">全部状态</option>
+    <option value="enabled">已启用</option>
+    <option value="disabled">已停用</option>
+  </select>
+  <select id="repo-filter-sync" class="px-2 py-1 border border-edge rounded bg-surface-1 text-ink-muted focus:border-accent focus:outline-none">
+    <option value="">全部同步</option>
+    <option value="cloned">已克隆</option>
+    <option value="updated">有更新</option>
+    <option value="unchanged">已是最新</option>
+    <option value="none">未同步</option>
+  </select>
+  <select id="repo-filter-eval" class="px-2 py-1 border border-edge rounded bg-surface-1 text-ink-muted focus:border-accent focus:outline-none">
+    <option value="">全部数据</option>
+    <option value="has">有 eval 数据</option>
+    <option value="none">无 eval 数据</option>
+  </select>
+  <span id="repo-filter-count" class="text-[10px] text-ink-dim ml-auto"></span>
+</div>
+{% endif %}
+
+<div class="w-full min-w-0 overflow-x-auto rounded-lg border border-edge bg-surface-0"
+     data-repo-table-viewport="true">
+  <table class="w-full min-w-[760px] table-fixed border-collapse text-[12px]" id="repo-table-el">
+    <colgroup>
+      <col style="width: 42%">
+      <col style="width: 10%">
+      <col style="width: 9%">
+      <col style="width: 12%">
+      <col style="width: 11%">
+      <col style="width: 16%">
+    </colgroup>
+    <thead>
+      <tr class="bg-surface-1 text-ink-muted text-[10px] uppercase tracking-wide font-semibold">
+        <th class="px-3 py-2.5 text-left">仓库</th>
+        <th class="px-3 py-2.5 text-left">分支</th>
+        <th class="px-3 py-2.5 text-left">状态</th>
+        <th class="px-3 py-2.5 text-left">代码同步</th>
+        <th class="px-3 py-2.5 text-left">eval 数据</th>
+        <th class="px-3 py-2.5 text-left">Commit</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% if not repos %}
+    <tr><td colspan="6" class="px-3 py-6 text-center text-ink-dim">暂无 Git 数据源，请在下方添加。</td></tr>
+    {% else %}
+    {% for r in repos %}
+    <tr class="border-t border-edge-soft repo-row"
+        data-enabled="{{ 'true' if r.enabled else 'false' }}"
+        data-sync="{{ r.sync_cls }}"
+        data-eval="{{ 'has' if r.valid_eval_count > 0 else 'none' }}">
+      <td class="px-3 py-2">
+        <div class="min-w-0">
+          <span class="block truncate font-semibold text-ink text-[12px]" title="{{ r.name }}">{{ r.name }}</span>
+          <code class="mt-0.5 block truncate text-[9px] text-ink-dim" title="{{ r.url }}">{{ r.url }}</code>
+        </div>
+      </td>
+      <td class="px-3 py-2 text-ink-muted font-mono text-[11px] truncate" title="{{ r.branch }}">{{ r.branch }}</td>
+      <td class="px-3 py-2">
+        {% if r.enabled %}
+        <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-success/15 text-success">启用</span>
+        {% else %}
+        <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-surface-1 text-ink-dim">停用</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2">
+        <span class="sync-pill sync-{{ r.sync_cls }} whitespace-nowrap">{{ r.sync_status }}</span>
+      </td>
+      <td class="px-3 py-2">
+        {% if r.valid_eval_count > 0 %}
+        <span class="inline-block px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-accent/15 text-accent">
+          {{ r.valid_eval_count }} 条
+        </span>
+        {% elif r.invalid_count > 0 %}
+        <span class="text-[10px] text-ink-dim">无有效数据</span>
+        {% else %}
+        <span class="text-[10px] text-ink-dim">无</span>
+        {% endif %}
+        {% if r.invalid_count > 0 %}
+        <span class="text-[9px] text-danger ml-0.5">无效{{ r.invalid_count }}</span>
+        {% endif %}
+      </td>
+      <td class="px-3 py-2 min-w-0">
+        <code class="block truncate text-[10px] text-ink-dim" title="{{ r.last_commit }}">{{ r.last_commit }}</code>
+        {% if r.last_commit_author %}
+        <div class="mt-0.5 truncate text-[9px] text-ink-dim" title="{{ r.last_commit_author }}">{{ r.last_commit_author }}</div>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{# 时间格式化 #}
+<script>
+(function() {
+  var el = document.getElementById('helixharness-last-run-time');
+  if (!el) return;
+  var ts = el.getAttribute('data-ts');
+  if (!ts) return;
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return;
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  el.textContent = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+})();
+</script>
+
+{# 筛选 + 分页控件 #}
+<script>
+(function() {
+  var table = document.getElementById('repo-table-el');
+  if (!table) return;
+  var allRows = Array.from(table.querySelectorAll('tbody tr.repo-row'));
+  var filters = document.getElementById('repo-filters');
+
+  var SIZES = [10, 20, 50, 100];
+  var STORAGE_KEY = 'helixharness-repo-page-size';
+  var saved = parseInt(localStorage.getItem(STORAGE_KEY)) || 10;
+  var PER = SIZES.indexOf(saved) >= 0 ? saved : 10;
+  var current = 1;
+
+  // 创建分页容器
+  var pager = document.createElement('div');
+  pager.className = 'helixharness-pager';
+  var tableViewport = table.closest('[data-repo-table-viewport]');
+  tableViewport.parentNode.insertBefore(pager, tableViewport.nextSibling);
+
+  function getFilteredRows() {
+    var sf = document.getElementById('repo-filter-status');
+    var yf = document.getElementById('repo-filter-sync');
+    var ef = document.getElementById('repo-filter-eval');
+    var sv = sf ? sf.value : '';
+    var yv = yf ? yf.value : '';
+    var ev = ef ? ef.value : '';
+    return allRows.filter(function(r) {
+      if (sv === 'enabled' && r.dataset.enabled !== 'true') return false;
+      if (sv === 'disabled' && r.dataset.enabled !== 'false') return false;
+      if (yv && r.dataset.sync !== yv) return false;
+      if (ev === 'has' && r.dataset.eval !== 'has') return false;
+      if (ev === 'none' && r.dataset.eval !== 'none') return false;
+      return true;
+    });
+  }
+
+  function render() {
+    var filtered = getFilteredRows();
+    var total = filtered.length;
+    // 先隐藏所有行
+    allRows.forEach(function(r) { r.style.display = 'none'; });
+    var pages = Math.max(1, Math.ceil(total / PER));
+    if (current > pages) current = pages;
+    var start = (current - 1) * PER, end = start + PER;
+    filtered.forEach(function(r, i) { r.style.display = (i >= start && i < end) ? '' : 'none'; });
+
+    // 更新筛选计数
+    var countLabel = document.getElementById('repo-filter-count');
+    if (countLabel) countLabel.textContent = total + '/' + allRows.length + ' 个';
+
+    // 分页 HTML
+    if (total <= PER) { pager.innerHTML = ''; return; }
+    var html = '';
+    if (current > 1) html += '<button data-rp="' + (current-1) + '" class="helixharness-page-btn">‹ 上一页</button>';
+    var ps = Math.max(1, current-2), pe = Math.min(pages, current+2);
+    if (ps > 1) { html += '<button data-rp="1" class="helixharness-page-btn">1</button>'; if (ps > 2) html += '<span class="helixharness-page-ellipsis">…</span>'; }
+    for (var p = ps; p <= pe; p++) html += '<button data-rp="' + p + '" class="helixharness-page-btn' + (p===current?' active':'') + '">' + p + '</button>';
+    if (pe < pages) { if (pe < pages-1) html += '<span class="helixharness-page-ellipsis">…</span>'; html += '<button data-rp="' + pages + '" class="helixharness-page-btn">' + pages + '</button>'; }
+    if (current < pages) html += '<button data-rp="' + (current+1) + '" class="helixharness-page-btn">下一页 ›</button>';
+    html += '<span class="helixharness-page-info">' + current + '/' + pages + ' 页 · ' + total + ' 个</span>';
+    html += '<span class="helixharness-page-divider"></span><span class="helixharness-page-label">每页</span>';
+    html += '<select class="helixharness-page-select helixharness-repo-size">';
+    for (var i = 0; i < SIZES.length; i++) html += '<option value="' + SIZES[i] + '"' + (SIZES[i]===PER?' selected':'') + '>' + SIZES[i] + '</option>';
+    html += '</select>';
+    pager.innerHTML = html;
+  }
+
+  // 分页点击
+  pager.addEventListener('click', function(e) {
+    var btn = e.target.closest('button[data-rp]');
+    if (!btn) return;
+    current = parseInt(btn.getAttribute('data-rp'));
+    render();
+    table.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  pager.addEventListener('change', function(e) {
+    if (!e.target.classList.contains('helixharness-repo-size')) return;
+    PER = parseInt(e.target.value) || 10;
+    localStorage.setItem(STORAGE_KEY, String(PER));
+    current = 1;
+    render();
+  });
+  // 筛选变化（事件委托，只绑定一次）
+  if (!window._repoFilterBound) {
+    window._repoFilterBound = true;
+    document.addEventListener('change', function(e) {
+      if (e.target && e.target.id && e.target.id.indexOf('repo-filter-') === 0) {
+        if (window._repoRender) { window._repoRender(); }
+      }
+    });
+  }
+  window._repoRender = function() { current = 1; render(); };
+
+  render();
+})();
+</script>

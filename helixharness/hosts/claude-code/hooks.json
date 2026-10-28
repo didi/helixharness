@@ -1,0 +1,61 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionStart \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" CwdChanged \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionEnd \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" PreToolUse \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "^helix:",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" UserPromptExpansion \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

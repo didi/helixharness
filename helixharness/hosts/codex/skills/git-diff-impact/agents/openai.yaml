@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:git-diff-impact"
+  short_description: "分析指定 Git 改动的调用链、业务影响和兼容性风险，生成影响报告。"
+policy:
+  allow_implicit_invocation: false

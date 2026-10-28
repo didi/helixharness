@@ -1,0 +1,6 @@
+{
+  "entry_file": "AGENTS.md",
+  "entry_template": "templates/project-entry.md.tpl",
+  "workspace_entry_template": "templates/workspace-entry.md.tpl",
+  "settings_file": ".codex/hooks.json"
+}

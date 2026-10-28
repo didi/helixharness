@@ -1,0 +1,29 @@
+{
+  "name": "helix",
+  "version": "1.0.0",
+  "description": "HelixHarness 面向 Codex 的研发工作流插件，提供命令入口和可复用 Skills",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "license": "Apache-2.0",
+  "skills": "./hosts/codex/skills/",
+  "interface": {
+    "displayName": "HelixHarness",
+    "shortDescription": "AI development workflow with harness, knowledge, and verification",
+    "longDescription": "HelixHarness is a specification-driven AI development workflow with constraint management, knowledge base, approval gates, multi-agent review, and independent verification. Use /helix: commands to guide AI-driven development.",
+    "developerName": "helixharness",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "初始化项目：/helix:init",
+      "创建需求：/helix:propose <name> <requirement>",
+      "自动完成：/helix:propose <name> <requirement> --loop"
+    ],
+    "brandColor": "#10B981"
+  },
+  "hooks": "./hosts/codex/hooks.json"
+}

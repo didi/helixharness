@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "helixharness-platform"
+version = "1.0.0"
+description = "HelixHarness platform for telemetry, evidence-driven evolution, and trusted benchmarking"
+readme = "README.md"
+license = {text = "Apache-2.0"}
+requires-python = ">=3.10"
+authors = [
+    {name = "HelixHarness Team"},
+]
+keywords = ["agent", "evaluation", "telemetry", "evolution", "helixharness"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "openai>=1.30.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/didi/helixharness"
+Repository = "https://github.com/didi/helixharness"
+Issues = "https://github.com/didi/helixharness/issues"
+
+[project.optional-dependencies]
+# Claude model backend
+claude = ["claude-agent-sdk>=0.1.0", "anthropic>=0.40.0"]
+# Codex agent backend
+codex = ["openai-codex>=0.144.4,<0.145"]
+# Documentation site
+docs = ["mkdocs-material>=9.5.0", "mkdocstrings[python]>=0.24.0"]
+# WebUI server (FastAPI + HTMX + Tailwind)
+server = [
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+    "claude-agent-sdk>=0.1.0",
+    "anthropic>=0.40.0",
+    "openai-codex>=0.144.4,<0.145",
+]
+# Development and test tools
+dev = ["ruff>=0.4.0", "pytest>=8.0.0", "httpx>=0.27", "tomli>=2; python_version < '3.11'"]
+# All optional dependencies (except docs/dev)
+all = [
+    "claude-agent-sdk>=0.1.0",
+    "anthropic>=0.40.0",
+    "openai-codex>=0.144.4,<0.145",
+    "fastapi>=0.110.0",
+    "uvicorn[standard]>=0.29.0",
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.scripts]
+helixharness-server = "web_ui.main:main"
+helixharness-demo = "web_ui.demo:main"
+helixharness-scenario-calibrate = "bench.scenario_calibration_cli:main"
+helixharness-scenario-worker = "bench.scenario_worker:main"
+helixharness-worker-pool = "bench.worker_pool:main"
+
+[tool.setuptools]
+license-files = ["LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md", "licenses/*.txt"]
+
+[tool.setuptools.packages.find]
+include = ["bench*", "eval*", "evolution*", "web_ui*"]
+exclude = ["bench.tests*", "eval.tests*", "evolution.tests*", "web_ui.tests*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["**/__pycache__/*", "**/*.pyc", "**/*.pyo"]
+
+[tool.setuptools.package-data]
+bench = ["*.sql", "docs/*.md", "sample_data/**/*"]
+eval = ["*.sql", "docs/*.md", "schemas/*.json", "sample_data/**/*"]
+evolution = ["*.sql", "catalog/*.yaml", "docs/**/*", "mkdocs.yml"]
+web_ui = [
+    "templates/**/*.html",
+    "static/**/*",
+    "static/plugins/*/.codex-plugin/plugin.json",
+    "static/plugins/*/.claude-plugin/marketplace.json",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+markers = [
+    "evaluation_e2e: hermetic end-to-end evaluation workflow tests",
+]

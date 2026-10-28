@@ -1,0 +1,7 @@
+cache_dir: eval/.cache/usage
+repos: []
+ai_analysis:
+  enabled: false
+  endpoint: https://api.openai.com/v1
+  api_key_env: HELIXHARNESS_PLATFORM_USAGE_AI_API_KEY
+  model: ""

@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:brainstorming"
+  short_description: "用户独立调用的方案探索工具。澄清问题与约束，比较可行方案并给出推荐方向，不由研发命令自动触发。"
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,4 @@
+interface:
+  display_name: "HelixHarness Case Creator"
+  short_description: "从多仓库生成并校准 HelixHarness Platform Case"
+  default_prompt: "用 $helixharness-case-creator 扫描代码仓库，生成可移植的 Scenario v2 Case，并完成质量审计、Preflight 与冲突检查。"

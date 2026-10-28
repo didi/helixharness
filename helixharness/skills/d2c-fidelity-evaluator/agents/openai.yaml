@@ -1,0 +1,7 @@
+interface:
+  display_name: "D2C Fidelity Evaluator"
+  short_description: "为 D2C 页面还原度打分并生成优化报告"
+  default_prompt: "Use $d2c-fidelity-evaluator to score this D2C page against its design and produce an actionable optimization report."
+
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,10 @@
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.png binary
+*.db binary
+/output export-ignore
+/.pytest_cache export-ignore
+/.ruff_cache export-ignore
+/.github export-ignore

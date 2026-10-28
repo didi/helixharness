@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:apply"
+  short_description: "执行任务、验证并完成双轴代码评审。"
+policy:
+  allow_implicit_invocation: true

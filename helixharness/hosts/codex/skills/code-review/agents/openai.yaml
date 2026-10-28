@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:code-review"
+  short_description: "为 HelixHarness Apply 评审固定比较点之后的代码变化；"
+policy:
+  allow_implicit_invocation: true

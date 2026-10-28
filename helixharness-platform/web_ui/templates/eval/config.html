@@ -1,0 +1,135 @@
+{# 数据看板 · 配置：仓库管理 + 同步策略 + 立即同步 + AI 重生成 #}
+<div class="p-6">
+  <header class="border-b border-edge pb-2.5 mb-5">
+    <h1 class="text-[22px] font-bold text-ink font-serif">数据看板 <em class="not-italic text-accent">配置</em></h1>
+    <p class="mt-1 text-xs text-ink-muted">Git 数据源管理、同步策略与 AI 洞察生成</p>
+  </header>
+
+  <div class="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_260px]" data-config-layout="true">
+    {# ═══ 左 2 列：仓库管理 ═══ #}
+    <div class="min-w-0 flex flex-col gap-5">
+
+      {# ── 仓库列表 ── #}
+      <section>
+        <div id="repo-table-zone">
+          {% include "eval/config_repo_table.html" %}
+        </div>
+      </section>
+
+      {# ── 新增项目库 ── #}
+      <section>
+        <h4 class="text-[14px] font-semibold text-ink mb-2">新增 / 更新项目库</h4>
+        <div class="bg-surface-0 border border-edge rounded-lg p-4">
+          <form class="grid grid-cols-2 gap-3"
+                hx-post="/config/add-repo" hx-target="#repo-table-zone" hx-swap="innerHTML">
+            <label class="block">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">仓库名称</span>
+              <input type="text" name="name" placeholder="留空则自动推导"
+                     class="w-full px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+            </label>
+            <label class="block">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">Git 地址 <span class="text-danger">*</span></span>
+              <input type="text" name="url" placeholder="https://github.com/your-org/your-repo.git" required
+                     class="w-full px-3 py-1.5 text-[11px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none font-mono">
+            </label>
+            <label class="block">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">分支</span>
+              <input type="text" name="branch" value="master"
+                     class="w-full px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+            </label>
+            <label class="block">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">采集目录</span>
+              <input type="text" name="eval_dir" value="docs/eval"
+                     class="w-full px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+            </label>
+            <div class="col-span-2 flex items-center justify-between">
+              <label class="flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" name="enabled" value="true" checked class="w-4 h-4 accent-accent">
+                <span class="text-[12px] text-ink">启用</span>
+              </label>
+              <button type="submit"
+                      class="px-4 py-1.5 text-[12px] font-medium text-white bg-accent rounded-md hover:bg-accent-dark transition-colors">
+                保存项目库
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      {# ── 删除项目库 ── #}
+      <section>
+        <h4 class="text-[14px] font-semibold text-ink mb-2">删除项目库</h4>
+        <div class="bg-surface-0 border border-edge rounded-lg p-4">
+          <form class="flex items-end gap-3"
+                hx-post="/config/delete-repo" hx-target="#repo-table-zone" hx-swap="innerHTML"
+                onsubmit="return confirm('确认删除该项目库？')">
+            <label class="block flex-1">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">仓库名称</span>
+              <input type="text" name="name" placeholder="输入要删除的仓库名称"
+                     class="w-full px-3 py-1.5 text-[12px] border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+            </label>
+            <button type="submit"
+                    class="px-4 py-1.5 text-[12px] font-medium text-white bg-danger rounded-md hover:opacity-90 transition-opacity whitespace-nowrap">
+              删除
+            </button>
+          </form>
+        </div>
+      </section>
+    </div>
+
+    {# ═══ 右 1 列：同步策略 + 操作 ═══ #}
+    <div class="min-w-0 flex flex-col gap-5">
+
+      {# ── 同步策略 ── #}
+      <section>
+        <h4 class="text-[14px] font-semibold text-ink mb-2">同步策略</h4>
+        <div class="bg-surface-0 border border-edge rounded-lg p-4">
+          <form hx-post="/config/save-cron" hx-target="#cron-status" hx-swap="innerHTML">
+            <label class="block mb-3">
+              <span class="block text-[11px] font-medium text-ink-muted mb-1">全局计划时间</span>
+              <input type="text" name="cron" value="{{ cron_value }}" placeholder="0 * * * *"
+                     class="w-full px-3 py-1.5 text-[12px] font-mono border border-edge rounded-md bg-surface-1 focus:border-accent focus:outline-none">
+            </label>
+            <p class="text-[10px] text-ink-dim mb-3 leading-relaxed">
+              <code class="bg-surface-1 px-1 rounded">0 * * * *</code> = 每小时<br>
+              <code class="bg-surface-1 px-1 rounded">0 9 * * 1-5</code> = 工作日 9 点
+            </p>
+            <button type="submit"
+                    class="w-full px-4 py-1.5 text-[12px] font-medium text-white bg-accent rounded-md hover:bg-accent-dark transition-colors">
+              保存计划
+            </button>
+          </form>
+          <div id="cron-status"></div>
+        </div>
+      </section>
+
+      {# ── 立即操作 ── #}
+      <section id="ai-analysis">
+        <h4 class="text-[14px] font-semibold text-ink mb-2">立即操作</h4>
+        <div class="bg-surface-0 border border-edge rounded-lg p-4 flex flex-col gap-2.5">
+          <button id="sync-btn" hx-post="/config/sync" hx-target="#action-status" hx-swap="innerHTML"
+                  hx-disabled-elt="this"
+                  class="w-full px-4 py-2 text-[13px] font-medium text-white bg-accent rounded-md hover:bg-accent-dark transition-colors">
+            立即同步
+          </button>
+          <button id="ai_regenerate-btn" hx-post="/config/ai-regenerate" hx-target="#action-status" hx-swap="innerHTML"
+                  hx-disabled-elt="this"
+                  class="w-full px-4 py-2 text-[13px] font-medium text-white bg-accent-teal rounded-md hover:opacity-90 transition-opacity">
+            重新生成 AI 分析
+          </button>
+        </div>
+        <div id="action-status">{{ action_status_html|safe }}</div>
+      </section>
+
+      {# ── 说明 ── #}
+      <section>
+        <div class="bg-accent-soft/30 border border-accent/15 rounded-lg p-3.5">
+          <p class="text-[11px] text-ink-muted leading-relaxed">
+            <b class="text-ink">同步策略：</b>首次 clone，后续比较远端 commit；有更新才 fetch。WebUI 读取同步缓存下的
+            <code class="text-[10px] bg-surface-1 px-1 rounded">docs/eval/*/eval-log.json</code>。
+          </p>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

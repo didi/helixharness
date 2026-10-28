@@ -1,0 +1,26 @@
+{
+  "name": "helixharness-case-creator",
+  "version": "1.0.0",
+  "description": "Discover completed features and safely create workflow-neutral HelixHarness Platform Scenario v2 cases.",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "HelixHarness Case Creator",
+    "shortDescription": "从多仓库安全生成并校准评测 Case",
+    "longDescription": "扫描已完成需求，生成与工作流无关的 Scenario v2 Case Source，执行只读 Preflight 与冲突保护，并引导确定性校准。",
+    "developerName": "HelixHarness Platform Team",
+    "category": "DeveloperTools",
+    "capabilities": [
+      "Repository discovery",
+      "Case generation",
+      "Calibration guardrails"
+    ],
+    "defaultPrompt": [
+      "用 $helixharness-case-creator 扫描代码仓库并生成待校准 Case。",
+      "用 $helixharness-case-creator 检查已有 Case 更新是否安全。"
+    ]
+  },
+  "license": "Apache-2.0"
+}

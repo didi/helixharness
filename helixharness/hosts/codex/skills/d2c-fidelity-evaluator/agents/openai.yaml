@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:d2c-fidelity-evaluator"
+  short_description: "Evaluate design-to-code fidelity for a generated page by comp..."
+policy:
+  allow_implicit_invocation: true

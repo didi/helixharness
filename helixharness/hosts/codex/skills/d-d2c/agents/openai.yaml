@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:d-d2c"
+  short_description: "用户提到 d-d2c、设计稿还原、MasterGo、贴图比对、design-to-code、页面开发，或使用 d-d2c..."
+policy:
+  allow_implicit_invocation: true

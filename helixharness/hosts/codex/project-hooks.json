@@ -1,0 +1,26 @@
+{
+  "project_hooks_version": "1.0",
+  "owner": "parent",
+  "settings_file": ".codex/hooks.json",
+  "merge_strategy": "json_append_dedup",
+  "dedupe_key": "hooks.PostToolUse[].matcher=Write|Edit|MultiEdit",
+  "payload": {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "matcher": "Write|Edit|MultiEdit",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50"
+            },
+            {
+              "type": "command",
+              "command": "bash docs/harness/linters/spec-sync-check.sh 2>&1 | head -50"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

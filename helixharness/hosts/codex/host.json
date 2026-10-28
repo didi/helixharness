@@ -1,0 +1,46 @@
+{
+  "host_id": "codex",
+  "host_api_version": "1.1",
+  "aliases": [],
+  "support": {
+    "level": "stable",
+    "display_name": "Codex",
+    "evidence": null,
+    "limitations": []
+  },
+  "capabilities": {
+    "command_surface": "emulated",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "native",
+    "workflow_transition": "emulated",
+    "subagents": "native",
+    "unit_test_workflow": "native",
+    "task_tracking": "native",
+    "project_hooks": "native",
+    "session_events": "native",
+    "telemetry": "native",
+    "plugin_install": "native",
+    "plugin_update": "native",
+    "session_end": "native"
+  },
+  "adapters": {
+    "detector": "python:update_hosts.codex:detect_host",
+    "distribution": "resource:.codex-plugin/plugin.json",
+    "installer": "resource:hosts/codex/installer.md",
+    "command_projection": "resource:hosts/codex/command-projection.json",
+    "runtime": "resource:hosts/codex/runtime.md",
+    "subagent_protocol": "resource:reference/codex-subagent-runtime-protocol.md",
+    "workflow_transition": "resource:hosts/codex/workflow-transition.md",
+    "project_config": "resource:hosts/codex/project.json",
+    "project_hooks": "resource:hosts/codex/project-hooks.json",
+    "ut": "resource:hosts/codex/ut.md",
+    "lifecycle": "resource:hosts/codex/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md",
+    "telemetry": "python:telemetry_hosts.codex:CodexAdapter",
+    "version": "python:update_hosts.codex:plugin_version",
+    "update": "python:update_hosts.codex:CodexUpdateAdapter"
+  }
+}

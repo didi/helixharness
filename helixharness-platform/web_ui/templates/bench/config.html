@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% macro model_field(label, name, value, effort_name, effort_value) -%}
+<div class="rounded-lg border border-edge-soft bg-slate-50 p-4">
+  <label class="text-sm font-semibold text-ink-muted">{{ label }}
+    <input name="{{ name }}" value="{{ value }}" required class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 font-mono text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+  <label class="mt-3 block text-xs font-semibold text-ink-muted">推理强度
+    <select name="{{ effort_name }}" class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+      {% for effort in reasoning_efforts %}<option value="{{ effort }}"{% if effort_value == effort %} selected{% endif %}>{{ effort }}</option>{% endfor %}
+    </select>
+  </label>
+</div>
+{%- endmacro %}
+
+{% macro resource_fields(prefix, policy) -%}
+<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+  <label class="text-sm font-semibold text-ink-muted">单任务执行侧并发
+    <input name="{{ prefix }}_max_concurrency" type="number" min="1" max="4" value="{{ policy.max_concurrency }}" required class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+  <label class="text-sm font-semibold text-ink-muted">超时（秒）
+    <input name="{{ prefix }}_wall_timeout_seconds" type="number" min="60" max="604800" value="{{ policy.wall_timeout_seconds }}" required class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+  <label class="text-sm font-semibold text-ink-muted">Token 预算（k Token）
+    <input name="{{ prefix }}_token_budget_k" type="number" min="1" max="2000" step="0.001" value="{{ policy.token_budget // 1000 if policy.token_budget % 1000 == 0 else policy.token_budget / 1000 }}" required aria-label="Token 预算，单位 k Token" class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+  <label class="text-sm font-semibold text-ink-muted">工具调用预算
+    <input name="{{ prefix }}_tool_call_budget" type="number" min="1" max="10000" value="{{ policy.tool_call_budget }}" required class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+  <label class="text-sm font-semibold text-ink-muted">磁盘预算（MB）
+    <input name="{{ prefix }}_disk_budget_mb" type="number" min="128" max="102400" value="{{ policy.disk_budget_mb }}" required class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+  </label>
+</div>
+{%- endmacro %}
+
+{% block title %}评测配置{% endblock %}
+
+{% block content %}
+<section class="min-h-full bg-slate-100/70 p-4 sm:p-6" data-evaluation-config="true">
+  <div class="mx-auto max-w-6xl space-y-5">
+    <header class="rounded-xl bg-slate-950 px-6 py-7 text-white shadow-sm sm:px-8">
+      <p class="font-mono text-xs tracking-[0.2em] text-blue-300">WORKLOAD POLICIES</p>
+      <h1 class="mt-3 text-3xl font-semibold tracking-tight">评测配置</h1>
+      <p class="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+        各模型角色与 workload 资源策略分别配置。修改只影响新任务，历史 Run 的冻结配置不会被覆盖。
+      </p>
+    </header>
+
+    {% if config_saved %}
+    <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">配置已保存。新的 Run 会冻结新策略；当前执行中的任务不受影响。使用常驻 Worker 池时，请等待任务结束后重启池，使进程数与新并发上限一致。</div>
+    {% endif %}
+    {% if config_error %}
+    <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{{ config_error }}</div>
+    {% endif %}
+
+    <form method="post" action="/framework-evaluation/config" class="space-y-5">
+      <section class="rounded-xl border border-edge bg-white p-5 shadow-sm sm:p-6" data-config-group="model-bindings">
+        <p class="text-xs font-semibold tracking-[0.16em] text-accent">01 / 基础与模型</p>
+        <p class="mt-2 text-sm leading-6 text-ink-muted">模型按实际职责拆开：Bench 使用执行模型和 Judge 模型；自进化使用分析模型和 Candidate 生成模型。</p>
+        <input type="hidden" name="reference_ref" value="{{ configuration.reference_ref }}">
+        <div class="mt-4" data-config-row="repository-reference">
+          <label class="block text-sm font-semibold text-ink-muted">服务器 HelixHarness 仓库
+            <input value="{{ configuration.helixharness_repository }}" readonly aria-readonly="true" class="mt-2 w-full cursor-not-allowed rounded-lg border border-edge bg-slate-50 px-3 py-2.5 font-mono text-sm font-normal text-ink-muted outline-none">
+          </label>
+          <p class="mt-2 text-xs leading-5 text-ink-muted">由服务器部署配置持有；页面只读。基准引用为 {{ configuration.reference_ref }}；有对应 origin 分支时刷新远端，否则使用本地已提交引用，并冻结精确 Commit。</p>
+          <p class="mt-2 text-xs leading-5 text-ink-muted">插件相对路径：<code>{{ configuration.helixharness_plugin_path or '自动定位' }}</code>。从各自版本中定位插件；存在多个副本时，由管理员设置 HELIXHARNESS_PLATFORM_FRAMEWORK_EVAL_PLUGIN_PATH。</p>
+        </div>
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+          <section class="rounded-xl border border-blue-100 bg-blue-50/45 p-4"><h2 class="text-sm font-semibold text-blue-950">Bench 评测</h2><p class="mt-1 text-xs leading-5 text-blue-800">Base/Candidate 执行与证据裁判分别使用独立配置。</p><div class="mt-3 grid gap-3 sm:grid-cols-2">{{ model_field("评测执行模型", "execution_model", configuration.models.execution_model, "execution_reasoning_effort", configuration.models.execution_reasoning_effort) }}{{ model_field("Judge 模型", "judge_model", configuration.models.judge_model, "judge_reasoning_effort", configuration.models.judge_reasoning_effort) }}</div></section>
+          <section class="rounded-xl border border-cyan-100 bg-cyan-50/45 p-4"><h2 class="text-sm font-semibold text-cyan-950">自进化</h2><p class="mt-1 text-xs leading-5 text-cyan-800">机会分析与 Candidate 实现分别使用独立配置。</p><div class="mt-3 grid gap-3 sm:grid-cols-2">{{ model_field("分析模型", "analysis_model", configuration.models.analysis_model, "analysis_reasoning_effort", configuration.models.analysis_reasoning_effort) }}{{ model_field("Candidate 生成模型", "candidate_model", configuration.models.candidate_model, "candidate_reasoning_effort", configuration.models.candidate_reasoning_effort) }}</div></section>
+        </div>
+      </section>
+
+      <section class="rounded-xl border border-edge bg-white p-5 shadow-sm sm:p-6" data-config-group="formal-evaluation">
+        <p class="text-xs font-semibold tracking-[0.16em] text-accent">02 / 正式评测资源</p>
+        <p class="mt-2 text-sm leading-6 text-ink-muted">只供人工发起的正式评测。这里配置的是单个新任务允许同时执行的 Base/Candidate 执行侧数量；实际并行能力还受在线 Worker 数限制，并在“发起评测”页实时展示。</p>
+        <p class="mt-2 text-xs leading-5 text-ink-muted">常驻 Worker 池读取本项作为正式评测 Worker 数，默认 2 个；修改后等待任务结束并重启池生效。</p>
+        {{ resource_fields("formal", configuration.formal_evaluation) }}
+        <label class="mt-4 block max-w-xs text-sm font-semibold text-ink-muted">权限模式
+          <select name="permission_mode" class="mt-2 w-full rounded-lg border border-edge bg-white px-3 py-2.5 text-sm font-normal text-ink outline-none focus:border-blue-400">
+            {% for mode in permission_modes %}<option value="{{ mode }}"{% if configuration.permission_mode == mode %} selected{% endif %}>{{ mode }}</option>{% endfor %}
+          </select>
+        </label>
+      </section>
+
+      <section class="rounded-xl border border-edge bg-white p-5 shadow-sm sm:p-6" data-config-group="self-evolution">
+        <p class="text-xs font-semibold tracking-[0.16em] text-accent">03 / 自进化资源</p>
+        <p class="mt-2 text-sm leading-6 text-ink-muted">发现分析、Candidate 生成和自进化评测分别计量；Candidate 的首次验证与修复重评共享同一 Bench Worker、FIFO 和资源预算。</p>
+        <div class="mt-5 rounded-lg border border-edge-soft p-4">
+          <h2 class="font-semibold text-ink">发现与分析</h2>
+          {{ resource_fields("analysis", configuration.evolution_analysis) }}
+        </div>
+        <div class="mt-4 rounded-lg border border-edge-soft p-4">
+          <h2 class="font-semibold text-ink">Candidate 生成</h2>
+          {{ resource_fields("candidate", configuration.evolution_candidate) }}
+        </div>
+        <div class="mt-4 rounded-lg border border-edge-soft p-4">
+          <h2 class="font-semibold text-ink">自进化评测</h2>
+          <p class="mt-1 text-xs leading-5 text-ink-muted">Candidate 生成完成后，使用同一正式 Bench 契约完成首次验证或一轮修复重评。</p>
+          <p class="mt-2 text-xs leading-5 text-ink-muted">常驻 Worker 池读取本项作为自进化评测 Worker 数，默认 2 个；修改后等待任务结束并重启池生效。</p>
+          {{ resource_fields("evolution_evaluation", configuration.evolution_evaluation) }}
+        </div>
+      </section>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-edge bg-white p-5 shadow-sm">
+        <p class="text-xs leading-5 text-ink-dim">配置文件：<code>{{ config_path }}</code> · 仅保存非敏感默认值。</p>
+        <button type="submit" class="rounded-lg bg-accent px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-700">保存配置</button>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

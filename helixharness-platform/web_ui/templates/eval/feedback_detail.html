@@ -1,0 +1,106 @@
+{# 反馈详情沿用列表、配置页的卡片与表格样式。 #}
+{% include "eval/feedback_styles.html" %}
+{% set category = category_labels.get(row.category, row.category or '未分类') %}
+{% set statuses = {'completed': '已完成', 'in_progress': '进行中', 'blocked': '受阻', 'failed': '失败', 'partial': '部分完成', 'pending': '待开始', 'skipped': '已跳过', 'archived': '已归档'} %}
+{% set stages = {'requirement': '需求分析', 'planning': '开发计划', 'coding': '开发实施', 'review': '代码审查', 'testing': '测试验收', 'archive': '归档', 'rollback': '回退'} %}
+<div class="p-6 helixharness-feedback-page helixharness-feedback-detail">
+  <header class="border-b border-edge pb-2.5 mb-5 helixharness-feedback-detail-header">
+    <div>
+      <h1 class="text-[22px] font-bold text-ink font-serif">问题反馈 <em class="not-italic text-accent">详情</em></h1>
+      <p class="mt-1 text-xs text-ink-muted">提交于 {{ row.created_at | beijing_datetime }}</p>
+    </div>
+    <a href="/feedback" class="helixharness-feedback-reset">← 返回列表</a>
+  </header>
+
+  <div class="helixharness-feedback-detail-layout">
+    <div class="helixharness-feedback-detail-main">
+      <section class="helixharness-feedback-panel helixharness-feedback-content" aria-label="反馈内容">
+        <div class="helixharness-feedback-section-head">
+          <h2 class="helixharness-feedback-panel-title">反馈内容</h2>
+          <span class="helixharness-feedback-category {% if row.category == 'bug' %}is-bug{% elif row.category == 'suggestion' %}is-suggestion{% endif %}">{{ category }}</span>
+        </div>
+        {% if row.feature %}<div class="helixharness-feedback-requirement"><span>关联需求</span><b>{{ row.feature }}</b></div>{% endif %}
+        <div class="helixharness-feedback-body">{{ row.text or '暂无反馈内容' }}</div>
+      </section>
+
+      <section class="helixharness-feedback-panel helixharness-feedback-workflow" aria-label="关联工作流">
+        <div class="helixharness-feedback-section-head">
+          <h2 class="helixharness-feedback-panel-title">关联工作流{% if entries %}<span class="helixharness-feedback-count">{{ entries | length }} 条</span>{% endif %}</h2>
+        </div>
+        {% if entries %}
+        <p class="helixharness-feedback-section-note">
+          {% if association == 'related_entry_ids' %}关联反馈提交时引用的流程记录。
+          {% elif association == 'feature' %}关联同名需求的流程记录。
+          {% else %}关联同一会话的流程记录。{% endif %}
+        </p>
+        <div class="helixharness-feedback-table-scroll helixharness-feedback-workflow-scroll" role="region" aria-label="关联流程明细" tabindex="0">
+          <table class="helixharness-feedback-table helixharness-feedback-workflow-table">
+            <colgroup><col style="width:32%"><col style="width:16%"><col style="width:26%"><col style="width:26%"></colgroup>
+            <thead><tr><th scope="col">阶段 / 命令</th><th scope="col">状态</th><th scope="col">开始时间</th><th scope="col">结束时间</th></tr></thead>
+            <tbody>
+              {% for entry in entries %}
+              <tr title="{{ entry.entry_id }}">
+                <td><div class="helixharness-feedback-feature">{{ stages.get(entry.stage_kind, entry.stage_kind or '未记录阶段') }}</div><div class="helixharness-feedback-project">{{ entry.command }}{% if entry.phase %} · {{ entry.phase }}{% endif %}</div></td>
+                <td><span class="helixharness-feedback-status {% if entry.status in ['completed', 'archived'] %}is-complete{% elif entry.status in ['blocked', 'failed'] %}is-blocked{% elif entry.status == 'in_progress' %}is-active{% endif %}">{{ statuses.get(entry.status, entry.status or '未记录') }}</span></td>
+                <td><time>{{ entry.started_at | beijing_datetime }}</time></td>
+                <td><time>{{ entry.ended_at | beijing_datetime }}</time></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="helixharness-feedback-detail-empty"><b>暂无关联流程</b><p>{% if row.feature or (row.session and row.session != 'unknown') %}暂未在已同步的数据中找到相关流程记录。{% else %}该反馈未关联需求或会话，暂无流程记录可展示。{% endif %}</p></div>
+        {% endif %}
+      </section>
+
+      {% if transcript_groups %}
+      <section class="helixharness-feedback-panel" aria-label="会话上下文">
+        <div class="helixharness-feedback-section-head"><h2 class="helixharness-feedback-panel-title">会话上下文</h2></div>
+        <div class="helixharness-feedback-transcript-stats">
+          <span>用户 <b>{{ transcript_stats.user_messages | default(0) }}</b> 条</span>
+          <span>Agent <b>{{ transcript_stats.assistant_messages | default(0) }}</b> 条</span>
+          <span>工具调用 <b>{{ transcript_stats.tool_calls | default(0) }}</b> 次</span>
+          <span>已脱敏 <b>{{ transcript_stats.redactions | default(0) }}</b> 处</span>
+        </div>
+        <div class="helixharness-feedback-conversation" role="region" aria-label="会话记录" tabindex="0">
+          {% for group in transcript_groups %}
+          <article class="helixharness-feedback-message {% if group.role == 'user' %}is-user{% endif %}">
+            <header><b>{{ '用户' if group.role == 'user' else 'Agent' }}</b><time>{{ group.time }}</time></header>
+            {% for line in group.lines %}
+            {% if line.startswith('  → ') %}<div class="helixharness-feedback-tool-line">{{ line.strip() }}</div>
+            {% else %}<div class="helixharness-feedback-message-line">{{ line }}</div>{% endif %}
+            {% endfor %}
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="helixharness-feedback-detail-aside" aria-label="提交上下文">
+      <section class="helixharness-feedback-panel">
+        <h2 class="helixharness-feedback-panel-title">提交信息</h2>
+        <dl class="helixharness-feedback-metadata">
+          <div><dt>提交人</dt><dd>{{ row.user_name or '—' }}</dd></div>
+          <div><dt>分类</dt><dd>{{ category }}</dd></div>
+          <div><dt>插件版本</dt><dd>{{ row.plugin_version or '—' }}</dd></div>
+          <div><dt>使用平台</dt><dd>{{ {'claude-code': 'Claude Code', 'codex': 'Codex', 'unknown': '未采集'}.get(row.host, row.host or '—') }}</dd></div>
+          <div><dt>需求</dt><dd>{{ row.feature or '未关联需求' }}</dd></div>
+          <div><dt>项目标识</dt><dd class="helixharness-feedback-mono">{{ row.project or '—' }}</dd></div>
+        </dl>
+      </section>
+      <details class="helixharness-feedback-panel helixharness-feedback-technical">
+        <summary>技术信息<span aria-hidden="true">⌄</span></summary>
+        <dl class="helixharness-feedback-metadata">
+          <div><dt>反馈编号</dt><dd class="helixharness-feedback-mono">{{ row.feedback_id }}</dd></div>
+          <div><dt>会话标识</dt><dd class="helixharness-feedback-mono">{{ row.session or '—' }}</dd></div>
+          <div><dt>操作系统</dt><dd>{{ row.os or '—' }}</dd></div>
+          <div><dt>Python</dt><dd>{{ row.python_version or '—' }}</dd></div>
+          <div><dt>Git HEAD</dt><dd class="helixharness-feedback-mono">{{ row.git_head or '—' }}</dd></div>
+          <div><dt>数据来源</dt><dd class="helixharness-feedback-mono">{{ '实时上报' if row.source_root == 'realtime' else (row.source_root or '—') }}</dd></div>
+        </dl>
+      </details>
+    </aside>
+  </div>
+</div>

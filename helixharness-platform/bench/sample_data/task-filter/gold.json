@@ -1,0 +1,59 @@
+{
+  "schema_version": "framework-eval-scenario-gold.v2",
+  "requirements": [
+    {
+      "requirement_id": "REQ-1",
+      "statement": "Status filtering works and default behavior remains unchanged.",
+      "evidence_ids": [
+        "E-1"
+      ],
+      "judge_ids": [
+        "F2P-1",
+        "P2P-1"
+      ]
+    }
+  ],
+  "source_evidence": [
+    {
+      "evidence_id": "E-1",
+      "path": "initial-request.md",
+      "line_start": 1,
+      "line_end": 1,
+      "quote": "Add an optional status filter to list_tasks: all, open or done; preserve the default list and reject invalid status values."
+    }
+  ],
+  "execution_tests": [
+    {
+      "check_id": "F2P-1",
+      "kind": "FAIL_TO_PASS",
+      "argv": [
+        "python3",
+        "-c",
+        "from task_list import list_tasks; items=[{'title':'First','status':'open'},{'title':'Second','status':'done'}]; assert list_tasks(items, status='open') == ['First']; assert list_tasks(items, status='done') == ['Second']"
+      ],
+      "timeout_seconds": 30
+    },
+    {
+      "check_id": "P2P-1",
+      "kind": "PASS_TO_PASS",
+      "argv": [
+        "python3",
+        "-c",
+        "from task_list import list_tasks; assert list_tasks([{'title':'First','status':'open'},{'title':'Second','status':'done'}]) == ['First','Second']; assert list_tasks([]) == []"
+      ],
+      "timeout_seconds": 30
+    }
+  ],
+  "solution_checks": [
+    {
+      "check_id": "SC-1",
+      "scope": "SOLUTION",
+      "argv": [
+        "python3",
+        "-c",
+        "from task_list import list_tasks\ntry:\n list_tasks([], status='invalid')\nexcept ValueError:\n pass\nelse:\n raise AssertionError('invalid status must fail')"
+      ],
+      "timeout_seconds": 30
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:tdd"
+  short_description: "为 HelixHarness feature 或 Bug Fix 的可观察行为改动执行测试驱动开发；"
+policy:
+  allow_implicit_invocation: true

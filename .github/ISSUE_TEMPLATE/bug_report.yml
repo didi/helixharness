@@ -1,0 +1,32 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem using synthetic data.
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: "Do not post security vulnerabilities or private data here. See SECURITY.md for private reporting. 无需部署平台即可反馈。"
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment / 版本与环境
+      description: HelixHarness version, affected component, host and host version, OS and Python version.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce / 复现步骤
+      description: Include a minimal synthetic example and the command or page involved.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior / 预期与实际
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence / 脱敏证据
+      description: Relevant error text, screenshots or verification results. Exclude secrets and real conversations.

@@ -1,0 +1,5 @@
+interface:
+  display_name: "helix:init"
+  short_description: "HelixHarness 初始化入口。默认初始化单服务仓库；"
+policy:
+  allow_implicit_invocation: true
