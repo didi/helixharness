@@ -32,6 +32,7 @@ from telemetry_ledger import PLUGIN_VERSION, _git
 from telemetry_ledger import LedgerError as TelemetryError
 from telemetry_ledger import _feature as _feature_name
 from telemetry_ledger import _managed as _managed_repo_path
+from telemetry_ledger import _session_hash as ledger_session_hash
 from telemetry_protocol import (
     _FENCED_CODE,
     _HIGH_RISK_PATTERNS,
@@ -373,7 +374,9 @@ def _build_document(repo: Path, payload: dict[str, Any]) -> tuple[dict[str, Any]
         except (OSError, ValueError):
             context = None
         if isinstance(context, dict):
-            session = ("ses_" + hashlib.sha256(str(context["session_id"]).encode()).hexdigest()[:24]) if context.get("session_id") else "unknown"
+            # 与 telemetry_ledger._session_hash 同一实现：账本与反馈共用同一会话哈希格式，
+            # 平台详情页按 session 精确等值关联工作流，两处格式不允许分家。
+            session = ledger_session_hash(context["session_id"]) if context.get("session_id") else "unknown"
     document = {
         "schema_version": SCHEMA_VERSION,
         "feedback_id": _feedback_id(text, created_at, project, session),
