@@ -1,0 +1,23 @@
+{
+  "name": "helixharness-opencode",
+  "version": "1.0.0",
+  "description": "HelixHarness workflow plugin for OpenCode, with commands, method skills and subagent roles",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "exports": {
+    ".": "./opencode/index.ts"
+  },
+  "scripts": {
+    "test": "bun test opencode/tests",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "^2.2.2",
+    "@types/node": "^22.0.0",
+    "bun-types": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

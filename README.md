@@ -6,11 +6,11 @@
 >
 > Your team's engineering DNA, carried into AI development.
 
-**HelixHarness helps your team build its own AI coding harness on Codex and Claude Code.** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
+**HelixHarness helps your team build its own AI coding harness on Codex, Claude Code and OpenCode.** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
 
 Start with the plugin. When you want to improve the harness itself, the optional **helixharness-platform** lets maintainers observe usage, compare framework versions and evaluate candidate improvements before adopting them.
 
-**9 commands · Codex / Claude Code · Single repo / multi-repo Workspace · Apache-2.0**
+**9 commands · Codex / Claude Code / OpenCode · Single repo / multi-repo Workspace · Apache-2.0**
 
 [Quick start](#quick-start) · [The name](#the-story-behind-the-name) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
 
@@ -63,7 +63,7 @@ Knowledge accumulates as **reviewable repository documents**. You control what b
 
 ### 1. Install the plugin
 
-Requirements: Python 3.10+, Git and a plugin-capable Codex or Claude Code installation. Make sure the host is signed in or has its model configuration set up and is working normally.
+Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code or OpenCode installation. OpenCode requires v2.2+. Make sure the host is signed in or has its model configuration set up and is working normally.
 
 After the repository is public, run the commands for your host in a terminal. No manual source clone is needed:
 
@@ -79,13 +79,18 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-The root marketplace installs the `helixharness/` plugin, not the platform. For testing before publication or modifying the plugin, use [developer installation from local source](docs/installation.md#developer-installation). See [hook verification, updates and uninstall](docs/installation.md).
+```bash
+# OpenCode v2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+The root marketplace installs the `helixharness/` plugin, not the platform. OpenCode installs the same plugin package directly. For testing before publication or modifying the plugin, use [developer installation from local source](docs/installation.md#developer-installation). See [hook verification, updates and uninstall](docs/installation.md).
 
 ### 2. Run a small feature
 
 The product name is **HelixHarness**; its plugin ID and command namespace are **`helix`**.
 
-Open a new agent session in the **application repository** you want to develop. Review the plugin hooks through the host's native interface, then enter these commands in the conversation:
+Open a new agent session in the **application repository** you want to develop. Codex and Claude Code users review the plugin hooks through the host's native interface; OpenCode registers its commands, skills and agents from the plugin package. Then enter these commands in the conversation:
 
 ```text
 /helix:init
@@ -184,10 +189,10 @@ Report community bugs through [GitHub Issues](https://github.com/didi/helixharne
 
 Two planned directions will help more teams shape HelixHarness around their development practices:
 
-- **More coding agents.** Extend support beyond Codex and Claude Code so teams can use HelixHarness with more of their preferred tools.
+- **More coding agents.** Extend support beyond Codex, Claude Code and OpenCode so teams can use HelixHarness with more of their preferred tools.
 - **Configurable workflows.** Let teams configure workflow stages and their order to fit their development process.
 
-These are planned capabilities. The current release supports Codex and Claude Code with the Propose → Apply → Archive workflow. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
+These are planned capabilities. The current release supports Codex, Claude Code and OpenCode with the Propose → Apply → Archive workflow. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
 
 ## Documentation and contribution
 

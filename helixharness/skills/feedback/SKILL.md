@@ -97,7 +97,7 @@ $ARGUMENTS
 
 ### Step 3: 准备、确认并发送
 
-`{plugin_root}` 必须来自当前 plugin skill resource（Claude 可用 `${CLAUDE_PLUGIN_ROOT}`，Codex 使用当前 plugin resource root），不得搜索安装目录。`{current_platform}` 必须使用 canonical host ID：Claude Code 固定为 `claude-code`，Codex 固定为 `codex`。
+`{plugin_root}` 必须来自当前 plugin skill resource（Claude 可用 `${CLAUDE_PLUGIN_ROOT}`，Codex 使用当前 plugin resource root，OpenCode 使用 Host Context 的 `plugin_root`），不得搜索安装目录。`{current_platform}` 必须使用 Host Context 的 canonical host ID，不得根据操作系统或客户端名称猜测。
 
 先准备草稿，不发送。参数必须安全转义：
 
@@ -136,10 +136,10 @@ python3 "{plugin_root}/scripts/feedback_submit.py" send --draft "{draft_path}" -
 
 **平台拒绝（`status: "rejected"`）**：尚未送达，保留草稿并报告原因，不改写内容重发。用户要求重试时可执行 `feedback_submit.py retry --confirmed`，仅补投已确认且与当前配置地址一致的待发记录。
 
-## 双宿主说明
+## 宿主说明
 
-- Claude Code 与 Codex 使用同一 CLI（`feedback_submit.py`），反馈流程本身无 hook 参与、无 consent 流程
-- 会话上下文采集当前仅支持 claude-code 会话；Codex 宿主仍可上报反馈元数据（`transcript_stats.supported=false`），不是错误
+- Claude Code、Codex 与 OpenCode 使用同一 CLI（`feedback_submit.py`），反馈流程本身无 hook 参与、无 consent 流程
+- 会话上下文采集当前仅支持 claude-code 会话；Codex、OpenCode 宿主仍可上报反馈元数据（`transcript_stats.supported=false`），不是错误
 - 未注册宿主（`{current_platform}` 无法给出 canonical ID 时）：`--platform unknown` 仍可上报，文档中 `host` 记为 `unknown`
 
 ## 注意事项

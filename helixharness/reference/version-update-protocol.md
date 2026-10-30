@@ -17,7 +17,9 @@
 
 update 与 eval 分别使用动态 Host Registry，并保持独立 capability、cache 和生命周期。update 是否
 可用只看当前 Host Kit 的 `plugin_update=native|emulated|unsupported`；公共协议不维护宿主白名单。
-当前内置 Claude Code/Codex adapter 都提供正式更新能力。任何未注册宿主执行 update `check` 时固定返回
+当前内置 Claude Code/Codex adapter 都提供正式更新能力；OpenCode Host Kit 明确声明
+`plugin_update=unsupported`，因此 update `check` 返回 `continue_silently`，由用户通过 OpenCode
+插件管理手动更新。任何未注册宿主执行 update `check` 时固定返回
 `state=unsupported, reason=unsupported_host, next_action=continue_silently`，不读取或写入
 版本缓存、不提示更新、不创建 authorization，也不执行任何 plugin 命令。
 

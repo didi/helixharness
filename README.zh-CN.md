@@ -6,11 +6,11 @@
 >
 > 为适配而生，为进化而设计。让团队的工程 DNA，融入 AI 研发。
 
-**HelixHarness 帮助团队在 Codex 和 Claude Code 上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
+**HelixHarness 帮助团队在 Codex、Claude Code 和 OpenCode 上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
 
 从插件开始即可。当你希望改进 Harness 本身时，可选的 **helixharness-platform** 帮助框架维护者观测使用过程、对比框架版本，并在采纳候选改进前验证效果。
 
-**9 个命令 · Codex / Claude Code · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个命令 · Codex / Claude Code / OpenCode · 单仓 / 多仓 Workspace · Apache-2.0**
 
 [快速开始](#快速开始) · [命名故事](#名字背后的故事) · [框架亮点](#框架亮点) · [框架迭代平台](#围绕-helixharness-框架的迭代平台) · [使用指南](docs/user-guide.zh-CN.md)
 
@@ -63,7 +63,7 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 ### 1. 安装插件
 
-需要 Python 3.10+、Git，以及支持插件市场的 Codex 或 Claude Code。先确保宿主已完成登录或模型配置，能够正常使用。
+需要 Python 3.10+、Git，以及 Codex、Claude Code 或 OpenCode。OpenCode 需 v2.2+。先确保宿主已完成登录或模型配置，能够正常使用。
 
 仓库公开后，在终端选择对应宿主安装，无需先手动克隆源码：
 
@@ -79,11 +79,16 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-根市场会安装 `helixharness/` 插件，不会安装平台。发布前测试或修改插件时，使用[开发者安装（本地源码）](docs/installation.md#developer-installation)。详见[hooks 检查、更新与卸载](docs/installation.md)。
+```bash
+# OpenCode v2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+根市场会安装 `helixharness/` 插件，不会安装平台；OpenCode 直接安装同一插件包。发布前测试或修改插件时，使用[开发者安装（本地源码）](docs/installation.md#developer-installation)。详见[hooks 检查、更新与卸载](docs/installation.md)。
 
 ### 2. 完成一个小需求
 
-在要开发的**业务仓库**新开 Agent 会话，通过宿主原生界面审阅插件 hooks，然后在对话中输入：
+在要开发的**业务仓库**新开 Agent 会话。Codex/Claude Code 通过宿主原生界面审阅插件 hooks；OpenCode 由插件包注册命令、Skill 和子任务角色。然后在对话中输入：
 
 ```text
 /helix:init
@@ -182,10 +187,10 @@ python -m web_ui.demo --port 7860
 
 接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
 
-- **支持更多 Coding Agent**：在 Codex 和 Claude Code 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
+- **支持更多 Coding Agent**：在 Codex、Claude Code 和 OpenCode 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
-以上为规划能力。当前版本支持 Codex 和 Claude Code，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
+以上为规划能力。当前版本支持 Codex、Claude Code 和 OpenCode，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 
