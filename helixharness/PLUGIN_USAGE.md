@@ -1,6 +1,6 @@
 # HelixHarness
 
-面向 Codex 与 Claude Code 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
+面向 Codex、Claude Code 与 OpenCode 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
 
 ## 命令
 
@@ -15,7 +15,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex 或 Claude Code。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+需要 Python 3.10+、Git，以及 Codex、Claude Code 或 OpenCode。Codex/Claude Code 将本目录作为本地 marketplace 添加；OpenCode 将本目录加入 `plugins` 数组。宿主具体命令见 `hosts/codex/installer.md`、`hosts/claude-code/installer.md` 或 `hosts/opencode/installer.md`。
 
 ## 项目结构
 
@@ -33,6 +33,8 @@
 ```bash
 PYTHONPATH=scripts python3 -m unittest discover -s scripts/tests -p 'test_*.py'
 python3 scripts/host_runtime_cli.py list
+bun test opencode/tests
+bun run typecheck
 ```
 
 此发行版仅维护当前 HelixHarness 合同，不迁移其他工作流历史。循环不包含发布或部署。

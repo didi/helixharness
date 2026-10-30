@@ -4,7 +4,7 @@
 
 Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
 
-**A development workflow for Codex and Claude Code, with a companion platform for usage dashboards, version evaluation and evolution.**
+**A development workflow for Codex, Claude Code and OpenCode, with a companion platform for usage dashboards, version evaluation and evolution.**
 
 Take a requirement through to a verified code change: define the scope, break it into tasks, implement, test, review, and archive the result. HelixHarness gives your coding agent a reusable workflow. Requirements and progress stay in the repository so you can inspect them and resume unfinished work.
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ Tests + code review + verification evidence
 ```
 
-**9 public commands · 3 core stages · Codex / Claude Code · Single repo / multi-repo Workspace · Apache-2.0**
+**9 public commands · 3 core stages · Codex / Claude Code / OpenCode · Single repo / multi-repo Workspace · Apache-2.0**
 
 Install **HelixHarness** for everyday development. Add **helixharness-platform** to observe usage and evaluate or improve **the HelixHarness framework itself**. Scenario results provide evidence about framework behavior; this is not a general business-code grading service.
 
@@ -49,7 +49,7 @@ Install **HelixHarness** for everyday development. Add **helixharness-platform**
 
 | Use case | Requirements |
 | --- | --- |
-| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex or Claude Code installation that is signed in or has its model configuration set up and works normally |
+| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code or OpenCode installation that is signed in or has its model configuration set up and works normally. OpenCode requires v2.2+. |
 | Platform demo or usage dashboard | Python 3.10+, Git, and the platform's `server` dependencies |
 | Real version evaluation | Platform dependencies, a working Codex execution environment, model credentials, accessible Git repositories, and the build/test tools required by each Case |
 | Frontend previews and visual verification | Your project's Node.js, package manager, and browser tools; configure design services as needed |
@@ -74,7 +74,13 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-After installation, open a new agent session in the application repository you want to develop. Check that the nine public HelixHarness commands are available. See the [Codex installation guide](../helixharness/hosts/codex/installer.md) or [Claude Code installation guide](../helixharness/hosts/claude-code/installer.md) for the host-specific setup.
+**OpenCode v2.2+**
+
+```bash
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+After installation, open a new agent session in the application repository you want to develop. Check that the nine public HelixHarness commands are available. See the [Codex installation guide](../helixharness/hosts/codex/installer.md), [Claude Code installation guide](../helixharness/hosts/claude-code/installer.md) or [OpenCode installation guide](../helixharness/hosts/opencode/installer.md) for the host-specific setup.
 
 ### 2. Build Your First Feature
 
@@ -86,7 +92,7 @@ Initialize your application repository:
 /helix:init
 ```
 
-Initialization writes project documentation and host project settings. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. Check the initialization result before starting a requirement.
+Codex and Claude Code write project documentation and host project settings. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. OpenCode has no project settings hook contract, so Init merges `AGENTS.md` and does not create `.opencode/` settings. Check the initialization result before starting a requirement.
 
 Create a small, concrete requirement:
 
@@ -149,7 +155,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | Project | Who it is for | What it does | Where it runs |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code sessions and application repositories |
+| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / OpenCode sessions and application repositories |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | Maintainers observing and improving the HelixHarness framework | Usage dashboards, version evaluation and evolution | A separate Python web service and evaluation Workers |
 
 ```mermaid
@@ -398,7 +404,7 @@ Paths below are relative to your platform's base URL:
 
 ### Model Configuration
 
-For everyday plugin use, configure models in Codex / Claude Code. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
+For everyday plugin use, configure models in Codex / Claude Code / OpenCode. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
 
 See [`helixharness-platform/.env.example`](../helixharness-platform/.env.example) for the template. The service reads **process environment variables and does not automatically load `.env.example`**. Inject real values into the environments running both the web service and Workers.
 
@@ -610,7 +616,7 @@ The repository contains two independently installable projects:
 ├── helixharness/
 │   ├── commands/       # Nine public command entrypoints
 │   ├── workflows/      # single/ execution and workspace/ coordination
-│   ├── hosts/          # Codex / Claude Code adapters
+│   ├── hosts/          # Codex / Claude Code / OpenCode adapters
 │   ├── skills/         # Reusable workflow methods
 │   └── scripts/        # Routing, artifact validation, and telemetry
 └── helixharness-platform/
@@ -633,7 +639,7 @@ The repository contains two independently installable projects:
 | [`systematic-debugging`](../helixharness/skills/systematic-debugging/SKILL.md) | Reproduce failures, test hypotheses, identify causes, and verify fixes | Standalone, explicitly invoked by the user |
 | [`feedback`](../helixharness/skills/feedback/SKILL.md) | Submit HelixHarness usage issues | Standalone; requires a running platform and configured destination |
 
-Codex installs these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
+Codex installs these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly; OpenCode registers them as `helix-<name>` from the same root files. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
 
 `git-diff-impact` requires no Init, active feature, or platform service. For example: “Use HelixHarness git-diff-impact to analyze uncommitted changes, --no-save.” You may instead specify two commits or branches and optional `--req` / `--design` documents. Markdown reports default to `diff-impact-reports/`; `--out` selects another location. The skill does not fix code or change review verdicts.
 
@@ -658,6 +664,8 @@ Validate the plugin from `helixharness/`:
 ```bash
 python3 scripts/run_tests.py
 python3 scripts/host_runtime_cli.py list
+bun test opencode/tests
+bun run typecheck
 ```
 
 Validate the platform from `helixharness-platform/` with its virtual environment active:

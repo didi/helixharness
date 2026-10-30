@@ -85,6 +85,11 @@ class FeedbackTest(unittest.TestCase):
             draft = self.prepare(platform="future-host")
         self.assertEqual("future-host", draft["item"]["document"]["host"])
 
+    def test_registered_host_without_telemetry_adapter_keeps_its_identity(self):
+        draft = self.prepare(platform="opencode")
+        self.assertEqual("opencode", draft["item"]["document"]["host"])
+        self.assertEqual("unknown", draft["item"]["document"]["session"])
+
     def test_offline_queue_is_bound_to_original_endpoint(self):
         draft = self.prepare()
         with mock.patch.object(feedback, "_post_item", return_value="unreachable"):
