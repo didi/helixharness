@@ -1,6 +1,23 @@
 # 项目类型检测协议
 
-init 命令的 Step 0 执行此脚本，使用 bash 检测项目类型（<100ms），写入状态文件供 Step 1 分支编排。
+init 命令的 Step 0 执行本协议，使用 bash 检测项目类型（<100ms），写入状态文件供 Step 1 分支编排。
+
+## 空项目预检
+
+在完整类型检测前，先执行：
+
+```text
+python3 {plugin_root}/scripts/init_empty_check.py --repo-root {repo_root}
+```
+
+- `empty=true`：仓库没有构建元数据或源码文件，跳过下方后端/前端检测与全部扫描 job；
+  写入 `projectType=empty`、`scanPlan=[]` 的状态文件，进入 Step 2 的
+  `bootstrap_mode=greenfield` 路径。
+- `empty=false`：继续下方完整检测。
+- 预检脚本只读，不创建目录、不修改仓库。
+
+空项目不是 `unknown`。`unknown` 仍按后端扫描兜底；`empty` 必须跳过扫描，避免 scan agent
+因无产物导致 `init_required_artifact_missing`。
 
 ## 状态文件
 
@@ -136,6 +153,7 @@ echo "✅ 项目类型检测完成: $PROJECT_TYPE (confidence: $CONFIDENCE)"
 
 | 项目类型 | 条件 | ScanPlan |
 |---------|------|---------|
+| `empty` | 无构建元数据、无源码文件；只有 `.git`、README、docs 等文档 | 空；跳过扫描，进入 greenfield bootstrap |
 | `backend` | 有 pom.xml/gradle/go.mod，无 package.json | 6 步后端流程 |
 | `frontend` | 有 package.json + 前端依赖、前端组件文件或 HTML 入口，无后端信号；fresh/small repo 也适用 | 6 路前端并行 |
 | `fullstack-node` | 有 package.json + Node 后端/CLI 信号，并存在前端依赖、前端文件或 HTML 入口 | 三选一交互菜单 |

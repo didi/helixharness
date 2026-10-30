@@ -22,7 +22,7 @@ description: "服务仓库初始化总控 agent。运行于后端、未知或完
 - 当前仓库根目录
 - 原始参数：`$ARGUMENTS`
 - 当前平台：`$PLATFORM`
-- bootstrap mode：`service|fullstack-base`
+- bootstrap mode：`service|fullstack-base|greenfield`
 - 顶层 init 已解析的数据统计模式：`$EFFECTIVE_TELEMETRY_MODE`（只能是 `enabled|disabled`，不得在 bootstrap 内重新默认或再次询问）
 - 父流程明确传入的 `ownership_root`、`read_scope`、已验证扫描产物与当前 plugin root
 
@@ -56,7 +56,10 @@ Shell/Python、父目录搜索或符号链接间接读取这些文件。插件�
 
 ### Phase 1: 收集项目信息
 
-消费父流程已经验证的扫描结果，不重新扫描代码。无法确认的事实返回父流程按宿主协议询问
+`bootstrap_mode=greenfield` 时没有扫描产物：不得等待或引用 `scan-*` 文件，直接进入下方
+“绿地项目检测”的交互收集；无法确认的事实向用户询问，不得捏造。
+
+非 greenfield 时消费父流程已经验证的扫描结果，不重新扫描代码。无法确认的事实返回父流程按宿主协议询问
 用户，不得捏造或借用相邻仓库的结论：
 
 1. **技术栈**：
