@@ -6,7 +6,7 @@ HelixHarness 的版本检查、Usage Telemetry、Hook 生命周期和部分辅�
 Python。任何命令在第一次调用 `python3` 前都必须执行本协议，不能把 shell 的
 `command not found` 暴露给用户。
 
-- 最低 Python 版本：3.9。
+- 最低 Python 版本：3.10。
 - 命令名必须是 `python3`，并且可从当前进程的 `PATH` 找到。
 - Git 是 HelixHarness repo 工作流的必需依赖，也在同一次 preflight 中检查。
 - Python 不可用时无法解析授权缓存和提醒周期，因此 Init 暂不展示统计说明或开启选项，不读取或手写授权缓存。恢复 Python 后重新调用 resolver，按授权缓存和提醒周期决定是否问询，不因缺少异步地址跳过。普通生命周期命令只修复运行依赖，不新增 consent 选择。
@@ -23,7 +23,7 @@ sh {plugin_root}/scripts/runtime_preflight.sh check
 
 只使用脚本返回的结构化字段：
 
-- `ok=true`：Python 3.9+ 与 Git 均可用，继续版本检查和后续流程。
+- `ok=true`：Python 3.10+ 与 Git 均可用，继续版本检查和后续流程。
 - Git 检查优先；`git.status=missing`：输出
   `BLOCKED:helixharness_git_runtime_unavailable` 并停止，不得展示 telemetry 选择、继续
   repo 定位或进行业务写入。
@@ -61,7 +61,7 @@ python3 {plugin_root}/scripts/host_runtime_cli.py resolve --platform {canonical_
 
 用户直接执行上述命令时，固定提供：
 
-1. `runtime_install_and_continue` — `安装 Python 3.9+ 并继续当前命令`
+1. `runtime_install_and_continue` — `安装 Python 3.10+ 并继续当前命令`
 2. `runtime_stop_without_install` — `暂不安装，停止当前命令`
 
 第一项明确构成本次系统安装确认。执行 `install-python --user-confirmed` 后必须立即

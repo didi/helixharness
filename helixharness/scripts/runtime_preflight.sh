@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-MINIMUM_PYTHON="3.9"
+MINIMUM_PYTHON="3.10"
 
 python_status() {
   if ! command -v python3 >/dev/null 2>&1; then
@@ -21,7 +21,7 @@ python_status() {
   IFS=.
   set -- $PYTHON_VERSION
   IFS=$old_ifs
-  if [ "$1" -gt 3 ] || { [ "$1" -eq 3 ] && [ "$2" -ge 9 ]; }; then
+  if [ "$1" -gt 3 ] || { [ "$1" -eq 3 ] && [ "$2" -ge 10 ]; }; then
     PYTHON_STATUS="ready"
   else
     PYTHON_STATUS="unsupported_version"
@@ -96,7 +96,7 @@ install_python() {
       else
         emit_install_error \
           "python_package_manager_unavailable" \
-          "未找到 Homebrew；请先安装 Homebrew 或手工安装 Python 3.9+。"
+          "未找到 Homebrew；请先安装 Homebrew 或手工安装 Python 3.10+。"
         return 1
       fi
       ;;
@@ -119,7 +119,7 @@ install_python() {
       else
         emit_install_error \
           "python_package_manager_unavailable" \
-          "未找到受支持的系统包管理器；请手工安装 Python 3.9+。"
+          "未找到受支持的系统包管理器；请手工安装 Python 3.10+。"
         return 1
       fi
       ;;
@@ -131,14 +131,14 @@ install_python() {
       else
         emit_install_error \
           "python_package_manager_unavailable" \
-          "未找到 winget；请手工安装 Python 3.9+ 并确保 python3 在 PATH 中。"
+          "未找到 winget；请手工安装 Python 3.10+ 并确保 python3 在 PATH 中。"
         return 1
       fi
       ;;
     *)
       emit_install_error \
         "python_install_platform_unsupported" \
-        "当前系统不支持自动安装；请手工安装 Python 3.9+。"
+        "当前系统不支持自动安装；请手工安装 Python 3.10+。"
       return 1
       ;;
   esac
@@ -155,7 +155,7 @@ install_python() {
   if [ "$PYTHON_STATUS" != "ready" ]; then
     emit_install_error \
       "python_install_incomplete" \
-      "安装命令已完成，但当前 PATH 中仍没有 Python 3.9+；统计保持关闭。"
+      "安装命令已完成，但当前 PATH 中仍没有 Python 3.10+；统计保持关闭。"
     return 1
   fi
   printf '{"schema_version":"1.0","ok":true,"installed":true,"python":{"status":"ready","minimum_version":"%s","version":"%s"},"next_action":"continue"}\n' \
