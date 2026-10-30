@@ -43,3 +43,7 @@ Codex Init 入口加载 `project_config`、`project_hooks`；UT 入口加载 `ut
 统一回归入口为 `python3 scripts/run_tests.py`，另执行 Host Kit 和 Codex 投影校验。
 原生客户端验收分别核查插件装载、启动身份、真实子任务、测试和覆盖率、
 完整工件、归档状态与清理；单测通过、命令退出成功或模型回复完成均不能单独证明闭环通过。
+
+## 未来架构
+
+- [RFC 0001: TypeScript Core Runtime](rfcs/0001-typescript-core.md)：讨论把确定性核心从 Python 迁移到 TypeScript/JavaScript 的边界、阶段和验收标准。
