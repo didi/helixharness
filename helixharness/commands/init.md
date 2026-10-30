@@ -113,7 +113,23 @@ A 组三个 final 的 evidence index 业务事实每个 job 最多 30 项；`sup
 
 ### Step 0: 项目类型快速检测
 
-读取此 plugin 捆绑的 reference 文档：`reference/project-type-detection.md`，执行其中的检测脚本，生成 `docs/.helixharness-init-state.json` 状态文件，供 Step 1 按项目类型分支编排。
+先执行空项目预检：
+
+```text
+python3 {plugin_root}/scripts/init_empty_check.py --repo-root {repo_root}
+```
+
+- `empty=true`：这是 greenfield 仓库。写入
+  `docs/.helixharness-init-state.json`，至少包含
+  `projectType=empty`、`detectionLevel=fast`、`confidence=1.0`、
+  `techStack.hasBackend=false`、`techStack.hasFrontend=false`、`scanPlan=[]`、
+  `userConfirmed=false`，然后直接进入 Step 2 的 greenfield bootstrap；
+  不得执行 Step 1 的任何扫描 agent。
+- `empty=false`：继续读取此 plugin 捆绑的 reference 文档
+  `reference/project-type-detection.md`，执行其中的完整检测脚本，生成
+  `docs/.helixharness-init-state.json` 状态文件，供 Step 1 按项目类型分支编排。
+
+空项目只表示“还没有代码或构建元数据”，不表示 `unknown`。不得把空项目送进后端扫描兜底。
 
 ---
 
@@ -331,6 +347,17 @@ STATE_FILE="docs/.helixharness-init-state.json"
 PROJECT_TYPE=$(grep -o '"projectType":[^,]*' "$STATE_FILE" 2>/dev/null | cut -d'"' -f4 || echo "unknown")
 ```
 
+**分支 0: 空项目 / Greenfield — 不执行扫描**
+
+```bash
+if [ "$PROJECT_TYPE" = "empty" ]; then
+  # Step 0 已写入 scanPlan=[]；这里不得调用任何 scan agent。
+  # 直接进入 Step 2 的 greenfield bootstrap，由 bootstrap 与用户确认
+  # 项目目标、技术栈和运行方式，并生成最小 knowledge/harness。
+  :
+fi
+```
+
 **分支 1: 后端 / 未知项目 — 执行原后端完整扫描流程**
 
 ```bash
@@ -409,6 +436,19 @@ fi
 #### Step 2：bootstrap 生成
 
 完成 knowledge 导入或扫描后，按项目类型选择 bootstrap agent：
+
+**空项目（`$PROJECT_TYPE` = `empty` / greenfield）**：
+
+使用原有 Agent tool 调用语义执行 `agents/init-service-bootstrap.md`，传入：
+
+- `bootstrap_mode=greenfield`
+- `project-mode=greenfield`
+- 仓库根目录、原始参数 `$ARGUMENTS`、当前平台、`effective_telemetry_mode`
+- 明确说明：本轮没有 scan 产物，不得等待或引用 `scan-*` 文件
+
+bootstrap 必须先与用户确认项目目标、技术栈、运行方式和测试入口，再基于模板生成最小
+`docs/harness/`、`docs/knowledge/`、`docs/specs/` 和 Host Kit 入口。无法确认的内容写
+`<!-- TODO: 待确认 -->`，不得补造架构、数据库或 API 事实。完成后仍按 Step 3 逐项校验产物。
 
 **纯前端项目（`$PROJECT_TYPE` = `frontend`）**：
 - 读取 agent prompt：`agents/init-frontend-bootstrap.md`
