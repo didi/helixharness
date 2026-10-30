@@ -15,7 +15,7 @@ fi
 
 case "$event_name" in
   SessionStart)
-    printf '%s\n' '{"continue":true,"systemMessage":"HelixHarness Python preflight 未通过：需要 Python 3.9+ 且 python3 必须在 PATH 中。运行 HelixHarness 命令时会提供受控安装选项。"}'
+    printf '%s\n' '{"continue":true,"systemMessage":"HelixHarness Python preflight 未通过：需要 Python 3.10+ 且 python3 必须在 PATH 中。运行 HelixHarness 命令时会提供受控安装选项。"}'
     ;;
   *)
     # Lifecycle hooks must stay silent when Python is unavailable. The command
