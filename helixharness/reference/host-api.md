@@ -1,6 +1,6 @@
 # HelixHarness Host API 1.1
 
-HelixHarness 当前发布 Claude Code 与 Codex 两个 Stable Host Kit，另有一个 Preview 级的 Qoder Host Kit。公共业务契约与宿主运行机制保持解耦：
+HelixHarness 当前发布 Claude Code、Codex 与 Qoder 三个 Stable Host Kit。公共业务契约与宿主运行机制保持解耦：
 `commands/`、`workflows/`、共享 `skills/`、`agents/` 和 `templates/` 定义业务结果，`hosts/{host-id}/`
 只定义如何在某个宿主中安装、发现和执行。
 
@@ -14,11 +14,14 @@ HelixHarness 当前发布 Claude Code 与 Codex 两个 Stable Host Kit，另有�
 
 - `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace，Stable；
 - `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace，Stable；
-- `qoder`：Skill 命令投影、会话生命周期 Hook、原生 Agent、Qoder marketplace、父流程合并项目 hooks，Preview。
+- `qoder`：Skill 命令投影、会话生命周期 Hook、原生 Agent、Qoder marketplace、父流程合并项目 hooks，Stable。
 
-三者使用 Host API 1.1。Preview 表示核心工作流已通过真实客户端 E2E，但覆盖范围小于 Stable：
-Qoder 的 marketplace 安装/更新流程与 `telemetry` 能力尚未验证或未实现，`support.evidence`
-指向 `evidence/host-e2e/qoder/` 下的实测记录，`support.limitations` 必须列出这些缺口。
+三者使用 Host API 1.1。Qoder 的安装、新会话发现、核心工作流与远程 marketplace 源均已通过真实
+客户端 E2E，`support.evidence` 指向 `evidence/host-e2e/qoder/` 下的实测记录；
+`support.limitations` 如实列出仍存在的差异（Skill 命令面、无 token 计量的 telemetry、
+UT 未在真实构建工程端到端验证）。
+
+Preview 仍用于覆盖范围小于 Stable 的新宿主；其 `support.limitations` 必须列出未验证能力。
 
 仓库不提供上述宿主之外的 manifest、安装器、分发清单、运行时适配器或入口文件。未知宿主必须
 关闭失败，不能回退到 Claude Code、Codex 或 Qoder，也不能借用其他 Host Kit 的资源。

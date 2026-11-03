@@ -36,7 +36,7 @@ qoderclicn plugins install helix@helixharness-marketplace
 
 The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. All three hosts consume this compatible marketplace format. The platform is not installed by these commands.
 
-Qoder is a **preview** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`; `telemetry` is unsupported on this host, so no `eval-log.json` is written and the platform can only read other hosts' ledgers.
+Qoder is a **stable** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`. Its `telemetry` is emulated: sessions carry no token usage, so the ledger supports process analysis but does not qualify as automated-evolution evidence.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -105,7 +105,7 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 
 **从空项目开始：**在 Git 仓库根目录运行 `/helix:init`。新目录请先自行执行 `git init`，不需要首次提交。空仓库或纯文档仓库跳过代码扫描，生成最小项目上下文、约束、需求目录与宿主 hooks，未确认的信息标记 TODO。再用 `/helix:propose` 和 `/helix:apply` 开发第一个需求。Init 和 Apply 不创建提交。
 
-Qoder 为**预览**宿主：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`。该宿主声明 `telemetry` 为 unsupported，因此不写 `eval-log.json`，平台只能读取其他宿主的账本。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。
+Qoder 支持等级为 Stable：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`。该宿主 `telemetry` 为 emulated，会话记录不含 token 用量，因此账本可用于流程分析但不满足自动自进化证据要求。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。
 
 ## Windows local source / Windows 本地源码
 

@@ -29,10 +29,11 @@
       "真实 helixharness-platform 接收 /report 并将 Supplement 关联到账本",
       "平台看板按 platform=qoder 投影并显示平台占比",
       "统计开启下完整 propose→apply→archive 闭环的账本与 Supplement 投递",
-      "平台消费端 Gate 对 Qoder 数据的关联、收口与质量判定"
+      "平台消费端 Gate 对 Qoder 数据的关联、收口与质量判定",
+      "远程 git marketplace 源注册、安装与新会话发现",
+      "远程 git 源的版本检查（适配器从克隆根解析 Qoder 清单）"
     ],
     "not_verified": [
-      "远程 URL / GitHub 市场源的安装与更新（仅验证了本地 directory 源）",
       "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）",
       "Qoder 数据达到 automation_eligible（需宿主提供 token 计量或平台定义降级口径）"
     ]
@@ -175,6 +176,24 @@
       "command": "统计开启下 propose → apply → archive（examples/starter task-filter）+ 平台摄取",
       "result": "pass",
       "detail": "3 条账本全部 completed 且 3 条 Supplement 全部 linked=1；apply 条目 gate=pass；文档 finalization=complete、publication=archived；质量状态 PARTIAL，仅剩 3 条 RESOURCE_USAGE_UNAVAILABLE（Qoder 无 token 数据，适配器不估算）；归档后 PARTIAL_COVERAGE/SUPPLEMENT_PENDING/ASYNC_EVIDENCE_INCOMPLETE/NOT_FINALIZED 全部消失"
+    },
+    {
+      "step": "remote_marketplace_install",
+      "command": "plugins marketplace add git@github.com:anderszhang/helixharness.git → update → install helix@helixharness-marketplace",
+      "result": "pass",
+      "detail": "source=git；克隆到 ab1ea48 且含 .qoder-plugin/marketplace.json；安装到 cache/…/helix/1.0.0（scope=user, enabled）；无 --plugin-dir 的 /helix:status 正常"
+    },
+    {
+      "step": "remote_version_check",
+      "command": "<installed>/scripts/version_update.py --platform qoder check --force-refresh",
+      "result": "pass",
+      "detail": "current=1.0.0、latest=1.0.0、update_status=latest；在 git 克隆形式的 marketplace 根上定位 .qoder-plugin/marketplace.json 成功"
+    },
+    {
+      "step": "remote_cleanup_restore",
+      "command": "uninstall + marketplace remove + 快照还原",
+      "result": "pass",
+      "detail": "installed_plugins.json 与 known_marketplaces.json 均与测试前 byte-identical；缓存目录与临时克隆已清理"
     }
   ],
   "artifacts": {
@@ -186,5 +205,6 @@
   "telemetry": {
     "capability": "emulated",
     "note": "Qoder 会话记录不含 token 用量，usage 保持为空而不估算。已验证 consent、账本、Supplement、本地 stub 与真实平台投递、账本关联、看板投影与消费端 Gate 判定；唯一残留质量问题是 RESOURCE_USAGE_UNAVAILABLE，导致 automation_eligible=0。"
-  }
+  },
+  "support_level": "stable"
 }

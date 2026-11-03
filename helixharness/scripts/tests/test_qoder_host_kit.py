@@ -27,7 +27,7 @@ class QoderHostKitTests(unittest.TestCase):
 
     def test_host_is_registered_with_preview_support(self):
         self.assertIsNotNone(self.manifest)
-        self.assertEqual("preview", self.manifest.support_level)
+        self.assertEqual("stable", self.manifest.support_level)
         self.assertIsNotNone(self.manifest.evidence)
         self.assertTrue((PLUGIN_ROOT / self.manifest.evidence).is_file())
 

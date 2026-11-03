@@ -10,7 +10,7 @@
 
 Start with the plugin. When you want to improve the harness itself, the optional **helixharness-platform** lets maintainers observe usage, compare framework versions and evaluate candidate improvements before adopting them.
 
-**9 commands · Codex / Claude Code / Qoder (preview) · Single repo / multi-repo Workspace · Apache-2.0**
+**9 commands · Codex / Claude Code / Qoder · Single repo / multi-repo Workspace · Apache-2.0**
 
 [Quick start](#quick-start) · [The name](#the-story-behind-the-name) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
 

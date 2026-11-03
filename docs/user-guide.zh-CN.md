@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ 测试 + 代码评审 + 验证依据
 ```
 
-**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Qoder（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Qoder · 单仓 / 多仓 Workspace · Apache-2.0**
 
 只做日常开发，安装 **HelixHarness** 即可。需要观测使用情况、评测和改进 **HelixHarness 框架本身**，再运行 **helixharness-platform**。开发场景的结果用于判断框架行为，平台不是通用的业务代码评分服务。
 
