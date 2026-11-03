@@ -281,6 +281,38 @@ E2E 走的是 `--plugin-dir` 本地加载，**未覆盖 marketplace 安装与 `p
 因此 `support.level` 保持 `preview`，仅把 `support.evidence` 指向
 `evidence/host-e2e/qoder/e2e-2026-11-03.json`。
 
+### 安装与升级链路验证（2026-11-03）
+
+用仓库根作为本地 marketplace 源完整跑了一遍发布路径，结束后已还原环境。
+
+| 步骤 | 命令 | 结果 |
+|---|---|---|
+| 注册市场 | `qoderclicn plugins marketplace add <repo-root>` | 成功，`source={"source":"directory","path":...}` |
+| 安装 | `qoderclicn plugins install helix@helixharness-marketplace` | 安装到 `cache/helixharness-marketplace/helix/1.0.0`，`scope=user`、enabled |
+| 无 `--plugin-dir` 调用 | `/helix:status` | 正常执行，读取业务仓既有工件 |
+| 版本检查 | `version_update.py --platform qoder check --force-refresh` | `update_status=latest`、`next_action=continue_silently` |
+| 检测升级 | 版本抬至 1.1.0 并刷新市场 | `update_status=recommended`、`next_action=prompt_update` |
+| 执行升级 | `qoderclicn plugins update helix@helixharness-marketplace --scope user` | 升级到 1.1.0，复检为 latest |
+| 清理还原 | uninstall + marketplace remove + 快照还原 | 两个状态文件与测试前 **byte-identical** |
+
+### 由此修复的共享核心缺陷
+
+`version_update.py:locate_formal_policy()` 原本把 marketplace 清单路径硬编码为
+`.claude-plugin/marketplace.json`：
+
+```python
+marketplace = _read_json(root / ".claude-plugin" / "marketplace.json")   # 旧
+marketplace = _read_json(root / adapter.marketplace_manifest_relative)  # 新
+```
+
+这导致 Qoder 读取错误的清单（版本恒为 1.0.0，升级永远检测不到），并且违反
+`host-api.md`「不得按宿主 ID 分支」的约束。现已改为由 Host Kit 声明：
+
+- `UpdateHostAdapter.marketplace_manifest_relative` 默认 `.claude-plugin/marketplace.json`（Claude Code / Codex 不变）
+- `QoderUpdateAdapter` 覆写为 `.qoder-plugin/marketplace.json`
+
+这是 E2E 才能暴露的问题：单测与静态检查都不会碰到它。
+
 ### 权限机制补充验证（2026-11-03）
 
 `/helix:ut` 依赖的「权限准备 → 使用 → 精确回滚」链路已按机制验证：
