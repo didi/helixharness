@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-api
 description: "前端 API 调用扫描 Agent。仅扫描 API 封装层（请求拦截、端点清单），输出到 docs/knowledge/api-endpoints.md。"
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: scan-boundary
 description: "服务职责边界扫描 agent。基于 scan-service 输出，提炼服务核心定位、核心职责、显性边界，生成极简高密度的边界文档。用于架构评审和 feature 立项判断。"
 ---
 

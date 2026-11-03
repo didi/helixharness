@@ -1,0 +1,17 @@
+{
+  "name": "helixharness-marketplace",
+  "owner": {
+    "name": "helixharness-marketplace"
+  },
+  "metadata": {
+    "description": "Plugin marketplace for the HelixHarness repository, exposing the helixharness workflow plugin for Qoder"
+  },
+  "plugins": [
+    {
+      "name": "helix",
+      "description": "HelixHarness workflow plugin for Qoder with commands and reusable skills",
+      "source": ".",
+      "version": "1.0.0"
+    }
+  ]
+}

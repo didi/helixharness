@@ -1,4 +1,5 @@
 ---
+name: scan-db
 description: "数据库深度扫描 agent。分析代码库中所有数据库表定义、字段、索引、表关系，生成完整的数据模型清单到 docs/knowledge/database/ 目录。"
 ---
 

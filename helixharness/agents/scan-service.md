@@ -1,4 +1,5 @@
 ---
+name: scan-service
 description: "服务业务职责扫描 agent。基于已生成的 knowledge/ 文档，结合代码分析，生成服务能力地图，以业务视角描述服务定位、核心业务场景、数据归属和事件流。"
 ---
 

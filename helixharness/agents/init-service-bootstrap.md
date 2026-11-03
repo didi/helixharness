@@ -1,4 +1,5 @@
 ---
+name: init-service-bootstrap
 description: "服务仓库初始化总控 agent。适用于绿地、后端、未知或完整全栈代码仓库，生成 knowledge/、harness、hooks 和宿主入口文件。"
 ---
 
