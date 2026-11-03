@@ -27,12 +27,14 @@
       "telemetry 同步账本写入（eval-log.json，platform=qoder）",
       "telemetry 异步 Supplement 生成与本地端点投递",
       "真实 helixharness-platform 接收 /report 并将 Supplement 关联到账本",
-      "平台看板按 platform=qoder 投影并显示平台占比"
+      "平台看板按 platform=qoder 投影并显示平台占比",
+      "统计开启下完整 propose→apply→archive 闭环的账本与 Supplement 投递",
+      "平台消费端 Gate 对 Qoder 数据的关联、收口与质量判定"
     ],
     "not_verified": [
       "远程 URL / GitHub 市场源的安装与更新（仅验证了本地 directory 源）",
       "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）",
-      "平台 telemetry_quality Gate 的通过态（需统计开启下完整跑完 propose→apply 的真实需求）"
+      "Qoder 数据达到 automation_eligible（需宿主提供 token 计量或平台定义降级口径）"
     ]
   },
   "steps": [
@@ -167,6 +169,12 @@
       "command": "GET /",
       "result": "pass",
       "detail": "页面按行显示 platform=qoder；平台占比图输出 `qoder · 1 人 · 100.0%`；三个需求名均出现在看板"
+    },
+    {
+      "step": "telemetry_full_loop_gate",
+      "command": "统计开启下 propose → apply → archive（examples/starter task-filter）+ 平台摄取",
+      "result": "pass",
+      "detail": "3 条账本全部 completed 且 3 条 Supplement 全部 linked=1；apply 条目 gate=pass；文档 finalization=complete、publication=archived；质量状态 PARTIAL，仅剩 3 条 RESOURCE_USAGE_UNAVAILABLE（Qoder 无 token 数据，适配器不估算）；归档后 PARTIAL_COVERAGE/SUPPLEMENT_PENDING/ASYNC_EVIDENCE_INCOMPLETE/NOT_FINALIZED 全部消失"
     }
   ],
   "artifacts": {
@@ -177,6 +185,6 @@
   },
   "telemetry": {
     "capability": "emulated",
-    "note": "Qoder 会话记录不含 token 用量，usage 保持为空而不估算；阶段事实、工具结构与脱敏对话正常采集。已验证 consent/账本/Supplement/投递；平台侧接收端仍待验证。"
+    "note": "Qoder 会话记录不含 token 用量，usage 保持为空而不估算。已验证 consent、账本、Supplement、本地 stub 与真实平台投递、账本关联、看板投影与消费端 Gate 判定；唯一残留质量问题是 RESOURCE_USAGE_UNAVAILABLE，导致 automation_eligible=0。"
   }
 }

@@ -433,3 +433,37 @@ Qoder 的统计能力已从 `unsupported` 升级为 **`emulated`**，并完成�
 propose → apply 的真实需求（`task-filter` 那次 E2E 未开统计，所以没有账本）。
 
 本轮不为此补造数据：Gate 的价值恰恰在于拒绝不完整证据。
+
+### 统计开启下的完整闭环与质量 Gate 结论（2026-11-03）
+
+用 `examples/starter` 的 task-filter 需求，在**统计开启**状态下完整跑完
+propose → apply → archive，全程由 Qoder 驱动，并把 Supplement 投递到真实平台。
+
+平台对同一份账本的判定：
+
+| 维度 | 结果 |
+|---|---|
+| 账本条目 | 3 条（propose / apply / archive），全部 `status=completed` |
+| 补充关联 | 3 条 Supplement 全部 `linked=1` |
+| 单条 gate | `apply → pass`；`propose` / `archive → unknown`（本就不承载验证证据） |
+| 文档终态 | `finalization_status=complete`、`publication_status=archived` |
+| 质量状态 | `PARTIAL`、`automation_eligible=0` |
+| 剩余问题 | **仅 3 条 `RESOURCE_USAGE_UNAVAILABLE`**（每个阶段一条） |
+
+归档前曾出现的 `PARTIAL_COVERAGE`、`SUPPLEMENT_PENDING`、`ASYNC_EVIDENCE_INCOMPLETE`、
+`NOT_FINALIZED` 在归档并完成投递后**全部消失**，说明消费端 Gate 能正确读取、关联并收口
+Qoder 产生的数据。
+
+唯一残留的 `RESOURCE_USAGE_UNAVAILABLE` 是本 Host Kit 已声明的限制：Qoder 会话记录不含
+token/资源用量，适配器按约定**不估算**。因此该账本可作为流程事实使用，但不会被判定为
+自动自进化可用证据。
+
+**结论**：这不是「Gate 全绿」，而是「Gate 按真实数据正确判定」。要让 Qoder 数据达到
+`automation_eligible`，需要宿主侧提供 token 计量，或由平台为无计量宿主定义降级口径——
+两者都不在本 Host Kit 范围内。
+
+### 一处非 Qoder 的观察
+
+本次归档的业务提交被工作流拒绝：仓库当前分支 `main` 同时是 `target_branch`，且无 `origin`。
+这是仓库配置问题（首次 E2E 用的是另一份 demo），不是 Qoder 适配缺陷；工作流按合同
+拒绝在目标分支上提交，并如实列出待人工处理的步骤。
