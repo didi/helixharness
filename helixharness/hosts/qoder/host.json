@@ -11,7 +11,7 @@
     "limitations": [
       "marketplace 安装与 plugins update 已在本地 directory 源验证；远程 URL 源尚未验证，故 support.level 保持 preview",
       "命令面由薄 Skill 承载；实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
-      "telemetry 为 unsupported：不写 eval-log，异步采集与投递跳过；业务门禁不受影响",
+      "telemetry 为 emulated：会话不含 token 用量，usage 保持为空而不做估算；其余阶段事实与脱敏对话正常采集",
       "unit_test_workflow 的权限准备与精确回滚机制已验证，但未在真实构建工程上跑通完整 /helix:ut"
     ]
   },
@@ -29,7 +29,7 @@
     "unit_test_workflow": "native",
     "task_tracking": "native",
     "project_hooks": "native",
-    "telemetry": "unsupported",
+    "telemetry": "emulated",
     "plugin_install": "native",
     "plugin_update": "native"
   },
@@ -47,6 +47,7 @@
     "lifecycle": "resource:hosts/qoder/lifecycle.md",
     "telemetry_protocol": "resource:hosts/shared/telemetry.md",
     "version": "python:update_hosts.qoder:plugin_version",
-    "update": "python:update_hosts.qoder:QoderUpdateAdapter"
+    "update": "python:update_hosts.qoder:QoderUpdateAdapter",
+    "telemetry": "python:telemetry_hosts.qoder:QoderAdapter"
   }
 }
