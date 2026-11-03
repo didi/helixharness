@@ -6,11 +6,11 @@
 >
 > 为适配而生，为进化而设计。让团队的工程 DNA，融入 AI 研发。
 
-**HelixHarness 帮助团队在 Codex、Claude Code 和 Qoder（预览）上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
+**HelixHarness 帮助团队在 Codex、Claude Code 和 Qoder 上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
 
 从插件开始即可。当你希望改进 Harness 本身时，可选的 **helixharness-platform** 帮助框架维护者观测使用过程、对比框架版本，并在采纳候选改进前验证效果。
 
-**9 个命令 · Codex / Claude Code / Qoder（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个命令 · Codex / Claude Code / Qoder · 单仓 / 多仓 Workspace · Apache-2.0**
 
 [快速开始](#快速开始) · [命名故事](#名字背后的故事) · [框架亮点](#框架亮点) · [框架迭代平台](#围绕-helixharness-框架的迭代平台) · [使用指南](docs/user-guide.zh-CN.md)
 
@@ -185,7 +185,7 @@ python -m web_ui.demo --port 7860
 - **支持更多 Coding Agent**：在 Codex 和 Claude Code 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。Qoder 已作为预览宿主接入，详见 [Qoder Host Kit 说明](docs/host-kits/qoder/assessment.md)。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
-以上为规划能力。当前版本支持 Codex 和 Claude Code，并提供 Qoder 预览支持，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
+以上为规划能力。当前版本支持 Codex、Claude Code 和 Qoder，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 

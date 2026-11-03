@@ -5,13 +5,12 @@
     "qoder-cn"
   ],
   "support": {
-    "level": "preview",
+    "level": "stable",
     "display_name": "Qoder",
     "evidence": "evidence/host-e2e/qoder/e2e-2026-11-03.json",
     "limitations": [
-      "marketplace 安装与 plugins update 已在本地 directory 源验证；远程 URL 源尚未验证，故 support.level 保持 preview",
-      "命令面由薄 Skill 承载；实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
-      "telemetry 为 emulated：会话不含 token 用量，usage 保持为空而不做估算；其余阶段事实与脱敏对话正常采集",
+      "命令面由薄 Skill 承载：实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
+      "telemetry 为 emulated：Qoder 会话记录不含 token 用量，usage 保持为空而不估算；该账本因此不满足 automation_eligible",
       "unit_test_workflow 的权限准备与精确回滚机制已验证，但未在真实构建工程上跑通完整 /helix:ut"
     ]
   },

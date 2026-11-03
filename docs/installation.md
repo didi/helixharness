@@ -34,7 +34,7 @@ qoderclicn plugins install helix@helixharness-marketplace
 
 The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. All three hosts consume this compatible marketplace format. The platform is not installed by these commands.
 
-Qoder is a **preview** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`; `telemetry` is unsupported on this host, so no `eval-log.json` is written and the platform can only read other hosts' ledgers.
+Qoder is a **stable** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`. Its `telemetry` is emulated: sessions carry no token usage, so the ledger supports process analysis but does not qualify as automated-evolution evidence.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -97,4 +97,4 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 
 安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init` 并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。
 
-Qoder 为**预览**宿主：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`。该宿主声明 `telemetry` 为 unsupported，因此不写 `eval-log.json`，平台只能读取其他宿主的账本。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。
+Qoder 支持等级为 Stable：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`。该宿主 `telemetry` 为 emulated，会话记录不含 token 用量，因此账本可用于流程分析但不满足自动自进化证据要求。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。

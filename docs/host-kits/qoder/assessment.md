@@ -467,3 +467,42 @@ token/资源用量，适配器按约定**不估算**。因此该账本可作为�
 本次归档的业务提交被工作流拒绝：仓库当前分支 `main` 同时是 `target_branch`，且无 `origin`。
 这是仓库配置问题（首次 E2E 用的是另一份 demo），不是 Qoder 适配缺陷；工作流按合同
 拒绝在目标分支上提交，并如实列出待人工处理的步骤。
+
+## 11. 远程 marketplace 源验证（2026-11-03）
+
+此前 `support.level` 停在 `preview` 的唯一原因：只验证了本地 directory 源。
+本轮改为从**远程 git 源**安装，缺口已闭合。
+
+### 前置
+
+分支 `support_qoder` 推送到 `git@github.com:anderszhang/helixharness.git`。
+Qoder 的 `marketplace add` 只克隆**默认分支**，因此需先将 fork 的默认分支切到
+`support_qoder`（由用户在其 GitHub 设置中完成）。
+
+### 验证结果
+
+| 环节 | 命令 | 结果 |
+|---|---|---|
+| 默认分支 | `git ls-remote --symref fork HEAD` | `ref: refs/heads/support_qoder` |
+| 注册远程市场 | `plugins marketplace add git@github.com:anderszhang/helixharness.git` | 成功，`source={"source":"git","url":…}`，SSH 形式直接支持 |
+| 刷新 | `plugins marketplace update helixharness-marketplace` | 克隆到 `ab1ea48`，含 `.qoder-plugin/marketplace.json` |
+| **远程安装** | `plugins install helix@helixharness-marketplace` | 安装到 `cache/…/helix/1.0.0`，`scope=user`、enabled |
+| **新会话发现** | 无 `--plugin-dir` 执行 `/helix:status` | 正常返回状态表，证明命令面来自远程安装 |
+| **版本检查** | 已安装副本执行 `version_update.py --platform qoder check --force-refresh` | `current=1.0.0`、`latest=1.0.0`、`update_status=latest` |
+
+版本检查这一步尤其关键：它要求适配器在 **git 克隆形式的 marketplace 根**上定位
+`.qoder-plugin/marketplace.json` 并比对 policy / marketplace / declared 三个版本。
+若没有 §11 之前修复的 `marketplace_manifest_relative`，这里会读错清单。
+
+### 结论
+
+安装、发现、核心工作流、更新检查均已在真实客户端通过远程源验证，
+`support.level` 由 `preview` 提升为 **`stable`**。
+
+未做远程「版本升级」实测（需要向 fork 推送一个版本号变更，会污染该分支）；
+本地 directory 源的 1.0.0 → 1.1.0 升级链路已在 §10 前序章节验证，两者共用同一适配器代码。
+
+### 环境复原
+
+卸载插件、移除市场后，`installed_plugins.json` 与 `known_marketplaces.json` 均与测试前
+**byte-identical**；无 `~/.helixharness`、无 launchd 残留。
