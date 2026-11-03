@@ -250,3 +250,41 @@ helixharness/
 2. `.qoder/settings.json` 作为项目级 hooks 目标路径待证实。
 3. `/helix:ut` 的权限精确回滚未验证（`ut.md` 中已标注 `_pending_verification` 并要求无法确认时改走宿主审批）。
 4. `telemetry` 为 `unsupported`：同步账本可用，异步上报未实现。
+
+## 9. C：真实客户端 E2E 结果（2026-11-03）
+
+在 Qoder CN（`qoderclicn` 1.1.81）中以本地插件目录加载，跑通单仓完整闭环。
+业务仓为 `examples/starter` 的副本，需求为 `task-filter`。
+
+| 步骤 | 结果 | 关键事实 |
+|---|---|---|
+| 插件加载 | ✅ | `plugins validate`：skills 9 / agents 16 / commands 9 / hooks 2 |
+| Host Context | ✅ | `resolve --platform qoder` 解析 14 个 adapter |
+| 命令面 | ✅ | `/helix:status` 经薄 Skill 加载 `commands/status.md` 并执行脚本 |
+| **init** | ✅ | `projectType=unknown`；6 个扫描 Agent 全部产出；`scanStatus` / `bootstrapStatus` 均 completed；生成 21 个 docs 文件 + `AGENTS.md` + `.qoder/settings.json` |
+| 项目级 hooks | ✅ | `project_hooks_cli.py --platform qoder check` → `{"status":"pass","settings_file":".qoder/settings.json"}` |
+| **propose** | ✅ | `spec.md` / `tasks.md` 生成，`status=ready`，`validate-tasks` 通过 |
+| **apply** | ✅ | 10 个测试通过；**双轴 Review 成立**（Standards APPROVE + 1 ADVISORY、Spec APPROVE）；`verify-report.md` 生成 |
+| 独立验收 | ✅ | `examples/verify_feature.py` 输出 `PASS`（该脚本在起始代码上故意失败） |
+| **archive** | ✅ | `active → completed` 三工件齐备；Apply Scope 提交 `29e9537` 仅含 `tasks.py` 与 `test_tasks.py`；未推送 |
+
+### 由 E2E 消除的不确定性
+
+- **项目级 hooks 路径已证实**：`.qoder/settings.json`，且能通过确定性 CLI 校验。
+- **`subagents: native` 得到实证**：init 的 6 路扫描并行、apply 的双轴隔离 Review 均真实发生。
+- **telemetry 降级符合预期**：consent resolver 返回 `unsupported_host`，
+  `prompt_due=false`，未写 eval-log，业务门禁不受影响。
+
+### 仍保持 preview 的原因
+
+E2E 走的是 `--plugin-dir` 本地加载，**未覆盖 marketplace 安装与 `plugins update` 流程**。
+因此 `support.level` 保持 `preview`，仅把 `support.evidence` 指向
+`evidence/host-e2e/qoder/e2e-2026-11-03.json`。
+
+### 后续待办
+
+1. 在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`。
+2. `/helix:ut` 的权限精确回滚验证（当前 `ut.md` 要求无法确认时改走宿主审批）。
+3. 补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。
+4. 中英入口文档与支持矩阵同步（`README.md`、`README.zh-CN.md`、`docs/installation.md`、`docs/user-guide*`）。
+5. `agents/*.md` 新增的 `name` 字段需纳入 `reference/scan-agent-protocol.md` 的显式约定。

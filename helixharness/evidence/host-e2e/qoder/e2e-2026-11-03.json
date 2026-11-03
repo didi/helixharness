@@ -1,0 +1,96 @@
+{
+  "schema_version": "1.0",
+  "host_id": "qoder",
+  "recorded_at": "2026-11-03",
+  "client": {
+    "product": "Qoder CN",
+    "cli": "qoderclicn",
+    "cli_version": "1.1.81",
+    "config_root": "~/.qoder-cn",
+    "invocation": "qoderclicn -p --plugin-dir <helixharness> --permission-mode bypass_permissions",
+    "note": "本记录通过本地插件目录加载完成，未经过 marketplace 安装路径"
+  },
+  "scope": {
+    "verified": [
+      "插件加载与组件发现",
+      "命令面发现与调用",
+      "init 全流程（含 6 路扫描 Agent 与 bootstrap）",
+      "propose 全流程（spec/tasks 生成与确定性校验）",
+      "apply 全流程（TDD、完整测试、双轴评审、Evidence）",
+      "archive 全流程（门禁、知识零路径授权、原子归档、Apply Scope 提交）",
+      "项目级 hooks 合并与校验"
+    ],
+    "not_verified": [
+      "marketplace 安装与 plugins update 流程",
+      "telemetry 异步采集与投递（能力声明为 unsupported）",
+      "unit_test_workflow 的权限精确回滚"
+    ]
+  },
+  "steps": [
+    {
+      "step": "plugin_load",
+      "command": "qoderclicn plugins validate <helixharness>",
+      "result": "pass",
+      "detail": "skills 9 / agents 16 / commands 9 / hooks 2，输出 valid and ready to install"
+    },
+    {
+      "step": "host_context",
+      "command": "python3 scripts/host_runtime_cli.py resolve --platform qoder",
+      "result": "pass",
+      "detail": "14 个 adapter 全部解析，host_id 与目录名一致"
+    },
+    {
+      "step": "command_surface",
+      "command": "/helix:status",
+      "result": "pass",
+      "detail": "薄 Skill 入口加载 commands/status.md 并执行 project_status.py，返回空需求表而非错误"
+    },
+    {
+      "step": "init",
+      "command": "/helix:init",
+      "result": "pass",
+      "detail": "projectType=unknown；scanStatus=completed；bootstrapStatus=completed；生成 21 个 docs 文件、AGENTS.md 与 .qoder/settings.json"
+    },
+    {
+      "step": "init_project_hooks",
+      "command": "python3 scripts/project_hooks_cli.py --platform qoder check",
+      "result": "pass",
+      "detail": "{\"status\":\"pass\",\"settings_file\":\".qoder/settings.json\"}，确认项目级 hooks 目标路径"
+    },
+    {
+      "step": "propose",
+      "command": "/helix:propose task-filter ./requirements/task-filter.md",
+      "result": "pass",
+      "detail": "spec.md 与 tasks.md 生成，status=ready，validate-tasks --stage propose 通过"
+    },
+    {
+      "step": "apply",
+      "command": "/helix:apply task-filter",
+      "result": "pass",
+      "detail": "10 个测试通过；双轴 Review Standards=APPROVE（1 ADVISORY 保留）、Spec=APPROVE；verify-report.md 生成，Spec=implemented"
+    },
+    {
+      "step": "independent_acceptance",
+      "command": "python3 examples/verify_feature.py <demo-repo>",
+      "result": "pass",
+      "detail": "PASS: filtering, ordering, compatibility, empty results, validation and input preservation（该脚本在起始代码上故意失败）"
+    },
+    {
+      "step": "archive",
+      "command": "/helix:archive task-filter --commit",
+      "result": "pass",
+      "detail": "active → completed 三工件齐备；Apply Scope 提交 29e9537 仅含 tasks.py 与 test_tasks.py；未推送"
+    }
+  ],
+  "artifacts": {
+    "spec": "docs/specs/completed/task-filter/spec.md",
+    "tasks": "docs/specs/completed/task-filter/tasks.md",
+    "evidence": "docs/specs/completed/task-filter/verify-report.md",
+    "implementation_commit": "29e9537"
+  },
+  "telemetry": {
+    "effective_mode": "disabled",
+    "reason": "unsupported_host",
+    "note": "qoder 未声明 telemetry 能力，consent resolver 正确跳过，未生成 eval-log；业务门禁不受影响"
+  }
+}

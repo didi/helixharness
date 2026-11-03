@@ -7,12 +7,11 @@
   "support": {
     "level": "preview",
     "display_name": "Qoder",
-    "evidence": null,
+    "evidence": "evidence/host-e2e/qoder/e2e-2026-11-03.json",
     "limitations": [
-      "尚未完成真实客户端 E2E，support.level 保持 preview，evidence 为 null",
+      "E2E 通过本地插件目录加载完成，未覆盖 marketplace 安装与 plugins update 流程，故 support.level 保持 preview",
       "命令面由薄 Skill 承载；实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
-      "项目级 settings/hooks 的目标路径 .qoder/settings.json 尚未经 E2E 证实",
-      "telemetry 为 unsupported：同步 eval-log 账本仍正常记录，异步采集与投递跳过",
+      "telemetry 为 unsupported：不写 eval-log，异步采集与投递跳过；业务门禁不受影响",
       "unit_test_workflow 的权限托管与精确回滚语义尚未验证"
     ]
   },
