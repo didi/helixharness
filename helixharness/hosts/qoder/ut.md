@@ -10,8 +10,8 @@ runtime_handle_in_queue: true
 max_parallel: 10
 task_timeout_seconds: 3600
 poll_interval_seconds: 2
-permission_prepare: qoder_project_settings_pending_verification
-permission_cleanup: qoder_project_settings_exact_revert_pending_verification
+permission_prepare: qoder_project_settings
+permission_cleanup: qoder_project_settings_exact_revert
 ```
 
 ## Agent/Task 映射
@@ -24,16 +24,24 @@ permission_cleanup: qoder_project_settings_exact_revert_pending_verification
 - 上下文截断后从队列与 result 文件重建 `active_slots`。
 - worker 按 `child_locked_append` 使用目录锁追加共享经验；父流程仍负责最终汇总与校验。
 
-## 权限准备与清理（待验证）
+## 权限准备与清理
 
-**本项是本 Host Kit 唯一未经实测的能力。** Qoder 的设置结构支持
-`permissions.allow` / `ask` / `deny`，但「按条目精确回滚」尚未验证。
+机制已实测（2026-11-03，Qoder CN `qoderclicn` 1.1.81）：
 
-在验证完成前必须遵循：
+- 项目级设置文件为 `.qoder/settings.json`，`permissions.allow` / `ask` / `deny` 会被读取。
+  在 `.qoder/settings.json` 写入 `permissions.deny = ["Bash(echo denied-probe*)"]` 后，
+  同一命令被拒绝，错误原文为 `Command denied by projectSettings rule: ...`。
+- 移除该条目并恢复文件后，同一命令恢复执行，且文件与执行前**字节一致**。
+  因此「准备 → 使用 → 精确回滚」链路成立。
 
-- 无法确认可精确回滚时，**不得写入项目设置来临时放宽权限**，改为通过宿主原生审批逐项授权，
-  或在该阶段标记 `blocked` 并说明原因。
+执行要求：
+
+- 只允许**新增**本轮需要的条目，写入前后各取一次文件字节快照；清理必须把文件恢复为写入前
+  的原始内容，不能只是删除自己新增的键（并发方可能同轮写入）。
+- 快照不一致或文件在轮内被他人修改时，停止并报告真实原因，不得覆盖他方改动。
 - 不得复制 `gradlew`、`mvnw` 等 wrapper 文件，不得修改业务源码或项目构建配置。
-- 清理只允许撤销本轮自身写入的条目；无法证明归属时保留原文件并报告真实原因。
+- `--setting-sources` 必须包含 `project`，否则项目级条目不会生效。
+- 无法证明条目归属时保留原文件并报告，不得猜测删除。
 
-验证方式：执行一次 `/helix:ut`，确认 workers 结束后 `.qoder/settings.json` 与执行前字节一致。
+已验证的是**机制**，不是完整 `/helix:ut` 端到端：真实 UT 运行仍需要可用的构建工具链与
+被扫描的包，本 Host Kit 只在具备这些条件的仓库中声明 UT 可用。

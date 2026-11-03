@@ -10,6 +10,26 @@ Contract 及当前 Host Kit 决定；扫描角色只补充各自产物内容。
 父流程已负责依赖与任务编排。依赖未就绪、输入缺失或写入被阻断时返回具体缺口，
 不得自行创建等待子任务或把当前 job 再转交给其他执行者。
 
+## 角色文件 frontmatter
+
+`agents/*.md` 是 Init 的逻辑角色正文，同时被宿主当作可发现的子代理定义。每个文件必须以
+YAML frontmatter 提供 `name` 与 `description`：
+
+```yaml
+---
+name: scan-tech
+description: "后端技术栈与架构深度扫描 agent。……"
+---
+```
+
+- `name` 必须存在且与文件名去扩展名一致。部分宿主（如 Qoder）自动发现插件根 `agents/`
+  目录并要求该字段，缺失会使安装校验失败；Claude Code 允许从文件名推断，因此不能依赖
+  文件名隐式补全。
+- `description` 说明角色职责与产物，供宿主发现和父流程选择。
+- 其余字段（`tools`、`model` 等）由宿主解释，公共流程不依赖。
+- 角色正文仍以本文件的写入边界与完成契约为准；frontmatter 只承载发现元数据，不得写入
+  业务步骤或改变 Dispatch Contract。
+
 ## 写入边界
 
 - 只写当前 job 的 `write_scope`；不修改共享 knowledge 根索引、init state、timings 或其他 job 产物。

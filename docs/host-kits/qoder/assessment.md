@@ -281,10 +281,31 @@ E2E 走的是 `--plugin-dir` 本地加载，**未覆盖 marketplace 安装与 `p
 因此 `support.level` 保持 `preview`，仅把 `support.evidence` 指向
 `evidence/host-e2e/qoder/e2e-2026-11-03.json`。
 
+### 权限机制补充验证（2026-11-03）
+
+`/helix:ut` 依赖的「权限准备 → 使用 → 精确回滚」链路已按机制验证：
+
+| 实验 | 结果 |
+|---|---|
+| `.qoder/settings.json` 写入 `permissions.deny = ["Bash(echo denied-probe*)"]` | 同一命令被拒绝，错误原文 `Command denied by projectSettings rule: ...` |
+| 移除该条目并还原文件 | 同一命令恢复执行 |
+| 还原前后 `cmp` | **byte-identical** |
+
+由此确认：`.qoder/settings.json` 是项目级设置文件，`permissions.allow/ask/deny` 会被读取，
+且可以精确回滚。`hosts/qoder/ut.md` 已移除 `_pending_verification` 标记。
+
+### 已完成（本轮）
+
+- ✅ `/helix:ut` 权限机制验证（见上表；完整 UT 端到端仍需真实构建工程）
+- ✅ 中英入口文档与支持矩阵同步：`README.md`、`README.zh-CN.md`、`docs/installation.md`、
+  `docs/user-guide.md`、`docs/user-guide.zh-CN.md`、`docs/workflow-architecture.md`、
+  `helixharness/README.md`、`helixharness/PLUGIN_USAGE.md`、`reference/host-api.md`
+- ✅ `agents/*.md` 的 `name` 字段固化进 `reference/scan-agent-protocol.md`，并新增回归测试
+  `AgentFrontmatterTests` 防止被误删
+
 ### 后续待办
 
-1. 在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`。
-2. `/helix:ut` 的权限精确回滚验证（当前 `ut.md` 要求无法确认时改走宿主审批）。
-3. 补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。
-4. 中英入口文档与支持矩阵同步（`README.md`、`README.zh-CN.md`、`docs/installation.md`、`docs/user-guide*`）。
-5. `agents/*.md` 新增的 `name` 字段需纳入 `reference/scan-agent-protocol.md` 的显式约定。
+1. 在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`，
+   通过后可把 `support.level` 从 `preview` 提升为 `stable`。
+2. 补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。
+3. 在真实构建工程（Java/Maven 或 Gradle）上跑通完整 `/helix:ut`。
