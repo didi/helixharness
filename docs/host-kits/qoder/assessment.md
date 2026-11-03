@@ -14,8 +14,6 @@
 | 风险点 | 集中在 `unit_test_workflow` 的权限托管、项目级 settings 路径、telemetry 会话格式差异 |
 | 建议首批能力 | 16 项中 **12 项 native / 1 项 emulated / 3 项 unsupported** |
 
-> ⚠️ 修正：前几轮对话中我口述为「17 项 capabilities」，实际两个现有 Host Kit 的**并集是 16 项**。以本文为准。
-
 ## 1. 关键发现：Qoder 的插件模型是 Claude Code 的超集
 
 `~/.qoder-cn/plugins/cache/local/ecc/2.2.3/.qoder-plugin/plugin.json`（第三方真实插件）：
@@ -138,7 +136,7 @@ Codex 的复杂度来自「没有原生命令面」，必须自建薄 Skill + �
 
 ## 7. 垂直验证结果（已实测，2026-11-02）
 
-探针插件：`/tmp/hv-probe`，结构 = `.qoder-plugin/plugin.json` + `commands/echo.md` + `agents/scout.md` + `skills/{probe,echo}/SKILL.md` + `hooks/hooks.json`。
+探针插件：`<scratch>/qoder-probe`，结构 = `.qoder-plugin/plugin.json` + `commands/echo.md` + `agents/scout.md` + `skills/{probe,echo}/SKILL.md` + `hooks/hooks.json`。
 
 `qoderclicn plugins validate` 输出：
 
@@ -156,7 +154,7 @@ Plugin "hvprobe" is valid and ready to install.
 | F0 插件可加载 | ✅ | `plugins validate` 通过，四类组件全部识别 |
 | F1 命令面（`commands/*.md`） | ❌ **不可用** | `/hvprobe:echo` → `Error: Activate skill hvprobe:echo?`；第三方 `/ecc:aside` → "not available in the current skill listing" |
 | F2 命令面（skill 承载） | ✅ | 新增 `skills/echo/SKILL.md` 后调用 `/echo` 返回 `PROBE_COMMAND_OK` |
-| F3 子代理派发 | ✅ | 派发 `scout` 返回 `PROBE_SUBAGENT_OK cwd=/tmp/hv-probe` |
+| F3 子代理派发 | ✅ | 派发 `scout` 返回 `PROBE_SUBAGENT_OK cwd=<scratch>/qoder-probe` |
 | F4 插件作用域命名 | ✅ | 派发 `hvprobe:scout` 同样成功 |
 | F5 并行派发 | ✅ | 单消息 3 个 Agent 调用，3 条结果全部返回 |
 | F6 插件 hooks | ✅ | `hook.log` 记录到 `PROBE_SESSIONSTART_OK`（5 次）与 `PROBE_PRETOOL_OK`，证明 `SessionStart` 与 `PreToolUse(Bash)` matcher 均生效 |
@@ -414,7 +412,7 @@ Qoder 的统计能力已从 `unsupported` 升级为 **`emulated`**，并完成�
 除本地 stub 外，另用真实 `helixharness-platform` 跑了一遍接收链路。
 
 启动方式（隔离数据目录，`--helixharness-roots` 指向业务仓）：
-`./.venv/bin/python -m web_ui.main --port 7861 --helixharness-roots /tmp/hv-e2e/task-filter-demo`
+`./.venv/bin/python -m web_ui.main --port 7861 --helixharness-roots <scratch>/task-filter-demo`
 
 | 检查 | 结果 |
 |---|---|
@@ -475,7 +473,7 @@ token/资源用量，适配器按约定**不估算**。因此该账本可作为�
 
 ### 前置
 
-分支 `support_qoder` 推送到 `git@github.com:anderszhang/helixharness.git`。
+分支 `support_qoder` 推送到一个 GitHub fork 镜像（`git@github.com:<contributor>/helixharness.git`）。
 Qoder 的 `marketplace add` 只克隆**默认分支**，因此需先将 fork 的默认分支切到
 `support_qoder`（由用户在其 GitHub 设置中完成）。
 
@@ -484,7 +482,7 @@ Qoder 的 `marketplace add` 只克隆**默认分支**，因此需先将 fork 的
 | 环节 | 命令 | 结果 |
 |---|---|---|
 | 默认分支 | `git ls-remote --symref fork HEAD` | `ref: refs/heads/support_qoder` |
-| 注册远程市场 | `plugins marketplace add git@github.com:anderszhang/helixharness.git` | 成功，`source={"source":"git","url":…}`，SSH 形式直接支持 |
+| 注册远程市场 | `plugins marketplace add git@github.com:<contributor>/helixharness.git` | 成功，`source={"source":"git","url":…}`，SSH 形式直接支持 |
 | 刷新 | `plugins marketplace update helixharness-marketplace` | 克隆到 `ab1ea48`，含 `.qoder-plugin/marketplace.json` |
 | **远程安装** | `plugins install helix@helixharness-marketplace` | 安装到 `cache/…/helix/1.0.0`，`scope=user`、enabled |
 | **新会话发现** | 无 `--plugin-dir` 执行 `/helix:status` | 正常返回状态表，证明命令面来自远程安装 |

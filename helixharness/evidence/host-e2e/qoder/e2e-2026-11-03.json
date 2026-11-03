@@ -179,7 +179,7 @@
     },
     {
       "step": "remote_marketplace_install",
-      "command": "plugins marketplace add git@github.com:anderszhang/helixharness.git → update → install helix@helixharness-marketplace",
+      "command": "plugins marketplace add git@github.com:<contributor>/helixharness.git → update → install helix@helixharness-marketplace",
       "result": "pass",
       "detail": "source=git；克隆到 ab1ea48 且含 .qoder-plugin/marketplace.json；安装到 cache/…/helix/1.0.0（scope=user, enabled）；无 --plugin-dir 的 /helix:status 正常"
     },
