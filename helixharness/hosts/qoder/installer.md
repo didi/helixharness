@@ -33,5 +33,5 @@ qoderclicn -p --plugin-dir "$HELIXHARNESS_SOURCE/helixharness" "<prompt>"
 ## 已知限制
 
 - 项目级 hooks 目标路径 `.qoder/settings.json` 尚未经真实客户端 E2E 证实。
-- 统计在 Qoder 下不可用：既不写 `docs/eval/**/eval-log.json`，也不做异步上报，
-  因此平台看不到 Qoder 的用量数据。业务与质量门禁不受影响。
+- 统计为 `emulated`：账本与异步 Supplement 正常，但 Qoder 会话记录不含 token 用量，
+  因此 `usage` 为空（不估算）；耗时、工具、子代理与脱敏对话仍可采集。

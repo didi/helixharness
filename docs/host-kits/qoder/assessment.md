@@ -65,11 +65,13 @@ cat ~/.qoder-cn/plugins/cache/local/ecc/2.2.3/hooks/qoder-hooks.json
 | 11 | `unit_test_workflow` | **native** | 后台 Agent（`run_in_background`）+ `TaskCreate/TaskGet/TaskUpdate/TaskList` 任务跟踪齐备 | `ut.md` |
 | 12 | `task_tracking` | **native** | 原生 `TaskCreate/TaskGet/TaskUpdate/TaskList/UpdateGoal`；`QODER_FEATURE_TASKS=0` 时回退 `TodoWrite` | — |
 | 13 | `project_hooks` | **native** | `--setting-sources user,project,local` + 项目配置目录 `.qoder`；`settings.local.json` 字面量存在 | `project-hooks.json`、`project.json` |
-| 14 | `telemetry` | **unsupported**（v1） | 会话存储 `~/.qoder-cn/projects/{escaped-cwd}/{sessionId}.jsonl`，记录结构与 Claude Code 高度相似（`type`/`uuid`/`timestamp`/`message`/`parentUuid`/`isSidechain`/`cwd`/`sessionId`/`gitBranch`），但含 Qoder 专有类型 `workspace-directories`、`runtime-config`。可写 `telemetry_hosts/qoder.py` 升级为 emulated，但**不阻塞业务** | 首版省略；升级时补 |
+| 14 | `telemetry` | **emulated** | 会话存储 `~/.qoder-cn/projects/{escaped-cwd}/{sessionId}.jsonl`，记录结构与 Claude Code 高度相似（`type`/`uuid`/`timestamp`/`message`/`parentUuid`/`isSidechain`/`cwd`/`sessionId`/`gitBranch`），但含 Qoder 专有类型 `workspace-directories`、`runtime-config`。可写 `telemetry_hosts/qoder.py` 升级为 emulated，但**不阻塞业务** | 首版省略；升级时补 |
 | 15 | `plugin_install` | **native** | `qoderclicn plugins install`（支持 marketplace、远程 zip、本地目录）；`qoderclicn plugins marketplace` 管理市场 | `installer.md`、`.qoder-plugin/plugin.json` |
 | 16 | `plugin_update` | **native** | `qoderclicn plugins update`、`qoderclicn update`、`qoderclicn rollback` | `update_hosts/qoder.py` |
 
-### 关于 `telemetry: unsupported` 的实际影响
+### 关于 `telemetry` 降级的实际影响（历史记录）
+
+> 本节记录 v1 阶段的事实；该缺口已在 §10 补齐，现为 `emulated`。
 
 按现有合同，未注册统计 Adapter 的宿主**两条通路都不产生数据**：`scripts/metrics.py` 在
 `get_host_adapter(platform) is None` 时直接 `_skip("unsupported_host")`，因此既**不写**
@@ -115,7 +117,7 @@ Codex 的复杂度来自「没有原生命令面」，必须自建薄 Skill + �
 | **P0** | `.qoder-plugin/plugin.json` + `scripts/update_hosts/qoder.py` | 0.5 天 |
 | **P1** | `hooks.json` + `hook_entry.py` + `lifecycle.md` + `installer.md` | 1 天 |
 | **P1** | `ut.md`（权限托管，最不确定） | 1–2 天 |
-| **P2** | `telemetry_hosts/qoder.py`（可延后，先 unsupported） | 1 天 |
+| **P2** | `telemetry_hosts/qoder.py` ✅ 已完成（见 §10） | 0.5 天 |
 | **P2** | `scripts/tests/` 专项测试 + 文档中英同步 | 1 天 |
 | **P3** | 真实客户端 E2E（安装 → 新会话发现 → 四阶段闭环 → 归档） | 1 天 |
 
@@ -255,7 +257,7 @@ helixharness/
 1. 真实客户端 E2E 尚未执行，`support.level` 保持 `preview`、`evidence` 为 `null`。
 2. `.qoder/settings.json` 作为项目级 hooks 目标路径待证实。
 3. `/helix:ut` 的权限精确回滚未验证（`ut.md` 中已标注 `_pending_verification` 并要求无法确认时改走宿主审批）。
-4. `telemetry` 为 `unsupported`：既不写 eval-log 同步账本，也不做异步上报，平台看不到 Qoder 用量；业务不受影响。
+4. `telemetry` 为 `unsupported`：既不写 eval-log 同步账本，也不做异步上报，平台看不到 Qoder 用量；业务不受影响。（§10 已补齐为 emulated）
 
 ## 9. C：真实客户端 E2E 结果（2026-11-03）
 
@@ -278,8 +280,8 @@ helixharness/
 
 - **项目级 hooks 路径已证实**：`.qoder/settings.json`，且能通过确定性 CLI 校验。
 - **`subagents: native` 得到实证**：init 的 6 路扫描并行、apply 的双轴隔离 Review 均真实发生。
-- **telemetry 降级符合预期**：consent resolver 返回 `unsupported_host`，
-  `prompt_due=false`，未写 eval-log，业务门禁不受影响。
+- **telemetry 降级符合预期**：当时 consent resolver 返回 `unsupported_host`，
+  `prompt_due=false`，未写 eval-log，业务门禁不受影响。（§10 已补齐为 emulated）
 
 ### 仍保持 preview 的原因
 
@@ -345,5 +347,64 @@ marketplace = _read_json(root / adapter.marketplace_manifest_relative)  # 新
 
 1. 在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`，
    通过后可把 `support.level` 从 `preview` 提升为 `stable`。
-2. 补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。
+2. ~~补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。~~ 已完成，见 §10。
 3. 在真实构建工程（Java/Maven 或 Gradle）上跑通完整 `/helix:ut`。
+
+## 10. telemetry 适配与端到端验证（2026-11-03）
+
+Qoder 的统计能力已从 `unsupported` 升级为 **`emulated`**，并完成采集与投递的端到端验证。
+
+### 实现
+
+| 文件 | 内容 |
+|---|---|
+| `scripts/telemetry_hosts/qoder.py` | `QoderAdapter`：配置根（`~/.qoder-cn` / `~/.qoder`）、consent 缓存路径、会话上下文、来源校验、`collect_supplement_window` |
+| `scripts/telemetry_hosts/supplement_parsers.py` | 抽出共享 `_collect_message_window`，新增 `collect_qoder_window` |
+| `hosts/qoder/hook_entry.py` | `SessionStart` 写入 `.helixharness/host-session/qoder.json`（仅会话 ID 与路径，不含正文） |
+| `hosts/qoder/host.json` | `telemetry: emulated` + `python:telemetry_hosts.qoder:QoderAdapter` |
+
+### 关键格式差异（实测确认）
+
+- 会话文件：`~/.qoder-cn/projects/{escaped-cwd}/{session-id}.jsonl`
+- 额外记录类型：`workspace-directories`、`runtime-config`、`active-leaf`、
+  `file-history-snapshot`、`attachment`、`worktree-state`、`last-prompt` —— 均非消息记录，解析器显式忽略
+- 内容块 `text` / `thinking` / `tool_use` / `tool_result` 与 Claude Code 一致，因此复用同一窗口构建器
+- **会话记录不含 token 用量**（`requestTokenAnchor` 是哈希对而非计数）→ `usage` 保持为空，**不做估算**
+
+### 验证结果
+
+| 环节 | 结果 |
+|---|---|
+| consent 解析 | `allowed_actions` 正常返回（不再是 `unsupported_host`） |
+| 授权缓存位置 | `~/.qoder-cn/helixharness/telemetry-consent-cache.json` |
+| 会话标记 | SessionStart 写入含 `session_id` / `session_cwd` / `transcript_path` |
+| 同步账本 | `metrics.py start/finish --platform qoder` → `docs/eval/{feature}/eval-log.json`，`session_locator_status=recorded`、`workflow_trace_status=recorded` |
+| Supplement 生成 | `helixharness-stage-supplement/1.0`，`platform=qoder`；`execution.tools` 记录 Bash 调用；`evidence.interactions` 仅含窗口内的脱敏消息 |
+| 投递 | 本地 stub 接收端（gzip `{"items":[…]}` + 逐条 ack）收到 2 条，`remaining=0`、`rejected=0` |
+
+实测收到的 Supplement：
+
+```json
+{"schema":"helixharness-stage-supplement/1.0","platform":"qoder",
+ "entry_id":"entry-518d8e895f922f6b","feature":"telemetry-e2e",
+ "usage":{"model":"auto","models":["auto"]},
+ "session":{"platform":"qoder","session_hash":"session-a3b47b4e…","session_kind":"primary"}}
+```
+
+### 隐私与边界
+
+- 标记文件只写会话标识与路径，不写提示词、正文或凭据。
+- 窗口严格取自阶段 `started_at`/`ended_at`；窗口外的用户提问不会被采集。
+- `thinking` 块不进入 Supplement；工具成功不带原始参数/输出。
+- 默认地址为空，本轮验证使用隔离的 `HELIXHARNESS_TELEMETRY_HOME` 与本地 stub，
+  未向任何真实端点发送数据；测试后已还原该目录与 launchd 计划任务。
+
+### 测试
+
+新增 `scripts/tests/test_qoder_telemetry.py`（6 项）：适配器注册、consent 路径、
+来源校验、会话标记解析、跨仓标记拒绝、解析器忽略 Qoder 专有记录且不估算 token。
+
+### 仍未覆盖
+
+- 真实 `helixharness-platform` 接收端（本地 stub 只验证协议契约）
+- 平台侧的 `telemetry_quality` Gate 与看板投影未用 Qoder 数据跑过
