@@ -25,13 +25,14 @@
       "卸载与状态还原（字节一致）",
       "telemetry consent 解析与授权缓存写入（emulated）",
       "telemetry 同步账本写入（eval-log.json，platform=qoder）",
-      "telemetry 异步 Supplement 生成与本地端点投递"
+      "telemetry 异步 Supplement 生成与本地端点投递",
+      "真实 helixharness-platform 接收 /report 并将 Supplement 关联到账本",
+      "平台看板按 platform=qoder 投影并显示平台占比"
     ],
     "not_verified": [
       "远程 URL / GitHub 市场源的安装与更新（仅验证了本地 directory 源）",
       "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）",
-      "真实 helixharness-platform 接收端（仅用本地 stub 验证协议）",
-      "平台侧 telemetry_quality Gate 与看板投影未用 Qoder 数据跑过"
+      "平台 telemetry_quality Gate 的通过态（需统计开启下完整跑完 propose→apply 的真实需求）"
     ]
   },
   "steps": [
@@ -154,6 +155,18 @@
       "command": "telemetry_async.run_once + 本地 stub 接收端",
       "result": "pass",
       "detail": "接收端按 gzip {items:[...]} + 逐条 ack 协议收到 2 条 Supplement；remaining=0、rejected=0；使用隔离 HELIXHARNESS_TELEMETRY_HOME，未向真实端点发送"
+    },
+    {
+      "step": "platform_report_ingest",
+      "command": "web_ui.main --port 7861 --helixharness-roots <repo> + telemetry_async.run_once",
+      "result": "pass",
+      "detail": "POST /report 200；stage_supplements 落库 1 条（feature=telemetry-platform）；ledger_entries 3 条；linked=1 且 linked_at 已写入"
+    },
+    {
+      "step": "platform_dashboard_projection",
+      "command": "GET /",
+      "result": "pass",
+      "detail": "页面按行显示 platform=qoder；平台占比图输出 `qoder · 1 人 · 100.0%`；三个需求名均出现在看板"
     }
   ],
   "artifacts": {

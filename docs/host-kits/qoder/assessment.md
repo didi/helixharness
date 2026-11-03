@@ -408,3 +408,28 @@ Qoder 的统计能力已从 `unsupported` 升级为 **`emulated`**，并完成�
 
 - 真实 `helixharness-platform` 接收端（本地 stub 只验证协议契约）
 - 平台侧的 `telemetry_quality` Gate 与看板投影未用 Qoder 数据跑过
+
+### 平台侧接收验证（2026-11-03）
+
+除本地 stub 外，另用真实 `helixharness-platform` 跑了一遍接收链路。
+
+启动方式（隔离数据目录，`--helixharness-roots` 指向业务仓）：
+`./.venv/bin/python -m web_ui.main --port 7861 --helixharness-roots /tmp/hv-e2e/task-filter-demo`
+
+| 检查 | 结果 |
+|---|---|
+| `POST /report` | `200 OK`，平台 `stage_supplements` 落库 1 条（`telemetry-platform`） |
+| 账本摄取 | `telemetry_documents/entries` 各 3 条（`telemetry-e2e` / `telemetry-platform` / `telemetry-probe`） |
+| 账本↔补充关联 | `linked=1`，`linked_at` 已写入 —— 平台用 `entry_id + requirement_id + feature` 成功配对 |
+| 看板投影 | `/` 页面按行显示 `platform=qoder`；平台占比环形图输出 `qoder · 1 人 · 100.0%` |
+
+注意：`--helixharness-roots` 必须是**业务仓根**（含 `docs/eval/`），传其父目录不会递归发现账本。
+
+### 质量 Gate 的现状
+
+三个探针账本的 `gate_result` 为 `unknown`、`evidence_complete` 多为 `0`。这是**符合预期**的：
+探针只写了阶段账本，没有真实的 `spec.md` / `tasks.md` / `verify-report.md` 工件，
+消费端 Gate 因此判定证据不完整。要看到 Gate 通过，需要一个在统计开启状态下完整跑完
+propose → apply 的真实需求（`task-filter` 那次 E2E 未开统计，所以没有账本）。
+
+本轮不为此补造数据：Gate 的价值恰恰在于拒绝不完整证据。
