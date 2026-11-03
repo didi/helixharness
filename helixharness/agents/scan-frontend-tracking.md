@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-tracking
 description: "前端埋点扫描 Agent。检测项目埋点方案，提取事件清单，输出到 docs/knowledge/tracking.md。无埋点则直接退出不生成文件。"
 ---
 

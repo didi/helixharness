@@ -1,0 +1,53 @@
+{
+  "host_id": "qoder",
+  "host_api_version": "1.1",
+  "aliases": [
+    "qoder-cn"
+  ],
+  "support": {
+    "level": "preview",
+    "display_name": "Qoder",
+    "evidence": null,
+    "limitations": [
+      "尚未完成真实客户端 E2E，support.level 保持 preview，evidence 为 null",
+      "命令面由薄 Skill 承载；实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
+      "项目级 settings/hooks 的目标路径 .qoder/settings.json 尚未经 E2E 证实",
+      "telemetry 为 unsupported：同步 eval-log 账本仍正常记录，异步采集与投递跳过",
+      "unit_test_workflow 的权限托管与精确回滚语义尚未验证"
+    ]
+  },
+  "capabilities": {
+    "command_surface": "emulated",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "session_end": "native",
+    "session_events": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "emulated",
+    "workflow_transition": "emulated",
+    "subagents": "native",
+    "unit_test_workflow": "native",
+    "task_tracking": "native",
+    "project_hooks": "native",
+    "telemetry": "unsupported",
+    "plugin_install": "native",
+    "plugin_update": "native"
+  },
+  "adapters": {
+    "detector": "python:update_hosts.qoder:detect_host",
+    "distribution": "resource:.qoder-plugin/plugin.json",
+    "installer": "resource:hosts/qoder/installer.md",
+    "command_projection": "resource:hosts/qoder/command-projection.json",
+    "runtime": "resource:hosts/qoder/runtime.md",
+    "subagent_protocol": "resource:hosts/qoder/subagent.md",
+    "workflow_transition": "resource:hosts/qoder/workflow-transition.md",
+    "project_config": "resource:hosts/qoder/project.json",
+    "project_hooks": "resource:hosts/qoder/project-hooks.json",
+    "ut": "resource:hosts/qoder/ut.md",
+    "lifecycle": "resource:hosts/qoder/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md",
+    "version": "python:update_hosts.qoder:plugin_version",
+    "update": "python:update_hosts.qoder:QoderUpdateAdapter"
+  }
+}

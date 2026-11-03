@@ -1,4 +1,5 @@
 ---
+name: init-service-bootstrap
 description: "服务仓库初始化总控 agent。运行于后端、未知或完整全栈代码仓库，消费后端扫描结果，生成 knowledge/、harness、hooks、宿主入口文件和 service-meta.yaml。"
 ---
 

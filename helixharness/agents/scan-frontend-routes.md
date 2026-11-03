@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-routes
 description: "前端路由扫描 Agent。仅扫描路由配置（vue-router / react-router / next.js pages），输出到 docs/knowledge/routes.md。"
 ---
 

@@ -1,4 +1,5 @@
 ---
+name: init-workspace-bootstrap
 description: "多仓 workspace 初始化 agent。生成 helixharness.workspace.yaml、workspace knowledge 基线和 specs 目录，不替代 repo-local 初始化。"
 ---
 

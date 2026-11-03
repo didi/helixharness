@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-state
 description: "前端状态管理扫描 Agent。仅扫描 store/state 目录（Redux/Zustand/Pinia/Vuex），输出到 docs/knowledge/state.md。"
 ---
 
