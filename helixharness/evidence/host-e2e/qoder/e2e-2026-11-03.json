@@ -19,10 +19,13 @@
       "apply 全流程（TDD、完整测试、双轴评审、Evidence）",
       "archive 全流程（门禁、知识零路径授权、原子归档、Apply Scope 提交）",
       "项目级 hooks 合并与校验",
-      "unit_test_workflow 的权限准备/精确回滚机制"
+      "unit_test_workflow 的权限准备/精确回滚机制",
+      "marketplace 注册与安装（本地 directory 源）",
+      "版本检查与升级链路（1.0.0 → 1.1.0 → 复检 latest）",
+      "卸载与状态还原（字节一致）"
     ],
     "not_verified": [
-      "marketplace 安装与 plugins update 流程",
+      "远程 URL / GitHub 市场源的安装与更新（仅验证了本地 directory 源）",
       "telemetry 异步采集与投递（能力声明为 unsupported）",
       "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）"
     ]
@@ -93,6 +96,36 @@
       "command": "qoderclicn -p --setting-sources user,project,local",
       "result": "pass",
       "detail": "项目级设置文件确认为 .qoder/settings.json；permissions.allow/ask/deny 均被读取"
+    },
+    {
+      "step": "marketplace_add",
+      "command": "qoderclicn plugins marketplace add <repo-root>",
+      "result": "pass",
+      "detail": "生成 known_marketplaces.json 条目，source 为 {\"source\":\"directory\",\"path\":...}，installLocation 指向 ~/.qoder-cn/plugins/marketplaces/helixharness-marketplace"
+    },
+    {
+      "step": "plugin_install",
+      "command": "qoderclicn plugins install helix@helixharness-marketplace",
+      "result": "pass",
+      "detail": "安装到 cache/helixharness-marketplace/helix/1.0.0，scope=user，enabled；不带 --plugin-dir 的会话可直接调用 /helix:status"
+    },
+    {
+      "step": "version_check",
+      "command": "python3 <installed>/scripts/version_update.py --platform qoder check --force-refresh",
+      "result": "pass",
+      "detail": "update_status=latest、next_action=continue_silently；current_scope/available_scopes 由真实 CLI JSON 输出推导"
+    },
+    {
+      "step": "update_detection_and_apply",
+      "command": "版本抬至 1.1.0 → marketplace update → plugins update helix@helixharness-marketplace --scope user",
+      "result": "pass",
+      "detail": "检测 update_status=recommended / next_action=prompt_update；升级后安装 1.1.0 并复检为 latest；随后降回 1.0.0"
+    },
+    {
+      "step": "cleanup_restore",
+      "command": "uninstall + marketplace remove + 快照还原",
+      "result": "pass",
+      "detail": "installed_plugins.json 与 known_marketplaces.json 均与测试前快照 byte-identical；残留插件缓存已清理"
     }
   ],
   "artifacts": {

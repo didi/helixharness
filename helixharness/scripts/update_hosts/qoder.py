@@ -83,6 +83,7 @@ class QoderUpdateAdapter(UpdateHostAdapter):
     host_id = "qoder"
     supported_scopes = frozenset({"user", "project", "local"})
     manifest_directory = ".qoder-plugin"
+    marketplace_manifest_relative = ".qoder-plugin/marketplace.json"
 
     def __init__(
         self,
