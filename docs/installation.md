@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Python 3.10+, Git and a Codex or Claude Code installation supporting plugin marketplaces are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional.
+Python 3.10+, Git and a Codex, Claude Code or Qoder installation supporting plugin marketplaces are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional.
 
 The examples use Bash/Zsh. `didi/helixharness` is the planned public repository; remote commands become usable after its publication. For testing before publication or modifying the plugin, use [developer installation](#developer-installation).
 
@@ -26,7 +26,15 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Both hosts consume this compatible marketplace format. The platform is not installed by these commands.
+```bash
+# Qoder (preview; Chinese edition CLI is `qoderclicn`, international edition `qodercli`)
+qoderclicn plugins marketplace add https://github.com/didi/helixharness.git
+qoderclicn plugins install helix@helixharness-marketplace
+```
+
+The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. All three hosts consume this compatible marketplace format. The platform is not installed by these commands.
+
+Qoder is a **preview** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`; `telemetry` is unsupported on this host, so no `eval-log.json` is written and the platform can only read other hosts' ledgers.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -47,6 +55,16 @@ For Claude Code, replace the last two lines with:
 claude plugin marketplace add "$HELIXHARNESS_SOURCE"
 claude plugin install helix@helixharness-marketplace
 ```
+
+For Qoder, use:
+
+```bash
+qoderclicn plugins marketplace add "$HELIXHARNESS_SOURCE"
+qoderclicn plugins install helix@helixharness-marketplace
+```
+
+To try the plugin without installing it, Qoder also accepts a local plugin directory:
+`qoderclicn -p --plugin-dir "$HELIXHARNESS_SOURCE/helixharness" "<prompt>"`.
 
 A standalone plugin copy can still use the absolute path to `helixharness/`; its nested marketplace points to `.`. Register only one source under `helixharness-marketplace` at a time. When switching sources, remove the old marketplace using the host's plugin management first.
 
@@ -73,8 +91,10 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 
 ## 中文说明
 
-需要 Python 3.10+、Git，以及支持插件市场的 Codex 或 Claude Code。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。
+需要 Python 3.10+、Git，以及支持插件市场的 Codex、Claude Code 或 Qoder。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。
 
 正式发布后使用上面的 GitHub 安装命令，无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
 
 安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init` 并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。
+
+Qoder 为**预览**宿主：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`。该宿主声明 `telemetry` 为 unsupported，因此不写 `eval-log.json`，平台只能读取其他宿主的账本。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。

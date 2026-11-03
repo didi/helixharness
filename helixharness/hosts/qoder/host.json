@@ -12,7 +12,7 @@
       "E2E 通过本地插件目录加载完成，未覆盖 marketplace 安装与 plugins update 流程，故 support.level 保持 preview",
       "命令面由薄 Skill 承载；实测 commands/*.md 不暴露为可调用入口，故 command_surface 为 emulated",
       "telemetry 为 unsupported：不写 eval-log，异步采集与投递跳过；业务门禁不受影响",
-      "unit_test_workflow 的权限托管与精确回滚语义尚未验证"
+      "unit_test_workflow 的权限准备与精确回滚机制已验证，但未在真实构建工程上跑通完整 /helix:ut"
     ]
   },
   "capabilities": {

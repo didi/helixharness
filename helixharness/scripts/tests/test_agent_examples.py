@@ -39,5 +39,24 @@ class FrontendBuildDetectionTests(unittest.TestCase):
                 self.assertIn(expected, result.stdout)
 
 
+class AgentFrontmatterTests(unittest.TestCase):
+    """`agents/*.md` must stay discoverable by hosts that require an explicit name."""
+
+    def test_every_agent_declares_matching_name_and_description(self):
+        for path in sorted((PLUGIN_ROOT / "agents").glob("*.md")):
+            with self.subTest(agent=path.name):
+                text = path.read_text(encoding="utf-8")
+                self.assertTrue(text.startswith("---\n"), "missing frontmatter")
+                end = text.index("\n---", 4)
+                head = text[4:end]
+                name = re.search(r"^name:\s*(\S+)\s*$", head, re.M)
+                description = re.search(r"^description:\s*\S", head, re.M)
+                self.assertIsNotNone(name, "frontmatter must declare name")
+                self.assertEqual(path.stem, name.group(1))
+                self.assertIsNotNone(
+                    description, "frontmatter must declare description"
+                )
+
+
 if __name__ == "__main__":
     unittest.main()

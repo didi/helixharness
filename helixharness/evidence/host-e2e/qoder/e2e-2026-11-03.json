@@ -18,12 +18,13 @@
       "propose 全流程（spec/tasks 生成与确定性校验）",
       "apply 全流程（TDD、完整测试、双轴评审、Evidence）",
       "archive 全流程（门禁、知识零路径授权、原子归档、Apply Scope 提交）",
-      "项目级 hooks 合并与校验"
+      "项目级 hooks 合并与校验",
+      "unit_test_workflow 的权限准备/精确回滚机制"
     ],
     "not_verified": [
       "marketplace 安装与 plugins update 流程",
       "telemetry 异步采集与投递（能力声明为 unsupported）",
-      "unit_test_workflow 的权限精确回滚"
+      "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）"
     ]
   },
   "steps": [
@@ -80,6 +81,18 @@
       "command": "/helix:archive task-filter --commit",
       "result": "pass",
       "detail": "active → completed 三工件齐备；Apply Scope 提交 29e9537 仅含 tasks.py 与 test_tasks.py；未推送"
+    },
+    {
+      "step": "ut_permission_prepare_cleanup",
+      "command": "写入 .qoder/settings.json permissions.deny 后执行同一 Bash 命令，再字节还原",
+      "result": "pass",
+      "detail": "带 deny 时命令被拒，错误原文 `Command denied by projectSettings rule`；还原后命令恢复执行且文件字节一致，证明 prepare→cleanup 链路成立"
+    },
+    {
+      "step": "project_settings_surface",
+      "command": "qoderclicn -p --setting-sources user,project,local",
+      "result": "pass",
+      "detail": "项目级设置文件确认为 .qoder/settings.json；permissions.allow/ask/deny 均被读取"
     }
   ],
   "artifacts": {

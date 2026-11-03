@@ -19,7 +19,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex 或 Claude Code。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+需要 Python 3.10+、Git，以及 Codex、Claude Code 或 Qoder（预览）。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md`、`hosts/claude-code/installer.md` 或 `hosts/qoder/installer.md`。
 
 ## 独立方案探索与调试
 

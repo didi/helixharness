@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ 测试 + 代码评审 + 验证依据
 ```
 
-**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Qoder（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
 
 只做日常开发，安装 **HelixHarness** 即可。需要观测使用情况、评测和改进 **HelixHarness 框架本身**，再运行 **helixharness-platform**。开发场景的结果用于判断框架行为，平台不是通用的业务代码评分服务。
 
@@ -50,7 +50,7 @@ Propose → Apply → Archive
 
 | 用途 | 要求 |
 | --- | --- |
-| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex 或 Claude Code；宿主已完成登录或模型配置，能够正常使用 |
+| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex、Claude Code 或 Qoder；宿主已完成登录或模型配置，能够正常使用 |
 | 运行平台 Demo / 使用看板 | Python 3.10+、Git；安装平台 `server` 依赖 |
 | 真实版本评测 | 平台依赖、可用的 Codex 执行环境、模型凭据、可访问的 Git 仓库，以及 Case 所需的构建与测试工具 |
 | 前端预览与视觉验证 | 项目自身的 Node.js、包管理器及浏览器工具；设计服务按实际使用情况配置 |
@@ -150,7 +150,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | 项目 | 面向谁 | 负责什么 | 运行位置 |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code 会话及业务仓库 |
+| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code / Qoder 会话及业务仓库 |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | 观测和改进 HelixHarness 框架的维护者 | 数据看板、版本评测、自进化 | 独立 Python Web 服务与评测 Worker |
 
 ```mermaid
@@ -399,7 +399,7 @@ DEFAULT_FEEDBACK_ENDPOINT = ""
 
 ### 模型配置
 
-日常使用插件时，模型由 Codex / Claude Code 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
+日常使用插件时，模型由 Codex / Claude Code / Qoder 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
 
 配置模板见 [`helixharness-platform/.env.example`](../helixharness-platform/.env.example)。服务读取**进程环境变量，不会自动加载 `.env.example`**；将真实值注入启动 Web 和 Worker 的环境。
 
@@ -611,7 +611,7 @@ Candidate 生成在普通用户（包括 macOS 本地用户）下默认使用 Co
 ├── helixharness/
 │   ├── commands/       # 九个公共命令入口和路由
 │   ├── workflows/      # single/ 单仓执行，workspace/ 多仓协调
-│   ├── hosts/          # Codex / Claude Code 适配
+│   ├── hosts/          # Codex / Claude Code / Qoder 适配
 │   ├── skills/         # 工作流复用的方法
 │   └── scripts/        # 路由、工件校验与遥测
 └── helixharness-platform/
