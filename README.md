@@ -79,6 +79,13 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
+```bash
+# Qoder (Chinese edition CLI is qoderclicn, international edition qodercli)
+qoderclicn plugins marketplace add https://github.com/didi/helixharness.git
+qoderclicn plugins install helix@helixharness-marketplace
+```
+
+Qoder surfaces commands through thin Skills: invoke `/helix:<command>` and run `/plugins reload` after installing.
 The root marketplace installs the `helixharness/` plugin, not the platform. For testing before publication or modifying the plugin, use [developer installation from local source](docs/installation.md#developer-installation). See [hook verification, updates and uninstall](docs/installation.md).
 
 ### 2. Run a small feature

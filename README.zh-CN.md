@@ -74,11 +74,12 @@ codex plugin add helix@helixharness-marketplace
 ```
 
 ```bash
-# Claude Code
-claude plugin marketplace add https://github.com/didi/helixharness.git
-claude plugin install helix@helixharness-marketplace
+# Qoder（中文版 CLI 为 qoderclicn，国际版为 qodercli）
+qoderclicn plugins marketplace add https://github.com/didi/helixharness.git
+qoderclicn plugins install helix@helixharness-marketplace
 ```
 
+Qoder 通过薄 Skill 暴露命令，调用写作 `/helix:<命令>`；安装后执行 `/plugins reload` 生效。
 根市场会安装 `helixharness/` 插件，不会安装平台。发布前测试或修改插件时，使用[开发者安装（本地源码）](docs/installation.md#developer-installation)。详见[hooks 检查、更新与卸载](docs/installation.md)。
 
 ### 2. 完成一个小需求
