@@ -71,7 +71,13 @@ cat ~/.qoder-cn/plugins/cache/local/ecc/2.2.3/hooks/qoder-hooks.json
 
 ### 关于 `telemetry: unsupported` 的实际影响
 
-按现有合同，`unsupported` 只跳过**异步采集与投递**；`docs/eval/{feature}/eval-log.json` 的同步账本由 `scripts/metrics.py` 写入，**与宿主无关，照常工作**。`helixharness-platform` 仍可通过 Git 同步读取账本。这是可接受的 v1 降级，且有明确升级路径。
+按现有合同，未注册统计 Adapter 的宿主**两条通路都不产生数据**：`scripts/metrics.py` 在
+`get_host_adapter(platform) is None` 时直接 `_skip("unsupported_host")`，因此既**不写**
+`docs/eval/{feature}/eval-log.json` 同步账本，也不生成异步 Supplement。
+
+也就是说 Qoder 目前对 `helixharness-platform` **完全不可见**：没有阶段进度、Token 用量、
+耗时、返工等任何数据。业务功能与质量门禁不受影响，这是有意的降级边界。
+升级路径明确：在 `scripts/telemetry_hosts/` 实现并注册一个 `HostAdapter`，不需要改动业务正文。
 
 ## 3. 与现有两个 Host Kit 的差异清单
 
@@ -249,7 +255,7 @@ helixharness/
 1. 真实客户端 E2E 尚未执行，`support.level` 保持 `preview`、`evidence` 为 `null`。
 2. `.qoder/settings.json` 作为项目级 hooks 目标路径待证实。
 3. `/helix:ut` 的权限精确回滚未验证（`ut.md` 中已标注 `_pending_verification` 并要求无法确认时改走宿主审批）。
-4. `telemetry` 为 `unsupported`：同步账本可用，异步上报未实现。
+4. `telemetry` 为 `unsupported`：既不写 eval-log 同步账本，也不做异步上报，平台看不到 Qoder 用量；业务不受影响。
 
 ## 9. C：真实客户端 E2E 结果（2026-11-03）
 
