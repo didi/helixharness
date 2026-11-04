@@ -4,7 +4,7 @@
 
 Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
 
-**A development workflow for Codex and Claude Code, with a companion platform for usage dashboards, version evaluation and evolution.**
+**A development workflow for Codex, Claude Code and Pi, with a companion platform for usage dashboards, version evaluation and evolution.**
 
 Take a requirement through to a verified code change: define the scope, break it into tasks, implement, test, review, and archive the result. HelixHarness gives your coding agent a reusable workflow. Requirements and progress stay in the repository so you can inspect them and resume unfinished work.
 
@@ -74,7 +74,7 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-After installation, open a new agent session in the application repository you want to develop. Check that the nine public HelixHarness commands are available. See the [Codex installation guide](../helixharness/hosts/codex/installer.md) or [Claude Code installation guide](../helixharness/hosts/claude-code/installer.md) for the host-specific setup.
+After installation, open a new agent session in the application repository you want to develop. Check that the nine public HelixHarness commands are available. See the [Codex installation guide](../helixharness/hosts/codex/installer.md), [Claude Code installation guide](../helixharness/hosts/claude-code/installer.md) or [Pi installation guide](../helixharness/hosts/pi/installer.md) for the host-specific setup.
 
 ### 2. Build Your First Feature
 

@@ -22,7 +22,7 @@ HelixHarness 只复用统一 consent 的当前结果，只使用当前 HelixHarn
 
 ## HelixHarness 统计（非阻塞）
 
-此处 `{current_platform}` 表示当前 Agent 宿主，不是操作系统：Claude Code 固定为 `claude-code`，Codex 固定为 `codex`。禁止传入 `darwin`、`linux`、`windows` 等 OS 标识。该映射适用于本 workflow 内所有 `metrics.py --platform` 调用。
+此处 `{current_platform}` 表示当前 Agent 宿主，不是操作系统：Claude Code 固定为 `claude-code`，Codex 固定为 `codex`，Pi 固定为 `pi`。禁止传入 `darwin`、`linux`、`windows` 等 OS 标识。该映射适用于本 workflow 内所有 `metrics.py --platform` 调用。
 
 调用 `start` 前，先按实际入口确定唯一的 `metrics_trigger`：
 

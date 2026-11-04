@@ -233,9 +233,10 @@ class PublicRouterTest(unittest.TestCase):
         self.assertEqual({p.stem for p in (ROOT/'commands').glob('*.md')},commands)
         methods={p.name for p in (ROOT/'skills').iterdir() if (p/'SKILL.md').is_file()}
         self.assertEqual({p.name for p in (ROOT/'hosts/codex/skills').iterdir() if p.is_dir()},commands | methods)
+        self.assertEqual({p.name for p in (ROOT/'hosts/pi/skills').iterdir() if p.is_dir()},{f'helix-{c}' for c in commands})
         registry=HostRegistry.discover(ROOT/'hosts')
         for host in registry.manifests():
             for key in host.adapters:
                 if host.adapter_reference(key).kind=='python':
                     host.load_python_adapter(key)
-        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code'})
+        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code','pi'})

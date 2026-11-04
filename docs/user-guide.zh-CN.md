@@ -4,7 +4,7 @@
 
 当前版本：**HelixHarness 1.0.0 · helixharness-platform 1.0.0**。
 
-**面向 Codex 与 Claude Code 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
+**面向 Codex、Claude Code 与 Pi 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
 
 从一个需求到有验证依据的代码变更：明确边界、拆分任务、实现、测试、评审，再把结果归档到项目中。HelixHarness 将这些步骤作为可复用的工作流交给编码助手，需求和执行进度保存在仓库里，便于检查和续跑。
 
@@ -50,7 +50,7 @@ Propose → Apply → Archive
 
 | 用途 | 要求 |
 | --- | --- |
-| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex 或 Claude Code；宿主已完成登录或模型配置，能够正常使用 |
+| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex 或 Claude Code，或可用的 pi；宿主已完成登录或模型配置，能够正常使用 |
 | 运行平台 Demo / 使用看板 | Python 3.10+、Git；安装平台 `server` 依赖 |
 | 真实版本评测 | 平台依赖、可用的 Codex 执行环境、模型凭据、可访问的 Git 仓库，以及 Case 所需的构建与测试工具 |
 | 前端预览与视觉验证 | 项目自身的 Node.js、包管理器及浏览器工具；设计服务按实际使用情况配置 |
@@ -75,7 +75,7 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-安装后，在你要开发的业务仓库中新开宿主会话，确认能找到 `helixharness` 的九个公开命令。宿主适配说明见 [Codex 安装指南](../helixharness/hosts/codex/installer.md) 和 [Claude Code 安装指南](../helixharness/hosts/claude-code/installer.md)。
+安装后，在你要开发的业务仓库中新开宿主会话，确认能找到 `helixharness` 的九个公开命令。宿主适配说明见 [Codex 安装指南](../helixharness/hosts/codex/installer.md)、[Claude Code 安装指南](../helixharness/hosts/claude-code/installer.md) 和 [Pi 安装指南](../helixharness/hosts/pi/installer.md)。
 
 ### 2. 完成第一个需求
 

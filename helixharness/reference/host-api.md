@@ -13,10 +13,13 @@ HelixHarness 当前只发布 Claude Code 与 Codex 两个 Host Kit。公共业�
 当前 Registry 必须只发现：
 
 - `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace；
-- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace。
+- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace；
+- `pi`：Skill 命令投影、扩展事件生命周期、原生 Skill 发现，子代理、任务跟踪、统计与项目 hooks
+  真实声明为 `unsupported`。
 
-两者使用 Host API 1.1，支持等级均为 Stable。仓库不提供其他平台的 manifest、安装器、分发清单、
-运行时适配器或入口文件。未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
+三者使用 Host API 1.1；`claude-code` 与 `codex` 为 Stable，`pi` 为 Preview。仓库不提供其他平台的
+manifest、安装器、分发清单、运行时适配器或入口文件。未知宿主必须关闭失败，不能回退到 Claude Code
+或借用 Codex 资源。
 
 ## 共享核心与 Host Kit
 
@@ -119,8 +122,10 @@ Context，不在每条命令中启动 Python 重新识别。
 
 ## 插件 Hook 分发
 
-两个宿主的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
-不得发布根目录默认 `hooks/hooks.json`，以免客户端自动装载另一个宿主的入口。
+`claude-code` 与 `codex` 的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
+不得发布根目录默认 `hooks/hooks.json`，以免客户端自动装载另一个宿主的入口。`pi` 没有宿主 hook
+清单，改由仓库根 `package.json` 声明的 `hosts/pi/extension.ts` 在会话事件中调用同一
+`hosts/pi/hook_entry.py`。
 Hook 入口位于对应 Host Kit，绑定自身安装目录的规范 manifest，转换宿主事件与环境持久化。
 共享 `scripts/lifecycle_service.py` 只消费显式 HostManifest 和规范事件，不猜平台。
 项目级检查 hooks 独立使用 `project_hooks` 合同；单仓 Init 的实际 settings 缺失或重复必须阻断。

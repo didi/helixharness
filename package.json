@@ -1,0 +1,21 @@
+{
+  "name": "helixharness",
+  "version": "1.0.0",
+  "description": "HelixHarness 研发工作流插件：pi 包清单，装载 helixharness/hosts/pi 的扩展与 Skills",
+  "license": "Apache-2.0",
+  "keywords": [
+    "pi-package"
+  ],
+  "pi": {
+    "extensions": [
+      "./helixharness/hosts/pi/extension.ts"
+    ],
+    "skills": [
+      "./helixharness/skills",
+      "./helixharness/hosts/pi/skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
