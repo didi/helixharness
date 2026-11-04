@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Python 3.10+, Git and a Codex or Claude Code installation supporting plugin marketplaces are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional.
+Python 3.10+, Git and a Codex, Claude Code or Qoder installation supporting plugin marketplaces are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional.
 
 The examples use Bash/Zsh. `didi/helixharness` is the planned public repository; remote commands become usable after its publication. For testing before publication or modifying the plugin, use [developer installation](#developer-installation).
 
@@ -26,7 +26,17 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Both hosts consume this compatible marketplace format. The platform is not installed by these commands.
+```bash
+# Qoder (Chinese edition CLI is `qoderclicn`, international edition `qodercli`)
+qoderclicn plugins marketplace add https://github.com/didi/helixharness.git
+qoderclicn plugins install helix@helixharness-marketplace
+```
+
+The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. All three hosts consume this compatible marketplace format. The platform is not installed by these commands.
+
+Qoder is a **stable** host: see the [Qoder host kit assessment](host-kits/qoder/assessment.md) for verified scope and limitations. Its commands are surfaced through thin Skills, so invoke `/helix:<command>`; run `/plugins reload` after installing or updating so a running session picks up the new plugin. Its `telemetry` is emulated: sessions carry no token usage, so the ledger supports process analysis but does not qualify as automated-evolution evidence.
+
+When the source is a Git repository rather than a local path, Qoder only clones that repository's **default branch**. A fork or feature branch must therefore contain `.qoder-plugin/marketplace.json` (and the `helixharness/.qoder-plugin/` plugin manifest) before `marketplace add` can install from it; otherwise switch the default branch or merge the changes first. SSH forms such as `git@github.com:owner/repo.git` are accepted. Use `plugins install --scope user|project|local` to choose where the plugin is declared.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -47,6 +57,16 @@ For Claude Code, replace the last two lines with:
 claude plugin marketplace add "$HELIXHARNESS_SOURCE"
 claude plugin install helix@helixharness-marketplace
 ```
+
+For Qoder, use:
+
+```bash
+qoderclicn plugins marketplace add "$HELIXHARNESS_SOURCE"
+qoderclicn plugins install helix@helixharness-marketplace
+```
+
+To try the plugin without installing it, Qoder also accepts a local plugin directory:
+`qoderclicn -p --plugin-dir "$HELIXHARNESS_SOURCE/helixharness" "<prompt>"`.
 
 A standalone plugin copy can still use the absolute path to `helixharness/`; its nested marketplace points to `.`. Register only one source under `helixharness-marketplace` at a time. When switching sources, remove the old marketplace using the host's plugin management first.
 
@@ -73,8 +93,12 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 
 ## 中文说明
 
-需要 Python 3.10+、Git，以及支持插件市场的 Codex 或 Claude Code。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。
+需要 Python 3.10+、Git，以及支持插件市场的 Codex、Claude Code 或 Qoder。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。
 
 正式发布后使用上面的 GitHub 安装命令，无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
 
 安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init` 并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。
+
+Qoder 支持等级为 Stable：中文版 CLI 为 `qoderclicn`，国际版为 `qodercli`，命令通过薄 Skill 暴露，写作 `/helix:<命令>`；安装或更新后执行 `/plugins reload` 让当前会话生效。
+
+marketplace 源为 Git 仓库时，Qoder 只克隆其**默认分支**，因此 fork 或特性分支必须先在默认分支上包含 `.qoder-plugin/marketplace.json`（含 `helixharness/.qoder-plugin/`）才能安装；可切换默认分支或先合并。SSH 形式 `git@github.com:owner/repo.git` 可直接使用。用 `plugins install --scope user|project|local` 选择声明范围。该宿主 `telemetry` 为 emulated，会话记录不含 token 用量，因此账本可用于流程分析但不满足自动自进化证据要求。已验证范围与限制见 [Qoder Host Kit 说明](host-kits/qoder/assessment.md)。

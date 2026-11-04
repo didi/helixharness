@@ -22,8 +22,8 @@ Workspace 子任务从公共入口进入 Single 正文，根目录不写子仓�
 ## 宿主边界
 
 [`Host API`](../helixharness/reference/host-api.md) 定义 manifest 和适配器合同。
-Claude Code 使用原生命令，Codex 使用 Skill 投影；宿主机制由 `hosts/{host-id}/` 提供。
-两个原生插件清单显式选择各自的 hook 配置。宿主入口负责固定身份和事件转换，
+Claude Code 使用原生命令，Codex 与 Qoder 使用 Skill 投影；宿主机制由 `hosts/{host-id}/` 提供。
+各宿主原生插件清单显式选择各自的 hook 配置。宿主入口负责固定身份和事件转换，
 共享生命周期逻辑不得根据平台名称、环境变量或缓存目录猜测宿主。
 
 Codex Init 入口加载 `project_config`、`project_hooks`；UT 入口加载 `ut`。

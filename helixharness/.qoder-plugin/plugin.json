@@ -1,0 +1,19 @@
+{
+  "name": "helix",
+  "displayName": "HelixHarness",
+  "version": "1.0.0",
+  "description": "HelixHarness 面向 Qoder 的研发工作流插件，提供命令入口和可复用 Skills",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "qoder-plugin",
+    "harness",
+    "workflow",
+    "spec-driven",
+    "code-review"
+  ],
+  "skills": "./hosts/qoder/skills/",
+  "hooks": "./hosts/qoder/hooks.json"
+}

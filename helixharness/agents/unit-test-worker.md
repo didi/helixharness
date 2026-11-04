@@ -1,4 +1,5 @@
 ---
+name: unit-test-worker
 description: "单测 worker agent。由 /helix:ut 调用，负责处理单个类的完整单元测试维护。包含 Ralph Loop 6 阶段完整执行、经验库复用、缺陷发现、覆盖率达标保证。"
 ---
 

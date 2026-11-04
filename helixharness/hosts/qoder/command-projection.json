@@ -1,0 +1,42 @@
+{
+  "projection_version": "1.0",
+  "surface": "skill",
+  "entrypoints": {
+    "apply": [
+      "hosts/qoder/skills/apply/SKILL.md",
+      "commands/apply.md"
+    ],
+    "archive": [
+      "hosts/qoder/skills/archive/SKILL.md",
+      "commands/archive.md"
+    ],
+    "bug-fix": [
+      "hosts/qoder/skills/bug-fix/SKILL.md",
+      "commands/bug-fix.md"
+    ],
+    "config": [
+      "hosts/qoder/skills/config/SKILL.md",
+      "commands/config.md"
+    ],
+    "init": [
+      "hosts/qoder/skills/init/SKILL.md",
+      "commands/init.md"
+    ],
+    "propose": [
+      "hosts/qoder/skills/propose/SKILL.md",
+      "commands/propose.md"
+    ],
+    "status": [
+      "hosts/qoder/skills/status/SKILL.md",
+      "commands/status.md"
+    ],
+    "update": [
+      "hosts/qoder/skills/update/SKILL.md",
+      "commands/update.md"
+    ],
+    "ut": [
+      "hosts/qoder/skills/ut/SKILL.md",
+      "commands/ut.md"
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 # HelixHarness Host API 1.1
 
-HelixHarness 当前只发布 Claude Code 与 Codex 两个 Host Kit。公共业务契约与宿主运行机制保持解耦：
+HelixHarness 当前发布 Claude Code、Codex 与 Qoder 三个 Stable Host Kit。公共业务契约与宿主运行机制保持解耦：
 `commands/`、`workflows/`、共享 `skills/`、`agents/` 和 `templates/` 定义业务结果，`hosts/{host-id}/`
 只定义如何在某个宿主中安装、发现和执行。
 
@@ -12,11 +12,19 @@ HelixHarness 当前只发布 Claude Code 与 Codex 两个 Host Kit。公共业�
 
 当前 Registry 必须只发现：
 
-- `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace；
-- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace。
+- `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace，Stable；
+- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace，Stable；
+- `qoder`：Skill 命令投影、会话生命周期 Hook、原生 Agent、Qoder marketplace、父流程合并项目 hooks，Stable。
 
-两者使用 Host API 1.1，支持等级均为 Stable。仓库不提供其他平台的 manifest、安装器、分发清单、
-运行时适配器或入口文件。未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
+三者使用 Host API 1.1。Qoder 的安装、新会话发现、核心工作流与远程 marketplace 源均已通过真实
+客户端 E2E，`support.evidence` 指向 `evidence/host-e2e/qoder/` 下的实测记录；
+`support.limitations` 如实列出仍存在的差异（Skill 命令面、无 token 计量的 telemetry、
+UT 未在真实构建工程端到端验证）。
+
+Preview 仍用于覆盖范围小于 Stable 的新宿主；其 `support.limitations` 必须列出未验证能力。
+
+仓库不提供上述宿主之外的 manifest、安装器、分发清单、运行时适配器或入口文件。未知宿主必须
+关闭失败，不能回退到 Claude Code、Codex 或 Qoder，也不能借用其他 Host Kit 的资源。
 
 ## 共享核心与 Host Kit
 
@@ -119,7 +127,7 @@ Context，不在每条命令中启动 Python 重新识别。
 
 ## 插件 Hook 分发
 
-两个宿主的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
+每个宿主的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
 不得发布根目录默认 `hooks/hooks.json`，以免客户端自动装载另一个宿主的入口。
 Hook 入口位于对应 Host Kit，绑定自身安装目录的规范 manifest，转换宿主事件与环境持久化。
 共享 `scripts/lifecycle_service.py` 只消费显式 HostManifest 和规范事件，不猜平台。

@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ Tests + code review + verification evidence
 ```
 
-**9 public commands · 3 core stages · Codex / Claude Code · Single repo / multi-repo Workspace · Apache-2.0**
+**9 public commands · 3 core stages · Codex / Claude Code / Qoder · Single repo / multi-repo Workspace · Apache-2.0**
 
 Install **HelixHarness** for everyday development. Add **helixharness-platform** to observe usage and evaluate or improve **the HelixHarness framework itself**. Scenario results provide evidence about framework behavior; this is not a general business-code grading service.
 
@@ -49,7 +49,7 @@ Install **HelixHarness** for everyday development. Add **helixharness-platform**
 
 | Use case | Requirements |
 | --- | --- |
-| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex or Claude Code installation that is signed in or has its model configuration set up and works normally |
+| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code or Qoder installation that is signed in or has its model configuration set up and works normally |
 | Platform demo or usage dashboard | Python 3.10+, Git, and the platform's `server` dependencies |
 | Real version evaluation | Platform dependencies, a working Codex execution environment, model credentials, accessible Git repositories, and the build/test tools required by each Case |
 | Frontend previews and visual verification | Your project's Node.js, package manager, and browser tools; configure design services as needed |
@@ -149,7 +149,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | Project | Who it is for | What it does | Where it runs |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code sessions and application repositories |
+| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Qoder sessions and application repositories |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | Maintainers observing and improving the HelixHarness framework | Usage dashboards, version evaluation and evolution | A separate Python web service and evaluation Workers |
 
 ```mermaid
@@ -398,7 +398,7 @@ Paths below are relative to your platform's base URL:
 
 ### Model Configuration
 
-For everyday plugin use, configure models in Codex / Claude Code. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
+For everyday plugin use, configure models in Codex / Claude Code / Qoder. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
 
 See [`helixharness-platform/.env.example`](../helixharness-platform/.env.example) for the template. The service reads **process environment variables and does not automatically load `.env.example`**. Inject real values into the environments running both the web service and Workers.
 
@@ -610,7 +610,7 @@ The repository contains two independently installable projects:
 ├── helixharness/
 │   ├── commands/       # Nine public command entrypoints
 │   ├── workflows/      # single/ execution and workspace/ coordination
-│   ├── hosts/          # Codex / Claude Code adapters
+│   ├── hosts/          # Codex / Claude Code / Qoder adapters
 │   ├── skills/         # Reusable workflow methods
 │   └── scripts/        # Routing, artifact validation, and telemetry
 └── helixharness-platform/

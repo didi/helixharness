@@ -1,4 +1,5 @@
 ---
+name: scan-service-meta
 description: "服务元数据扫描 agent。基于已生成的 knowledge 文档和代码特征，生成 docs/knowledge/service-meta.yaml，作为后续设计、review 和知识消费的结构化服务摘要。"
 ---
 

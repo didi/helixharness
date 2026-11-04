@@ -1,0 +1,210 @@
+{
+  "schema_version": "1.0",
+  "host_id": "qoder",
+  "recorded_at": "2026-11-03",
+  "client": {
+    "product": "Qoder CN",
+    "cli": "qoderclicn",
+    "cli_version": "1.1.81",
+    "config_root": "~/.qoder-cn",
+    "invocation": "qoderclicn -p --plugin-dir <helixharness> --permission-mode bypass_permissions",
+    "note": "本记录通过本地插件目录加载完成，未经过 marketplace 安装路径"
+  },
+  "scope": {
+    "verified": [
+      "插件加载与组件发现",
+      "命令面发现与调用",
+      "init 全流程（含 6 路扫描 Agent 与 bootstrap）",
+      "propose 全流程（spec/tasks 生成与确定性校验）",
+      "apply 全流程（TDD、完整测试、双轴评审、Evidence）",
+      "archive 全流程（门禁、知识零路径授权、原子归档、Apply Scope 提交）",
+      "项目级 hooks 合并与校验",
+      "unit_test_workflow 的权限准备/精确回滚机制",
+      "marketplace 注册与安装（本地 directory 源）",
+      "版本检查与升级链路（1.0.0 → 1.1.0 → 复检 latest）",
+      "卸载与状态还原（字节一致）",
+      "telemetry consent 解析与授权缓存写入（emulated）",
+      "telemetry 同步账本写入（eval-log.json，platform=qoder）",
+      "telemetry 异步 Supplement 生成与本地端点投递",
+      "真实 helixharness-platform 接收 /report 并将 Supplement 关联到账本",
+      "平台看板按 platform=qoder 投影并显示平台占比",
+      "统计开启下完整 propose→apply→archive 闭环的账本与 Supplement 投递",
+      "平台消费端 Gate 对 Qoder 数据的关联、收口与质量判定",
+      "远程 git marketplace 源注册、安装与新会话发现",
+      "远程 git 源的版本检查（适配器从克隆根解析 Qoder 清单）"
+    ],
+    "not_verified": [
+      "完整 /helix:ut 端到端（需要真实构建工程与被扫描包）",
+      "Qoder 数据达到 automation_eligible（需宿主提供 token 计量或平台定义降级口径）"
+    ]
+  },
+  "steps": [
+    {
+      "step": "plugin_load",
+      "command": "qoderclicn plugins validate <helixharness>",
+      "result": "pass",
+      "detail": "skills 9 / agents 16 / commands 9 / hooks 2，输出 valid and ready to install"
+    },
+    {
+      "step": "host_context",
+      "command": "python3 scripts/host_runtime_cli.py resolve --platform qoder",
+      "result": "pass",
+      "detail": "14 个 adapter 全部解析，host_id 与目录名一致"
+    },
+    {
+      "step": "command_surface",
+      "command": "/helix:status",
+      "result": "pass",
+      "detail": "薄 Skill 入口加载 commands/status.md 并执行 project_status.py，返回空需求表而非错误"
+    },
+    {
+      "step": "init",
+      "command": "/helix:init",
+      "result": "pass",
+      "detail": "projectType=unknown；scanStatus=completed；bootstrapStatus=completed；生成 21 个 docs 文件、AGENTS.md 与 .qoder/settings.json"
+    },
+    {
+      "step": "init_project_hooks",
+      "command": "python3 scripts/project_hooks_cli.py --platform qoder check",
+      "result": "pass",
+      "detail": "{\"status\":\"pass\",\"settings_file\":\".qoder/settings.json\"}，确认项目级 hooks 目标路径"
+    },
+    {
+      "step": "propose",
+      "command": "/helix:propose task-filter ./requirements/task-filter.md",
+      "result": "pass",
+      "detail": "spec.md 与 tasks.md 生成，status=ready，validate-tasks --stage propose 通过"
+    },
+    {
+      "step": "apply",
+      "command": "/helix:apply task-filter",
+      "result": "pass",
+      "detail": "10 个测试通过；双轴 Review Standards=APPROVE（1 ADVISORY 保留）、Spec=APPROVE；verify-report.md 生成，Spec=implemented"
+    },
+    {
+      "step": "independent_acceptance",
+      "command": "python3 examples/verify_feature.py <demo-repo>",
+      "result": "pass",
+      "detail": "PASS: filtering, ordering, compatibility, empty results, validation and input preservation（该脚本在起始代码上故意失败）"
+    },
+    {
+      "step": "archive",
+      "command": "/helix:archive task-filter --commit",
+      "result": "pass",
+      "detail": "active → completed 三工件齐备；Apply Scope 提交 29e9537 仅含 tasks.py 与 test_tasks.py；未推送"
+    },
+    {
+      "step": "ut_permission_prepare_cleanup",
+      "command": "写入 .qoder/settings.json permissions.deny 后执行同一 Bash 命令，再字节还原",
+      "result": "pass",
+      "detail": "带 deny 时命令被拒，错误原文 `Command denied by projectSettings rule`；还原后命令恢复执行且文件字节一致，证明 prepare→cleanup 链路成立"
+    },
+    {
+      "step": "project_settings_surface",
+      "command": "qoderclicn -p --setting-sources user,project,local",
+      "result": "pass",
+      "detail": "项目级设置文件确认为 .qoder/settings.json；permissions.allow/ask/deny 均被读取"
+    },
+    {
+      "step": "marketplace_add",
+      "command": "qoderclicn plugins marketplace add <repo-root>",
+      "result": "pass",
+      "detail": "生成 known_marketplaces.json 条目，source 为 {\"source\":\"directory\",\"path\":...}，installLocation 指向 ~/.qoder-cn/plugins/marketplaces/helixharness-marketplace"
+    },
+    {
+      "step": "plugin_install",
+      "command": "qoderclicn plugins install helix@helixharness-marketplace",
+      "result": "pass",
+      "detail": "安装到 cache/helixharness-marketplace/helix/1.0.0，scope=user，enabled；不带 --plugin-dir 的会话可直接调用 /helix:status"
+    },
+    {
+      "step": "version_check",
+      "command": "python3 <installed>/scripts/version_update.py --platform qoder check --force-refresh",
+      "result": "pass",
+      "detail": "update_status=latest、next_action=continue_silently；current_scope/available_scopes 由真实 CLI JSON 输出推导"
+    },
+    {
+      "step": "update_detection_and_apply",
+      "command": "版本抬至 1.1.0 → marketplace update → plugins update helix@helixharness-marketplace --scope user",
+      "result": "pass",
+      "detail": "检测 update_status=recommended / next_action=prompt_update；升级后安装 1.1.0 并复检为 latest；随后降回 1.0.0"
+    },
+    {
+      "step": "cleanup_restore",
+      "command": "uninstall + marketplace remove + 快照还原",
+      "result": "pass",
+      "detail": "installed_plugins.json 与 known_marketplaces.json 均与测试前快照 byte-identical；残留插件缓存已清理"
+    },
+    {
+      "step": "telemetry_consent",
+      "command": "telemetry_consent.py --platform qoder resolve/choose",
+      "result": "pass",
+      "detail": "allowed_actions 正常返回；选择 enable_project 后 effective_mode=enabled、scope=project；缓存写入 ~/.qoder-cn/helixharness/telemetry-consent-cache.json"
+    },
+    {
+      "step": "telemetry_ledger",
+      "command": "metrics.py start/finish --platform qoder --feature telemetry-e2e",
+      "result": "pass",
+      "detail": "生成 docs/eval/telemetry-e2e/eval-log.json；session_locator_status=recorded、workflow_trace_status=recorded"
+    },
+    {
+      "step": "telemetry_supplement",
+      "command": "telemetry_collector._collect_entry(...)",
+      "result": "pass",
+      "detail": "生成 helixharness-stage-supplement/1.0，platform=qoder；execution.tools 记录 Bash；evidence.interactions 仅含窗口内脱敏消息；usage 只有模型名（会话无 token 数据）"
+    },
+    {
+      "step": "telemetry_delivery",
+      "command": "telemetry_async.run_once + 本地 stub 接收端",
+      "result": "pass",
+      "detail": "接收端按 gzip {items:[...]} + 逐条 ack 协议收到 2 条 Supplement；remaining=0、rejected=0；使用隔离 HELIXHARNESS_TELEMETRY_HOME，未向真实端点发送"
+    },
+    {
+      "step": "platform_report_ingest",
+      "command": "web_ui.main --port 7861 --helixharness-roots <repo> + telemetry_async.run_once",
+      "result": "pass",
+      "detail": "POST /report 200；stage_supplements 落库 1 条（feature=telemetry-platform）；ledger_entries 3 条；linked=1 且 linked_at 已写入"
+    },
+    {
+      "step": "platform_dashboard_projection",
+      "command": "GET /",
+      "result": "pass",
+      "detail": "页面按行显示 platform=qoder；平台占比图输出 `qoder · 1 人 · 100.0%`；三个需求名均出现在看板"
+    },
+    {
+      "step": "telemetry_full_loop_gate",
+      "command": "统计开启下 propose → apply → archive（examples/starter task-filter）+ 平台摄取",
+      "result": "pass",
+      "detail": "3 条账本全部 completed 且 3 条 Supplement 全部 linked=1；apply 条目 gate=pass；文档 finalization=complete、publication=archived；质量状态 PARTIAL，仅剩 3 条 RESOURCE_USAGE_UNAVAILABLE（Qoder 无 token 数据，适配器不估算）；归档后 PARTIAL_COVERAGE/SUPPLEMENT_PENDING/ASYNC_EVIDENCE_INCOMPLETE/NOT_FINALIZED 全部消失"
+    },
+    {
+      "step": "remote_marketplace_install",
+      "command": "plugins marketplace add git@github.com:<contributor>/helixharness.git → update → install helix@helixharness-marketplace",
+      "result": "pass",
+      "detail": "source=git；克隆到 ab1ea48 且含 .qoder-plugin/marketplace.json；安装到 cache/…/helix/1.0.0（scope=user, enabled）；无 --plugin-dir 的 /helix:status 正常"
+    },
+    {
+      "step": "remote_version_check",
+      "command": "<installed>/scripts/version_update.py --platform qoder check --force-refresh",
+      "result": "pass",
+      "detail": "current=1.0.0、latest=1.0.0、update_status=latest；在 git 克隆形式的 marketplace 根上定位 .qoder-plugin/marketplace.json 成功"
+    },
+    {
+      "step": "remote_cleanup_restore",
+      "command": "uninstall + marketplace remove + 快照还原",
+      "result": "pass",
+      "detail": "installed_plugins.json 与 known_marketplaces.json 均与测试前 byte-identical；缓存目录与临时克隆已清理"
+    }
+  ],
+  "artifacts": {
+    "spec": "docs/specs/completed/task-filter/spec.md",
+    "tasks": "docs/specs/completed/task-filter/tasks.md",
+    "evidence": "docs/specs/completed/task-filter/verify-report.md",
+    "implementation_commit": "29e9537"
+  },
+  "telemetry": {
+    "capability": "emulated",
+    "note": "Qoder 会话记录不含 token 用量，usage 保持为空而不估算。已验证 consent、账本、Supplement、本地 stub 与真实平台投递、账本关联、看板投影与消费端 Gate 判定；唯一残留质量问题是 RESOURCE_USAGE_UNAVAILABLE，导致 automation_eligible=0。"
+  },
+  "support_level": "stable"
+}

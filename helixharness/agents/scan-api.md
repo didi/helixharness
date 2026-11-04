@@ -1,4 +1,5 @@
 ---
+name: scan-api
 description: "API 接口深度扫描 agent。分析代码库中所有对外接口（HTTP REST / Thrift RPC / gRPC / Dubbo），生成完整的接口清单到 docs/knowledge/api/ 目录，包含完整出入参字段详情。"
 ---
 

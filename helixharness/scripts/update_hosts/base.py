@@ -179,6 +179,9 @@ class UpdateHostAdapter(ABC):
     supported_scopes: frozenset[str]
     aggregate_scope_members: Mapping[str, frozenset[str]] = {}
     manifest_directory: str
+    # Marketplace manifest path relative to the marketplace root. Hosts that
+    # consume the same layout inherit the Claude-compatible default.
+    marketplace_manifest_relative: str = ".claude-plugin/marketplace.json"
 
     def validate_scope(self, scope: str) -> None:
         if scope not in self.supported_scopes:
