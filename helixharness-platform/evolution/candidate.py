@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import pwd
 import shutil
 import subprocess
 from pathlib import Path, PurePosixPath
@@ -13,6 +12,11 @@ from typing import Callable, Protocol
 
 from evolution.codex_runtime import resolve_codex_executable
 from evolution.models import CandidateVersion, Capability, Hypothesis
+
+try:
+    import pwd
+except ImportError:  # pragma: no cover - Windows has no pwd module
+    pwd = None
 
 
 class CandidateBuildError(RuntimeError):
@@ -55,6 +59,10 @@ class CodexCandidateRunner:
 
         if not self.execution_user:
             return
+        if pwd is None:
+            raise CandidateBuildError(
+                "candidate user isolation is not supported on this platform (pwd unavailable)"
+            )
         try:
             account = pwd.getpwnam(self.execution_user)
         except KeyError as exc:
