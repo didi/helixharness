@@ -10,12 +10,25 @@ FastAPI + Jinja2 + HTMX 单服务，包含使用数据看板、可信评测与�
 
 需要 Python 3.10+、Git。真实 Codex 评测还需要可用的 Codex 运行环境和模型凭据。
 
+macOS / Linux（Bash / Zsh）：
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[server,dev]'
+python -m pip install -e ".[server,dev]"
 python -m web_ui.demo --port 7860
 ```
+
+Windows（PowerShell）：
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[server,dev]"
+python -m web_ui.demo --port 7860
+```
+
+如果使用 Windows CMD，将 PowerShell 的激活命令替换为 `.venv\Scripts\activate.bat`，其余 Windows 命令相同。
 
 打开 http://127.0.0.1:7860。Demo 从 `bench/sample_data/task-filter/` 和 `eval/demo.py` 生成合成 Case、Mock Run 与项目账本，不随包分发数据库。默认写入临时运行目录，也可通过 `--data-dir /path/to/demo-runtime` 固定保存位置。Bench、遥测、反馈和自进化使用各自的数据库。页面明确标注 Demo；分数不代表真实模型能力。Demo 不开启后台自进化或模型分析。
 

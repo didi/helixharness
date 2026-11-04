@@ -150,14 +150,27 @@ claude plugin install helix@helixharness-marketplace
 
 先下载或克隆源码，再从包含两个子项目的仓库根目录执行：
 
+macOS / Linux（Bash / Zsh）：
+
 ```bash
-# 从包含两个子项目的根目录开始
 cd helixharness-platform
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[server]'
+python -m pip install -e ".[server]"
 python -m web_ui.demo --port 7860
 ```
+
+Windows（PowerShell）：
+
+```powershell
+cd helixharness-platform
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[server]"
+python -m web_ui.demo --port 7860
+```
+
+如果使用 Windows CMD，将 PowerShell 的激活命令替换为 `.venv\Scripts\activate.bat`，其余 Windows 命令相同。
 
 打开 [localhost:7860](http://127.0.0.1:7860)。Demo 从随附的合成源码示例生成 Case、Mock Run 和遥测数据，默认在临时目录中生成各模块独立的运行数据库，并关闭后台自进化和模型分析。生成的数据库、验收测试 Run 和候选工作区不随源码或 wheel 分发。内置 Demo 默认不生成进化假设；上方自进化截图展示尚未生成假设和候选的总览页面。
 

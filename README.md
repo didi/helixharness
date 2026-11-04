@@ -152,14 +152,27 @@ Real evaluation requires your own model service and calibrated Cases. Evolution 
 
 Download or clone the source first, then run these commands from the combined repository root:
 
+macOS / Linux (Bash / Zsh):
+
 ```bash
-# From the combined repository root
 cd helixharness-platform
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[server]'
+python -m pip install -e ".[server]"
 python -m web_ui.demo --port 7860
 ```
+
+Windows (PowerShell):
+
+```powershell
+cd helixharness-platform
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[server]"
+python -m web_ui.demo --port 7860
+```
+
+For Windows CMD, use `.venv\Scripts\activate.bat` instead of the PowerShell activation command; the other Windows commands are the same.
 
 Open [localhost:7860](http://127.0.0.1:7860). The Demo generates synthetic Case, Mock Run and telemetry data from bundled source examples in a temporary runtime directory. Generated databases, acceptance-test Runs and candidate workspaces are not included in the source or wheel. Background evolution and model analysis are disabled. The built-in Demo does not generate evolution hypotheses; the evolution screenshot shows the overview without generated hypotheses or candidates.
 
