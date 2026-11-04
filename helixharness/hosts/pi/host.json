@@ -1,0 +1,50 @@
+{
+  "host_id": "pi",
+  "host_api_version": "1.1",
+  "aliases": [
+    "pi-coding-agent"
+  ],
+  "support": {
+    "level": "preview",
+    "display_name": "Pi",
+    "evidence": null,
+    "limitations": [
+      "子代理按公共协议 inline fallback 串行执行：pi 核心不提供子代理工具。",
+      "任务跟踪落到当前 Feature 的 tasks.md：pi 核心不提供计划工具。",
+      "统计暂不支持：需要 pi 会话格式解析与 consent 表面。",
+      "项目级 hooks 不支持：pi 项目设置不承载 hook 定义。",
+      "原地更新不支持：共享更新核心以 marketplace 来源为唯一正式来源，pi 没有 marketplace；更新使用 pi update --extensions。"
+    ]
+  },
+  "capabilities": {
+    "command_surface": "emulated",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "session_end": "native",
+    "session_events": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "native",
+    "workflow_transition": "emulated",
+    "subagents": "unsupported",
+    "task_tracking": "unsupported",
+    "unit_test_workflow": "native",
+    "project_hooks": "unsupported",
+    "telemetry": "unsupported",
+    "plugin_install": "native",
+    "plugin_update": "unsupported"
+  },
+  "adapters": {
+    "distribution": "resource:hosts/pi/distribution.md",
+    "installer": "resource:hosts/pi/installer.md",
+    "command_projection": "resource:hosts/pi/command-projection.json",
+    "runtime": "resource:hosts/pi/runtime.md",
+    "subagent_protocol": "resource:hosts/pi/subagent.md",
+    "workflow_transition": "resource:hosts/pi/workflow-transition.md",
+    "project_config": "resource:hosts/pi/project.json",
+    "project_hooks": "resource:hosts/pi/project-hooks.json",
+    "ut": "resource:hosts/pi/ut.md",
+    "lifecycle": "resource:hosts/pi/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md"
+  }
+}

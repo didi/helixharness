@@ -1,6 +1,6 @@
 # HelixHarness
 
-面向 Codex 与 Claude Code 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
+面向 Codex、Claude Code 与 Pi 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
 
 ## 命令
 
@@ -15,7 +15,9 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex 或 Claude Code。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+需要 Python 3.10+、Git，以及 Codex 或 Claude Code，或可用的 pi。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+
+pi 使用仓库根 `package.json` 装载本目录的 `hosts/pi/` 扩展与 Skills，执行 `pi install git:github.com/didi/helixharness`，命令入口为 `/helix-*`；见 `hosts/pi/installer.md`。
 
 ## 项目结构
 
