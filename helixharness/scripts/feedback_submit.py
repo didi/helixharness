@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 import eval_schema
 import reporting_config
 import telemetry_consent_state
+from host_runtime import HostRegistry
 from telemetry_hosts import get_host_adapter, normalize_host_id
 from telemetry_ledger import PLUGIN_VERSION, _git
 from telemetry_ledger import LedgerError as TelemetryError
@@ -107,6 +108,16 @@ def _resolve_platform(value: Any) -> str:
         return normalize_host_id(raw)
     except ValueError:
         return "unknown"
+
+
+def _registered_host(platform: str) -> str | None:
+    """Return a canonical installed host ID without requiring a telemetry adapter."""
+
+    try:
+        registry = HostRegistry.discover(PLUGIN_ROOT / "hosts")
+    except Exception:
+        return None
+    return registry.resolve_id(platform)
 
 
 def _feedback_id(text: str, created_at: str, project: str, session: str) -> str:
@@ -362,7 +373,7 @@ def _build_document(repo: Path, payload: dict[str, Any]) -> tuple[dict[str, Any]
     created_at = _now()
     project = telemetry_consent_state.project_fingerprint(repo)
     adapter = get_host_adapter(platform)
-    if adapter is None:
+    if adapter is None and _registered_host(platform) is None:
         # Unregistered hosts still may submit; the schema only admits
         # registered host ids plus the explicit "unknown" marker.
         platform = "unknown"

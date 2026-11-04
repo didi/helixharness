@@ -23,7 +23,7 @@ The baseline has two passing tests. It returns all titles but does not yet accep
 
 ## 2. Run HelixHarness
 
-Open Codex or Claude Code in the `$TASK_FILTER_DEMO` directory (run `pwd` in that terminal to see its path) and enter:
+Open Codex, Claude Code or OpenCode in the `$TASK_FILTER_DEMO` directory (run `pwd` in that terminal to see its path) and enter:
 
 ```text
 /helix:init

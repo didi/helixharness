@@ -29,7 +29,7 @@ Telemetry consent 只授权记录和上报，不单独授权 Git commit 或 push
 
 统计开启且 Archive 成功记账后，finish CLI 返回 `NOTICE:lite_telemetry_delivery_required`，工作流在最终交付选择前原样展示一次：过程统计 Supplement 自动异步上报，但最终 eval-log 必须提交并随功能分支 push 才能完成平台关联。同一需求的本次交付已经提醒时，恢复、继续执行或复用已有授权均不重复展示。`commit-ledger` 成功或幂等跳过时不返回该 NOTICE；工作流也不重复展示旧版 CLI 返回的同名提示。用户选择后的最终回执只报告实际提交／推送结果：有效最终 Ledger 已提交并随远端 HEAD 验证成功时说明“平台可继续关联统计”；未提交或未推送时说明对应待完成动作及“平台暂时无法关联”；失败时说明真实原因，不把选择等同于执行成功，也不重复通用 NOTICE。
 
-业务合同与统计支持集相互独立：业务正文和三工件不记录宿主，同一需求可以跨宿主继续；`current_platform` 只用于本次 Telemetry Adapter 选择。当前只有 Claude Code 与 Codex 注册 Adapter。CLI 输入对大小写和宿主包装标签宽松：只要包含 `claude` 或 `codex` 子串，就分别规范化为 `claude-code` 或 `codex`；同时包含两类子串时因歧义拒绝，公开 Ledger 与 Supplement 始终只落 canonical ID。其他未注册统计宿主按 `unsupported_host` 跳过统计，但业务必须继续。新增统计宿主只在 `scripts/telemetry_hosts/` 实现并注册 `HostAdapter`（含统一 Supplement 窗口），不得修改业务正文，也不得在 Ledger、Collector 或 Schema 中增加平台分支。
+业务合同与统计支持集相互独立：业务正文和三工件不记录宿主，同一需求可以跨宿主继续；`current_platform` 只用于本次 Telemetry Adapter 选择。当前只有 Claude Code 与 Codex 注册 Adapter；OpenCode 明确声明 `telemetry=unsupported`，按未注册统计宿主处理。CLI 输入对大小写和宿主包装标签宽松：只要包含 `claude` 或 `codex` 子串，就分别规范化为 `claude-code` 或 `codex`；同时包含两类子串时因歧义拒绝，公开 Ledger 与 Supplement 始终只落 canonical ID。其他未注册统计宿主（包括 OpenCode）按 `unsupported_host` 跳过统计，但业务必须继续。新增统计宿主只在 `scripts/telemetry_hosts/` 实现并注册 `HostAdapter`（含统一 Supplement 窗口），不得修改业务正文，也不得在 Ledger、Collector 或 Schema 中增加平台分支。
 
 同一 feature 允许跨宿主接力。Ledger 的每个 entry 独立记录本次实际 `platform` 与 locator；不同 entry 可以来自不同已注册 Adapter，Supplement 仍按 `entry_id` 精确关联。未注册宿主只缺少该次统计，不阻塞业务。
 

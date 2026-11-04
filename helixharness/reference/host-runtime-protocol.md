@@ -10,13 +10,15 @@ Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主�
 启动 Python 进程重新识别：
 
 1. Claude Code 的 `commands/{entry}.md` plugin command 表面绑定 `hosts/claude-code/host.json`；
-2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`。
+2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`；
+3. OpenCode 的 `opencode/index.ts` 注册的原生命令或 Skill 表面绑定 `hosts/opencode/host.json`。
 
 “分发表面绑定”是一种确定性入口绑定，不要求宿主额外设置环境变量或在目标项目
 生成 settings：当前产品加载 `resources.command_projection` 已声明的原生命令或宿主 Skill
 入口时，产品身份与该入口所属插件分发表面已经唯一确定 Host Context。Claude Code 原生命令以
 `commands/{entry}.md` 为入口和公共 contract；Codex 命令以宿主 Skill 为入口、以同一
-`commands/{entry}.md` 为公共 contract。根 `skills/{name}/SKILL.md` 只保存非命令的方法能力；
+`commands/{entry}.md` 为公共 contract；OpenCode 通过插件命令执行器加载同一 contract 并注入
+Host Context。根 `skills/{name}/SKILL.md` 只保存非命令的方法能力；
 在已绑定 workflow 内调用时继承当前 Host Context，直接调用时由当前插件分发表面绑定。
 入口使用自身实际路径和 projection 声明的固定资源定位插件根；宿主私有路径换算只写在对应
 Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定性路径换算不属于宿主发现；
@@ -34,7 +36,8 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 
 `scripts/host_runtime_cli.py resolve` 保留为安装器、开发诊断和契约测试工具；正常业务命令不得为了
 识别宿主调用它。这样 Python 不可用且 telemetry 关闭时，原本不依赖 Python 的 Claude Code/Codex
-业务动作不会因 Host Registry 新增阻断或工具调用。
+业务动作不会因 Host Registry 新增阻断或工具调用；OpenCode 插件同样只用 TypeScript 完成注册与
+Host Context 注入。
 
 当前产品与插件分发表面无法共同确定唯一宿主、规范 ID 含路径分隔符或 `..`、清单不匹配、版本
 不支持、资源越过插件根目录时，立即返回 `BLOCKED: helixharness_host_unavailable`。不得从 PATH 中
@@ -65,7 +68,7 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 
 command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWrite`、
 `Skill`、`Agent` 和 `Task` 属于 HelixHarness Tool Semantics 的 Claude Code 兼容拼写。
-Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
+Codex 与 OpenCode 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
 
 ## 3. 能力选择规则
 
@@ -99,7 +102,8 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
 
 ## 5. 未来宿主扩展契约
 
-当前仓库不发布其他 Host Kit。未来重新接入新宿主时，正常改动范围应限制为：
+当前仓库发布 Claude Code、Codex 与 OpenCode Host Kit，其中 OpenCode 的 telemetry 和
+plugin_update 明确为 `unsupported`。未来重新接入新宿主时，正常改动范围应限制为：
 
 - `hosts/{host-id}/host.json`；
 - 该 Host Kit 引用的分发、安装、入口投影、启动、工具映射、生命周期、项目配置、遥测或更新适配器；
@@ -107,5 +111,5 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
 
 如果接入必须修改 `commands/`、共享 `skills/`、`scripts/metrics.py`、
 `scripts/version_update.py` 或 Host Registry 中的平台列表，说明 Host API 缺少通用能力。此时只能
-先以版本化、宿主无关的方式扩展 Host API，并为 Claude Code、Codex 补齐兼容测试；禁止加入
+先以版本化、宿主无关的方式扩展 Host API，并为现有宿主补齐兼容测试；禁止加入
 按平台名称选择业务流程的核心分支。
