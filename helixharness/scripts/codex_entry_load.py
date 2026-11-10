@@ -237,6 +237,18 @@ def _invocation_dir(state_root: Path, invocation_key: str) -> Path:
     return path
 
 
+def _remove_state_tree(path: Path) -> None:
+    """Remove a state directory whose files were marked read-only by chmod."""
+    for child in path.rglob("*"):
+        if child.is_symlink():
+            continue
+        try:
+            child.chmod(0o700)
+        except OSError:
+            continue
+    shutil.rmtree(path)
+
+
 def _cleanup_expired(state_root: Path, now: float) -> None:
     for child in state_root.iterdir():
         is_invocation = INVOCATION_PATTERN.fullmatch(child.name) is not None
@@ -259,7 +271,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
             continue
         if is_staging:
             if old_enough:
-                shutil.rmtree(child)
+                _remove_state_tree(child)
             continue
         try:
             manifest = _object(child / "manifest.json")
@@ -267,7 +279,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
         except (EntryLoadError, OSError, TypeError, ValueError):
             expired = old_enough
         if expired:
-            shutil.rmtree(child)
+            _remove_state_tree(child)
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -355,9 +367,9 @@ def prepare_entry(
                     page_index = len(packet_pages)
                     filename = f"page-{packet_round}-{page_index}.txt"
                     page_path = staging / filename
-                    page_path.write_text(chunk, encoding="utf-8")
-                    page_path.chmod(0o400)
                     page_bytes = chunk.encode("utf-8")
+                    page_path.write_bytes(page_bytes)
+                    page_path.chmod(0o400)
                     packet_pages.append(
                         {
                             "filename": filename,
@@ -427,7 +439,7 @@ def _state_manifest(
     if manifest.get("plugin_root") != str(plugin_root.resolve()):
         raise EntryLoadError("entry state belongs to a different plugin root")
     if float(manifest.get("expires_at", 0)) <= time.time():
-        shutil.rmtree(invocation)
+        _remove_state_tree(invocation)
         raise EntryLoadError("entry state is missing or expired")
     return invocation, manifest
 
@@ -510,7 +522,7 @@ def finish_entry(
         for packet_round, packet_pages in pages.items()
     ):
         raise EntryLoadError("entry pages are not fully consumed")
-    shutil.rmtree(invocation)
+    _remove_state_tree(invocation)
     return _bounded(
         {"schema_version": SCHEMA_VERSION, "status": "finished", "invocation_key": invocation_key, "command": manifest["command"]}
     )
