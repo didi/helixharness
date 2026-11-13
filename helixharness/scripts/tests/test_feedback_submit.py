@@ -44,13 +44,12 @@ class FeedbackTest(unittest.TestCase):
         self.assertNotIn("abcdefghijklmnopqrstuvwxyz", json.dumps(draft))
         self.assertEqual("1.0.0", draft["item"]["document"]["plugin_version"])
         self.assertEqual([], list(self.repo.iterdir()))
-        self.assertEqual(0o600, Path(draft["draft_path"]).stat().st_mode & 0o777)
+        if os.name != "nt":
+            self.assertEqual(0o600, Path(draft["draft_path"]).stat().st_mode & 0o777)
 
     def test_prepare_session_hash_matches_ledger_format(self):
         """反馈的 session 必须与账本同一哈希实现，平台按精确等值关联工作流。"""
         from telemetry_ledger import _session_hash
-
-        repo = self.repo
 
         class Adapter:
             def current_session_context(self, repo):
@@ -90,7 +89,8 @@ class FeedbackTest(unittest.TestCase):
         with mock.patch.object(feedback, "_post_item", return_value="unreachable"):
             result = feedback.send(Path(draft["draft_path"]), draft["digest"], confirmed=True)
         self.assertEqual("queued", result["status"])
-        self.assertEqual(0o600, Path(result["queue_path"]).stat().st_mode & 0o777)
+        if os.name != "nt":
+            self.assertEqual(0o600, Path(result["queue_path"]).stat().st_mode & 0o777)
         with mock.patch.object(feedback, "_post_item", return_value="accepted") as post:
             self.assertEqual(0, feedback._flush_outbox("https://other.example/feedback/report")["flushed"])
             post.assert_not_called()

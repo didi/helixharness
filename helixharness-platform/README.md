@@ -75,6 +75,15 @@ HTTP API 的异步上报入口是 `/report`，由 HelixHarness 发布方在 `scr
 
 数据库初始化只创建当前表结构，不迁移历史版本。对新的部署使用空数据库或 Demo 副本。运行目录、模型输出、Case 工作区、日志和凭据不属于发布源码。
 
+Windows Worker 的环境变量写法：
+
+```powershell
+$env:HELIXHARNESS_PLATFORM_FRAMEWORK_EVAL_REPOSITORIES = 'YOUR_REPOSITORY_ID=C:/work/business-repository'
+python -m bench.worker_pool --adapter CODEX --poll-seconds 5
+```
+
+普通 macOS/Windows 用户使用 Codex 自身的沙箱，不配置 Linux 专用的 `setpriv` 用户切换。Windows Worker 使用 Job Object 清理后代进程；隔离运行目录同时设置 HOME/USERPROFILE 与 TMPDIR/TEMP/TMP。详细要求和验证矩阵见[跨平台说明](../docs/platform-support.md)。
+
 ## 验证
 
 ```bash

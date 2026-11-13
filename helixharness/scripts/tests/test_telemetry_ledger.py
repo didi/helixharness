@@ -88,7 +88,8 @@ class TelemetryLedgerTest(unittest.TestCase):
         self.assertNotIn("logical_stage_run_id", locator)
         if os.name != "nt":
             locator_path = self.repo / ".helixharness" / "telemetry-v2" / "locators" / f"{started['entry_id']}.json"
-            self.assertEqual(0o600, locator_path.stat().st_mode & 0o777)
+            if os.name != "nt":
+                self.assertEqual(0o600, locator_path.stat().st_mode & 0o777)
 
 
     def test_address_is_not_emitted_and_historical_value_is_not_rewritten(self) -> None:

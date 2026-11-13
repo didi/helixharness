@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,8 @@ def test_runtime_availability_requires_an_executable_file(
     binary.write_text("runtime", encoding="utf-8")
     monkeypatch.setattr(codex_runtime, "_bundled_codex_path", lambda: binary)
 
-    assert codex_runtime.codex_runtime_available() is False
+    if os.name != "nt":
+        assert codex_runtime.codex_runtime_available() is False
 
     binary.chmod(0o755)
     assert codex_runtime.resolve_codex_executable() == binary
@@ -109,6 +111,7 @@ def test_candidate_runner_turns_timeout_into_a_build_error(
         CodexCandidateRunner(timeout_seconds=3).run(tmp_path, "test prompt")
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Linux setpriv isolation is optional; Windows uses the native sandbox")
 def test_candidate_runner_uses_low_privilege_host_isolation_without_bwrap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

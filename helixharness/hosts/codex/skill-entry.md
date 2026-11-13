@@ -1,6 +1,7 @@
 # Codex Skill Entry Protocol
 
 Codex 薄入口的 plugin root 固定为当前 `hosts/codex/skills/{name}/SKILL.md` 向上四级。
+Windows 入口必须使用 `scripts/runtime_preflight.ps1`，后续 Python 调用使用预检选中的解释器或该脚本的 `exec`；下列 `sh`/`python3` 是 POSIX 示例，不能在 PowerShell 中原样执行。
 在任何 Python 调用前完整读取 `reference/runtime-preflight.md`，执行：
 
 ```text
@@ -22,6 +23,7 @@ sh {plugin_root}/scripts/runtime_preflight.sh check
   `python3 {plugin_root}/scripts/codex_entry_load.py --plugin-root {plugin_root} --finish --invocation-key {key}`。
   finish 必须使用独立工具调用；成功后快照会关闭，不能再补读遗漏或被截断的页。
   缺页、过期、hash 不符或 finish 失败时关闭失败，不得用第二次 prepare 恢复当前 invocation。
+- 原生 Windows 没有 Python 时，停止依赖 Python 的流程并按预检协议恢复依赖；只有已确认 Git Bash 可用时才可选择下述 Shell fallback，不得调用 WSL。
 - Python 不可用时，严格按 runtime preflight 的用户选择、安装和 warning 语义处理。用户选择不安装并
   允许业务继续时，把薄入口给出的同一组 `--command/--resource` 参数原样交给
   `sh {plugin_root}/scripts/codex_entry_load.sh`。shell prepare/read-page/finish 使用与上方相同参数和顺序；

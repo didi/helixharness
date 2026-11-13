@@ -23,6 +23,7 @@ from bench.codex_runtime_launcher import (
     isolated_gradle_home,
     sanitized_environment,
 )
+from bench.filesystem_runtime import remove_tree
 from bench.gradle_runtime import configure_evaluator_gradle_home
 from bench.report_models import (
     ClaimedJob,
@@ -200,7 +201,7 @@ def _stage_validation_repair_hint(detail: str) -> str | None:
 def validate_java8_runtime(java_home: Path) -> None:
     """Require an executable Java 8 runtime before materializing an Episode."""
 
-    java = java_home.expanduser() / "bin" / "java"
+    java = java_home.expanduser() / "bin" / ("java.exe" if os.name == "nt" else "java")
     if not java.is_file() or not os.access(java, os.X_OK):
         raise CodexExecutionError("统一 Java 8 运行时不可用：JAVA_HOME/bin/java 不可执行")
     try:
@@ -263,7 +264,7 @@ def _clone_tree_copy_on_write(source: Path, target: Path) -> None:
             pass  # A missing or unusable native executable must not block portable copying.
     if not cloned:
         if target.is_dir() and not target.is_symlink():
-            shutil.rmtree(target)
+            remove_tree(target)
         elif target.exists() or target.is_symlink():
             target.unlink()
         shutil.copytree(source, target, symlinks=True)
@@ -284,10 +285,10 @@ def _clone_gradle_cache_directory(source: Path, target: Path) -> None:
         try:
             temporary.replace(target)
         except FileExistsError:
-            shutil.rmtree(temporary)
+            remove_tree(temporary)
     except Exception:
         if temporary.exists():
-            shutil.rmtree(temporary)
+            remove_tree(temporary)
         raise
 
 
@@ -878,7 +879,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,
@@ -939,7 +940,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,
@@ -1014,7 +1015,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,

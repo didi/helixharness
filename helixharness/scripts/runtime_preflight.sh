@@ -3,29 +3,10 @@ set -u
 
 MINIMUM_PYTHON="3.10"
 
+. "$(dirname "$0")/python_runtime.sh"
+
 python_status() {
-  if ! command -v python3 >/dev/null 2>&1; then
-    PYTHON_STATUS="missing"
-    PYTHON_VERSION=""
-    return
-  fi
-  PYTHON_VERSION="$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || true)"
-  case "$PYTHON_VERSION" in
-    [0-9]*.[0-9]*.[0-9]*) ;;
-    *)
-      PYTHON_STATUS="unusable"
-      return
-      ;;
-  esac
-  old_ifs=$IFS
-  IFS=.
-  set -- $PYTHON_VERSION
-  IFS=$old_ifs
-  if [ "$1" -gt 3 ] || { [ "$1" -eq 3 ] && [ "$2" -ge 10 ]; }; then
-    PYTHON_STATUS="ready"
-  else
-    PYTHON_STATUS="unsupported_version"
-  fi
+  find_helix_python
 }
 
 git_status() {
@@ -131,7 +112,7 @@ install_python() {
       else
         emit_install_error \
           "python_package_manager_unavailable" \
-          "未找到 winget；请手工安装 Python 3.10+ 并确保 python3 在 PATH 中。"
+          "未找到 winget；请手工安装 Python 3.10+ 并确保 python 或 python3 在 PATH 中。"
         return 1
       fi
       ;;
@@ -163,6 +144,15 @@ install_python() {
 }
 
 case "${1:-}" in
+  exec)
+    shift
+    find_helix_python
+    if [ "$PYTHON_STATUS" != ready ]; then
+      emit_check
+      exit 2
+    fi
+    exec "$PYTHON_COMMAND" ${PYTHON_LAUNCHER:+"$PYTHON_LAUNCHER"} -X utf8 "$@"
+    ;;
   check)
     emit_check
     ;;
@@ -171,7 +161,7 @@ case "${1:-}" in
     install_python "${1:-}"
     ;;
   *)
-    printf '%s\n' 'usage: runtime_preflight.sh check | install-python --user-confirmed' >&2
+    printf '%s\n' 'usage: runtime_preflight.sh check | exec script.py [args...] | install-python --user-confirmed' >&2
     exit 2
     ;;
 esac

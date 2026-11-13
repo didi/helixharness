@@ -14,6 +14,7 @@ import threading
 import time
 from pathlib import Path
 
+from bench.process_runtime import spawn_group
 from bench.runtime_secrets import load_runtime_secrets
 from bench.task_configuration import TaskPlatformConfiguration, task_platform_configuration
 from bench.worker_processes import PROCESS_REGISTRY, kill_group, reap_registered_groups
@@ -54,8 +55,8 @@ def supervise(commands: list[list[str]], restart_delay: float = 5.0) -> None:
                 if index not in children and time.monotonic() >= next_start[index]:
                     directory = Path(registry.name) / str(index)
                     directory.mkdir(exist_ok=True)
-                    children[index] = subprocess.Popen(
-                        command, start_new_session=True,
+                    children[index] = spawn_group(
+                        command,
                         env={**os.environ, PROCESS_REGISTRY: str(directory)},
                     )
             stopping.wait(0.25)

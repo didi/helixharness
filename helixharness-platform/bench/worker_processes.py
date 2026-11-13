@@ -3,18 +3,11 @@
 from __future__ import annotations
 
 import os
-import signal
 from pathlib import Path
 
+from bench.process_runtime import kill_group  # re-export for existing callers
+
 PROCESS_REGISTRY = "HELIXHARNESS_PLATFORM_WORKER_PROCESS_REGISTRY"
-
-
-def kill_group(pid: int) -> None:
-    """Stop a process group, including descendants left after its leader exits."""
-    try:
-        os.killpg(pid, signal.SIGKILL)
-    except ProcessLookupError:
-        pass
 
 
 def register_group(pid: int) -> Path | None:

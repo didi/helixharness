@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import os
-import signal
+import shutil
 import subprocess
 import threading
 from abc import ABC, abstractmethod
@@ -13,7 +12,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import eval_json
-
+from process_runtime import kill_group, spawn_group
 
 MARKETPLACE = "helixharness-marketplace"
 PLUGIN_ID = "helix@helixharness-marketplace"
@@ -60,27 +59,21 @@ class BoundedCommandRunner:
 
     @staticmethod
     def _terminate(process: subprocess.Popen[bytes]) -> None:
-        if process.poll() is not None:
-            return
         try:
-            if os.name != "nt":
-                os.killpg(process.pid, signal.SIGKILL)
-            else:
+            kill_group(process.pid)
+        except OSError:
+            if process.poll() is None:
                 process.kill()
-        except (OSError, ProcessLookupError):
-            try:
-                process.kill()
-            except OSError:
-                pass
 
     def run(self, command: Sequence[str], *, timeout: float) -> CommandResult:
         argv = [str(item) for item in command]
+        if argv:
+            argv[0] = shutil.which(argv[0]) or argv[0]
         try:
-            process = subprocess.Popen(
+            process = spawn_group(
                 argv,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                start_new_session=os.name != "nt",
             )
         except OSError as exc:
             raise UpdateHostError(f"host command could not start: {' '.join(argv)}") from exc
@@ -129,6 +122,7 @@ class BoundedCommandRunner:
             raise UpdateHostError(
                 f"host command timed out after {timeout:g}s: {' '.join(argv)}"
             ) from exc
+        self._terminate(process)
         for thread in threads:
             thread.join(timeout=1)
         if overflow:

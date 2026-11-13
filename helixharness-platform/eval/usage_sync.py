@@ -4,6 +4,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import platform as system_platform
 import re
 import shlex
 import subprocess
@@ -483,6 +484,17 @@ def _install_usage_cron(cron_expr: str) -> str:
     cron_expr = (cron_expr or "0 * * * *").strip()
     if not _valid_cron_expression(cron_expr):
         return '<div class="soft-note warn">cron 表达式格式不正确，例如 <code>0 * * * *</code> 表示每小时同步一次。</div>'
+    if system_platform.system() == "Windows":
+        from eval.windows_schedule import install
+
+        try:
+            name = install(USAGE_SYNC_CONFIG, USAGE_SYNC_CACHE, PROJECT_ROOT, cron_expr)
+        except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
+            return f'<div class="soft-note warn">Windows 定时同步未确认启用：{html.escape(str(exc))}</div>'
+        cfg = _load_usage_sync_config()
+        cfg["schedule"] = {"cron": cron_expr, "enabled": True}
+        _save_usage_sync_config(cfg)
+        return f'<div class="soft-note ok">已安装 Windows 定时同步：{html.escape(name)}；在当前用户登录期间运行。</div>'
     PROJECT_ROOT.joinpath("eval", "logs").mkdir(parents=True, exist_ok=True)
     new_block = f"{USAGE_CRON_BEGIN}\n{cron_expr} {_usage_cron_command()}\n{USAGE_CRON_END}"
     try:

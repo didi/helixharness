@@ -20,6 +20,9 @@ _PASSTHROUGH_NAMES = {
     "LANG",
     "LC_ALL",
     "SYSTEMROOT",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
     "PATHEXT",
     "HELIXHARNESS_EVAL_GRADLE_HOME",
 }
@@ -43,6 +46,10 @@ def sanitized_environment(
     environment["CODEX_HOME"] = str(codex_home)
     environment["CODEX_SQLITE_HOME"] = str(codex_home)
     environment["HOME"] = str(codex_home)
+    environment["USERPROFILE"] = str(codex_home)
+    environment["APPDATA"] = str(codex_home / "AppData/Roaming")
+    environment["LOCALAPPDATA"] = str(codex_home / "AppData/Local")
+    environment["PYTHONUTF8"] = "1"
     gradle_home = gradle_home_path or isolated_gradle_home(codex_home)
     gradle_home.mkdir(parents=True, exist_ok=True)
     environment["GRADLE_USER_HOME"] = str(gradle_home)
@@ -51,7 +58,9 @@ def sanitized_environment(
     temp_directory = codex_home / "tmp"
     temp_directory.mkdir(parents=True, exist_ok=True)
     environment["TMPDIR"] = str(temp_directory)
-    environment["JAVA_TOOL_OPTIONS"] = f"-Djava.io.tmpdir={temp_directory}"
+    environment["TMP"] = str(temp_directory)
+    environment["TEMP"] = str(temp_directory)
+    environment["JAVA_TOOL_OPTIONS"] = f'-Djava.io.tmpdir="{temp_directory}"'
     return environment
 
 

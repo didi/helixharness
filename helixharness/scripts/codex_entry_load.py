@@ -203,12 +203,20 @@ def _secure_state_root(value: Path | None) -> Path:
             if entry.name != STATE_OWNER_NAME
             and not entry.name.startswith(f"{STATE_OWNER_NAME}.tmp-")
         ]
-        if foreign:
+        if foreign and not owner.exists():
             raise EntryLoadError("entry state root is not owned by HelixHarness")
         temporary_owner = root / f"{STATE_OWNER_NAME}.tmp-{secrets.token_hex(8)}"
         temporary_owner.write_text(STATE_OWNER_VALUE, encoding="utf-8")
         temporary_owner.chmod(0o600)
-        temporary_owner.replace(owner)
+        try:
+            # Publish only a complete marker; never replace one another reader
+            # may have open (Windows denies that replacement).
+            try:
+                os.link(temporary_owner, owner)
+            except FileExistsError:
+                pass
+        finally:
+            temporary_owner.unlink(missing_ok=True)
     if owner.is_symlink() or not owner.is_file():
         raise EntryLoadError("entry state root is not owned by HelixHarness")
     try:
@@ -237,6 +245,23 @@ def _invocation_dir(state_root: Path, invocation_key: str) -> Path:
     return path
 
 
+def _remove_state_tree(path: Path, *, ignore_errors: bool = False) -> None:
+    """Remove owned snapshots, retrying read-only files without following links."""
+    def retry(function, filename, error):
+        target = Path(filename)
+        if isinstance(error[1], PermissionError) and target.is_file() and not target.is_symlink():
+            target.chmod(target.stat().st_mode | 0o200)
+            function(filename)
+        else:
+            raise error[1]
+
+    try:
+        shutil.rmtree(path, onerror=retry)
+    except OSError:
+        if not ignore_errors:
+            raise
+
+
 def _cleanup_expired(state_root: Path, now: float) -> None:
     for child in state_root.iterdir():
         is_invocation = INVOCATION_PATTERN.fullmatch(child.name) is not None
@@ -259,7 +284,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
             continue
         if is_staging:
             if old_enough:
-                shutil.rmtree(child)
+                _remove_state_tree(child)
             continue
         try:
             manifest = _object(child / "manifest.json")
@@ -267,7 +292,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
         except (EntryLoadError, OSError, TypeError, ValueError):
             expired = old_enough
         if expired:
-            shutil.rmtree(child)
+            _remove_state_tree(child)
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -355,9 +380,9 @@ def prepare_entry(
                     page_index = len(packet_pages)
                     filename = f"page-{packet_round}-{page_index}.txt"
                     page_path = staging / filename
-                    page_path.write_text(chunk, encoding="utf-8")
-                    page_path.chmod(0o400)
                     page_bytes = chunk.encode("utf-8")
+                    page_path.write_bytes(page_bytes)
+                    page_path.chmod(0o400)
                     packet_pages.append(
                         {
                             "filename": filename,
@@ -399,7 +424,7 @@ def prepare_entry(
         staging.replace(invocation)
         return result
     except Exception:
-        shutil.rmtree(staging, ignore_errors=True)
+        _remove_state_tree(staging, ignore_errors=True)
         raise
 
 
@@ -427,7 +452,7 @@ def _state_manifest(
     if manifest.get("plugin_root") != str(plugin_root.resolve()):
         raise EntryLoadError("entry state belongs to a different plugin root")
     if float(manifest.get("expires_at", 0)) <= time.time():
-        shutil.rmtree(invocation)
+        _remove_state_tree(invocation)
         raise EntryLoadError("entry state is missing or expired")
     return invocation, manifest
 
@@ -510,7 +535,7 @@ def finish_entry(
         for packet_round, packet_pages in pages.items()
     ):
         raise EntryLoadError("entry pages are not fully consumed")
-    shutil.rmtree(invocation)
+    _remove_state_tree(invocation)
     return _bounded(
         {"schema_version": SCHEMA_VERSION, "status": "finished", "invocation_key": invocation_key, "command": manifest["command"]}
     )

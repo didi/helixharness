@@ -27,8 +27,15 @@ class PluginHooksTest(unittest.TestCase):
                     "CODEX_THREAD_ID": "fixture-codex",
                     "CLAUDE_SESSION_ID": "fixture-claude",
                 }
+                if os.name == "nt":
+                    env.update({key: value for key, value in os.environ.items()
+                                if key.upper() in {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA"}})
+                argv = ["sh", "-c", command]
+                if os.name == "nt" and host == "codex":
+                    command = hooks["SessionStart"][0]["hooks"][0]["commandWindows"].replace("${PLUGIN_ROOT}", str(ROOT))
+                    argv = ["cmd.exe", "/d", "/s", "/c", command]
                 process = subprocess.run(
-                    ["sh", "-c", command],
+                    argv,
                     input=json.dumps(
                         {
                             "hook_event_name": "SessionStart",

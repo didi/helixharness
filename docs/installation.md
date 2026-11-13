@@ -6,7 +6,9 @@
 
 Python 3.10+, Git and a Codex or Claude Code installation supporting plugin marketplaces are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional.
 
-The examples use Bash/Zsh. `didi/helixharness` is the planned public repository; remote commands become usable after its publication. For testing before publication or modifying the plugin, use [developer installation](#developer-installation).
+The source supports macOS, native Windows and Linux; see [platform support and verification](platform-support.md). Windows Codex uses the PowerShell entrypoint, while Claude Code hooks require Git for Windows Bash.
+
+Unless marked PowerShell, the examples use Bash/Zsh. `didi/helixharness` is the planned public repository; remote commands become usable after its publication. For testing before publication or modifying the plugin, use [developer installation](#developer-installation).
 
 This edition uses only the HelixHarness identifiers: `helix@helixharness-marketplace`, `/helix:*`, `.helixharness/`, `helixharness.workspace.yaml`, and `HELIXHARNESS_*` environment variables. It does not recognize or migrate identifiers, configuration or runtime data from previous branding. Initialize a fresh application copy when validating this edition.
 
@@ -78,3 +80,16 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 正式发布后使用上面的 GitHub 安装命令，无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
 
 安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init` 并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。
+
+## Windows local source / Windows 本地源码
+
+From the combined repository root in PowerShell:
+
+```powershell
+$env:HELIXHARNESS_SOURCE = (Get-Location).Path
+codex plugin marketplace add "$env:HELIXHARNESS_SOURCE"
+codex plugin add helix@helixharness-marketplace
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\helixharness\scripts\runtime_preflight.ps1 check
+```
+
+Windows 不需要 WSL。Codex 自动 Hook 使用 `commandWindows`；Claude Code 使用 Git for Windows 的 Bash，若无法自动发现，可设置 `$env:CLAUDE_CODE_GIT_BASH_PATH = 'C:\Program Files\Git\bin\bash.exe'` 后重启宿主。不要把 Windows 的 WSL 启动器当作 Git Bash。详细步骤与验证边界见[跨平台说明](platform-support.md)。

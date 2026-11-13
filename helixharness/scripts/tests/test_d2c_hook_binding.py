@@ -8,6 +8,8 @@ import tempfile
 import unittest
 
 
+from project_linter import git_bash
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -20,9 +22,9 @@ class D2CHookBindingTest(unittest.TestCase):
         self.assertIsNotNone(command)
         command = " ".join(line.strip() for line in command.group(1).splitlines())
         result = subprocess.run(
-            ["/bin/sh", "-c", command],
+            [git_bash(), "-c", command],
             input=json.dumps({"cwd": str(project), "hook_event_name": event}),
-            env={"PATH": path if path is not None else os.environ["PATH"], "CLAUDE_PLUGIN_ROOT": str(root),
+            env={**{key: value for key, value in os.environ.items() if key.upper() in {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP"}}, "PATH": path if path is not None else os.environ["PATH"], "CLAUDE_PLUGIN_ROOT": str(root),
                  "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_CONFIG_DIR": str(project / "config")},
             cwd=project, capture_output=True, text=True, timeout=10,
         )
@@ -58,6 +60,7 @@ class D2CHookBindingTest(unittest.TestCase):
             self.assertEqual("deny", self.run_hook(root, project, "PreToolUse")["hookSpecificOutput"]["permissionDecision"])
             self.assertEqual("block", self.run_hook(root, project, "Stop")["decision"])
 
+    @unittest.skipIf(os.name == "nt", "POSIX minimal-PATH fixture")
     def test_missing_node_blocks(self):
         with tempfile.TemporaryDirectory(prefix="helixharness-d2c-") as tmp:
             project = Path(tmp)

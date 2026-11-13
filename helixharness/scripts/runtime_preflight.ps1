@@ -1,0 +1,122 @@
+# Native Windows entrypoint; works in Windows PowerShell 5.1 and PowerShell 7.
+param(
+    [ValidateSet('check', 'exec', 'hook', 'install-python')]
+    [string]$Action = 'check',
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$RuntimeArguments
+)
+$ErrorActionPreference = 'Stop'
+$OutputEncoding = [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+
+function Join-NativeArguments([string[]]$Values) {
+    # Windows CRT quoting, including embedded quotes and trailing backslashes.
+    # Calling a native executable with & loses embedded quotes in PowerShell 5.1.
+    return (($Values | ForEach-Object {
+        '"' + (($_ -replace '(\\*)"', '$1$1\"') -replace '(\\+)$', '$1$1') + '"'
+    }) -join ' ')
+}
+
+function Invoke-HelixPython($Python, [string[]]$Values, [string]$InputText, [bool]$RedirectInput) {
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $Python.executable
+    $info.Arguments = Join-NativeArguments (@($Python.arguments) + @('-X', 'utf8') + $Values)
+    $info.UseShellExecute = $false
+    $info.RedirectStandardInput = $RedirectInput
+    $process = [System.Diagnostics.Process]::Start($info)
+    try {
+        if ($RedirectInput) {
+            $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputText)
+            $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+            $process.StandardInput.Close()
+        }
+        $process.WaitForExit()
+        return $process.ExitCode
+    } finally { $process.Dispose() }
+}
+
+function Find-HelixPython {
+    $status = 'missing'
+    $version = $null
+    foreach ($name in @('python.exe', 'python3.exe', 'py.exe')) {
+        foreach ($candidate in @(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)) {
+            # Do not launch the Microsoft Store's placeholder executable.
+            if ($candidate.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
+            $prefix = @()
+            if ($name -eq 'py.exe') { $prefix = @('-3') }
+            try {
+                $version = & $candidate.Source @prefix -c 'import sys; print(str(sys.version_info.major)+chr(46)+str(sys.version_info.minor)+chr(46)+str(sys.version_info.micro))' 2>$null
+                if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^\d+\.\d+\.\d+$') {
+                    $status = 'unusable'
+                    continue
+                }
+                if ([version]$version -ge [version]'3.10') {
+                    return @{ status = 'ready'; version = "$version"; executable = $candidate.Source; arguments = $prefix }
+                }
+                $status = 'unsupported_version'
+            } catch { $status = 'unusable' }
+        }
+    }
+    return @{ status = $status; version = $null; executable = $null; arguments = @() }
+}
+
+function Write-Check($python) {
+    $gitStatus = 'missing'
+    if (Get-Command git.exe -CommandType Application -ErrorAction SilentlyContinue) { $gitStatus = 'ready' }
+    $next = 'continue'
+    if ($gitStatus -ne 'ready') { $next = 'install_git' }
+    elseif ($python.status -ne 'ready') { $next = 'install_python_or_disable_telemetry' }
+    @{
+        schema_version = '1.0'; ok = ($next -eq 'continue')
+        python = @{ status = $python.status; minimum_version = '3.10'; version = $python.version
+            executable = $python.executable; arguments = @($python.arguments) }
+        git = @{ status = $gitStatus }; next_action = $next
+    } | ConvertTo-Json -Depth 5 -Compress
+}
+
+$python = Find-HelixPython
+switch ($Action) {
+    'check' { Write-Check $python; exit 0 }
+    'install-python' {
+        if ($RuntimeArguments -notcontains '--user-confirmed') {
+            '{"ok":false,"installed":false,"error_code":"python_install_confirmation_required"}'
+            exit 2
+        }
+        if ($python.status -eq 'ready') { Write-Check $python; exit 0 }
+        if (-not (Get-Command winget.exe -CommandType Application -ErrorAction SilentlyContinue)) {
+            '{"ok":false,"installed":false,"error_code":"python_package_manager_unavailable"}'
+            exit 1
+        }
+        & winget.exe install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements | Out-Host
+        if ($LASTEXITCODE -ne 0) {
+            '{"ok":false,"installed":false,"error_code":"python_install_failed"}'
+            exit 1
+        }
+        # Preserve the process PATH while picking up the installer's persisted additions.
+        $env:PATH = $env:PATH + ';' + [Environment]::GetEnvironmentVariable('PATH', 'User') + ';' + [Environment]::GetEnvironmentVariable('PATH', 'Machine')
+        $python = Find-HelixPython
+        Write-Check $python
+        if ($python.status -ne 'ready') { exit 1 }
+        exit 0
+    }
+    'hook' {
+        if ($python.status -ne 'ready') {
+            if ($RuntimeArguments -and $RuntimeArguments[0] -eq 'SessionStart') {
+                '{"continue":true,"systemMessage":"HelixHarness requires Python 3.10+ (python.exe, python3.exe or py -3)."}'
+            }
+            exit 0
+        }
+        if ($RuntimeArguments.Count -ne 2 -or -not (Test-Path -LiteralPath $RuntimeArguments[1] -PathType Leaf)) {
+            '{"continue":true,"systemMessage":"HelixHarness runtime_target_missing"}'
+            exit 0
+        }
+        $payload = [Console]::In.ReadToEnd()
+        $code = Invoke-HelixPython $python @($RuntimeArguments[1]) $payload $true
+        exit $code
+    }
+    'exec' {
+        if ($python.status -ne 'ready') { Write-Check $python; exit 2 }
+        if (-not $RuntimeArguments) { exit 2 }
+        $code = Invoke-HelixPython $python $RuntimeArguments '' $false
+        exit $code
+    }
+}

@@ -26,19 +26,24 @@ def test_documented_server_modes_start_and_serve_pages(tmp_path, mode):
     env = os.environ.copy()
     env["HELIXHARNESS_PLATFORM_USAGE_AI_ENABLED"] = "false"
     base = f"http://127.0.0.1:{port}"
-    process = subprocess.Popen(command, cwd=Path(__file__).resolve().parents[2], env=env,
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    log_path = tmp_path / "server.log"
+    with log_path.open("wb") as log:
+        process = subprocess.Popen(command, cwd=Path(__file__).resolve().parents[2], env=env,
+                                   stdout=log, stderr=subprocess.STDOUT)
     try:
-        for _ in range(100):
-            assert process.poll() is None, "Server exited before serving HTTP"
+        # This checks functional startup, not a ten-second performance SLA.
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            assert process.poll() is None, log_path.read_text(errors="replace")[-16000:]
             try:
-                with urlopen(base, timeout=1) as response:
+                with urlopen(base, timeout=min(5, max(0.1, deadline - time.monotonic()))) as response:
                     page = response.read().decode()
                 break
-            except URLError:
+            except (URLError, TimeoutError):
                 time.sleep(0.1)
         else:
-            pytest.fail("Server did not become ready within 10 seconds")
+            pytest.fail("Server did not become ready within 60 seconds\n"
+                        + log_path.read_text(errors="replace")[-16000:])
         if mode == "sync":
             assert "暂无统计数据" in page
             assert "Demo project (synthetic)" not in page

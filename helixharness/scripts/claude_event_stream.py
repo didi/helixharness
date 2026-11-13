@@ -9,12 +9,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import selectors
+import queue
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
+
+from process_runtime import kill_group, spawn_group
 
 
 class JsonLineDecoder:
@@ -92,38 +95,17 @@ class EventRelay:
 
 def _stop_process_tree(process: subprocess.Popen) -> None:
     """Bound cleanup, including descendants that inherited the output pipe."""
-    def terminate(force: bool) -> None:
+    if os.name == "posix":
         try:
-            if os.name == "posix":
-                os.killpg(process.pid, signal.SIGKILL if force else signal.SIGTERM)
-            elif process.poll() is None:
-                process.kill() if force else process.terminate()
+            os.killpg(process.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
-
-    terminate(False)
-    try:
-        process.wait(timeout=2)
-    except subprocess.TimeoutExpired:
-        pass
-    # The leader can already have exited while a descendant ignores SIGTERM.
-    terminate(True)
-    process.wait(timeout=2)
-
-
-def _drain_available_output(process: subprocess.Popen, log: Any) -> None:
-    """Retain available trailing bytes without waiting for another process's EOF."""
-    descriptor = process.stdout.fileno()
-    os.set_blocking(descriptor, False)
-    deadline = time.monotonic() + 0.5
-    while time.monotonic() < deadline:
         try:
-            chunk = os.read(descriptor, 65536)
-        except BlockingIOError:
-            break
-        if not chunk:
-            break
-        log.write(chunk)
+            process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
+    kill_group(process.pid)
+    process.wait(timeout=2)
 
 
 def run(args: argparse.Namespace) -> int:
@@ -149,9 +131,8 @@ def run(args: argparse.Namespace) -> int:
     driver_error = None
     prompt = args.prompt_file.read_text(encoding="utf-8")
     with (output / "events.jsonl").open("xb") as log, (output / "relays.jsonl").open("x", encoding="utf-8") as notices:
-        process = subprocess.Popen(cmd, cwd=project, env=env, stdin=subprocess.PIPE,
-                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0,
-                                   start_new_session=os.name == "posix")
+        process = spawn_group(cmd, cwd=project, env=env, stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         (output / "process.json").write_text(json.dumps({"pid": process.pid, "plugin_root": str(root),
                                                          "project": str(project)}))
         def send(message: dict[str, Any]) -> None:
@@ -162,8 +143,24 @@ def run(args: argparse.Namespace) -> int:
             process.stdin.flush()
             notices.write(wire)
             notices.flush()
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
+        chunks = queue.Queue(maxsize=32)
+        stopping = threading.Event()
+
+        def read_output():
+            # select() cannot wait on subprocess pipes on Windows.
+            while not stopping.is_set():
+                chunk = process.stdout.read(65536)
+                while not stopping.is_set():
+                    try:
+                        chunks.put(chunk, timeout=0.1)
+                        break
+                    except queue.Full:
+                        continue
+                if not chunk:
+                    return
+
+        reader = threading.Thread(target=read_output, daemon=True)
+        reader.start()
         try:
             send({"type": "user", "message": {"role": "user", "content": prompt}})
             eof = False
@@ -171,31 +168,40 @@ def run(args: argparse.Namespace) -> int:
                 if time.monotonic() - start >= args.timeout:
                     timed_out = True
                     break
-                ready = selector.select(timeout=min(1, max(0, args.timeout - (time.monotonic() - start))))
-                if not ready and process.poll() is not None:
-                    break  # A descendant may hold the pipe after the native leader exits.
-                for key, _ in ready:
-                    chunk = os.read(key.fileobj.fileno(), 65536)
-                    if not chunk:
-                        eof = True
-                        break
-                    log.write(chunk)
-                    log.flush()
-                    for event in decoder.feed(chunk):
-                        message = relay.accept(event)
-                        if message is not None:
-                            send(message)
-                        if relay.finished and not process.stdin.closed:
-                            process.stdin.close()
+                try:
+                    chunk = chunks.get(timeout=min(1, max(0, args.timeout - (time.monotonic() - start))))
+                except queue.Empty:
+                    if process.poll() is not None:
+                        break  # A descendant may retain the pipe after its leader exits.
+                    continue
+                if not chunk:
+                    eof = True
+                    break
+                log.write(chunk)
+                log.flush()
+                for event in decoder.feed(chunk):
+                    message = relay.accept(event)
+                    if message is not None:
+                        send(message)
+                    if relay.finished and not process.stdin.closed:
+                        process.stdin.close()
             if not timed_out:
                 process.wait(timeout=2)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
             driver_error = str(error)
         finally:
-            selector.close()
             try:
                 _stop_process_tree(process)
-                _drain_available_output(process, log)
+                deadline = time.monotonic() + 0.5
+                while time.monotonic() < deadline and (reader.is_alive() or not chunks.empty()):
+                    try:
+                        log.write(chunks.get(timeout=0.05))
+                    except queue.Empty:
+                        continue
+                stopping.set()
+                reader.join(timeout=2)
+                while not chunks.empty():
+                    log.write(chunks.get_nowait())
             except (OSError, subprocess.TimeoutExpired) as error:
                 driver_error = driver_error or str(error)
             code = process.returncode

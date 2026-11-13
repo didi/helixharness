@@ -37,6 +37,7 @@ from bench.codex_execution import (
     workspace_tree_hash,
     write_isolated_codex_config,
 )
+from bench.filesystem_runtime import remove_tree
 from bench.helixharness_source import frozen_plugin_tree, git_repository_root
 from bench.report_models import ClaimedJob
 from bench.resource_accounting import attributable_resource_observation
@@ -951,7 +952,7 @@ class CodexScenarioExecutionAdapter:
         ):
             raise OSError("Scenario runtime cleanup target is unsafe")
         try:
-            shutil.rmtree(path)
+            remove_tree(path)
         except FileNotFoundError:
             return
 
@@ -1360,7 +1361,7 @@ class CodexScenarioExecutionAdapter:
                     merge_root=fixture_merge_root,
                 )
             finally:
-                shutil.rmtree(fixture_merge_root, ignore_errors=True)
+                remove_tree(fixture_merge_root, ignore_errors=True)
         case_directory = workspace / ".helixharness_case"
         case_directory.mkdir(parents=True, exist_ok=True)
         (case_directory / "initial-request.md").write_text(prompt, encoding="utf-8")

@@ -5,7 +5,7 @@ triggers:
   - /helix:propose
 ---
 
-插件根为当前文件的 `../../../..`。完整读取 `hosts/codex/skill-entry.md`，执行 runtime preflight，然后执行一次：
+插件根为当前文件的 `../../../..`。完整读取 `hosts/codex/skill-entry.md`，执行 runtime preflight，然后执行一次（Windows 使用 `.ps1 exec` 或预检回执中的解释器；下方是 POSIX 示例）：
 
 ```bash
 python3 {plugin_root}/scripts/codex_entry_load.py --plugin-root {plugin_root} --command propose --resource subagent_protocol --resource telemetry_protocol

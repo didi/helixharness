@@ -6,6 +6,11 @@ from eval import usage_sync
 from eval.cli import sync_helixharness_usage as sync
 
 
+@pytest.fixture(autouse=True)
+def posix_cron_adapter(monkeypatch):
+    monkeypatch.setattr(usage_sync.system_platform, "system", lambda: "Linux")
+
+
 @pytest.mark.parametrize("symlink_kind", ["directory", "feature", "file"])
 def test_ledger_consumers_never_follow_escaping_symlinks(tmp_path, symlink_kind):
     import json

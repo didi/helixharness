@@ -6,7 +6,8 @@
           {
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionStart \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\"",
-            "timeout": 3
+            "timeout": 3,
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${PLUGIN_ROOT}/scripts/runtime_preflight.ps1\" hook SessionStart \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\""
           }
         ]
       }
@@ -17,7 +18,8 @@
           {
             "type": "command",
             "command": "sh \"${PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionEnd \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\"",
-            "timeout": 3
+            "timeout": 3,
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"${PLUGIN_ROOT}/scripts/runtime_preflight.ps1\" hook SessionEnd \"${PLUGIN_ROOT}/hosts/codex/hook_entry.py\""
           }
         ]
       }

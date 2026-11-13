@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 import re
 import shutil
 import subprocess
+import sys
+import threading
 import tempfile
 import unittest
+from unittest.mock import patch
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -125,11 +129,8 @@ class CodexEntryLoadTest(unittest.TestCase):
                 shutil.copytree(PLUGIN_ROOT / included, root / included)
             command_path = root / "commands/apply.md"
             large_suffix = ("界\\\"page-safe\n" * 12000)
-            command_path.write_text(
-                command_path.read_text(encoding="utf-8") + large_suffix,
-                encoding="utf-8",
-            )
-            expected = command_path.read_text(encoding="utf-8")
+            expected = command_path.read_text(encoding="utf-8") + large_suffix
+            command_path.write_bytes(expected.encode("utf-8"))
             self.assertGreater(len(expected.encode("utf-8")), 100 * 1024)
 
             prepared = prepare_entry(
@@ -168,7 +169,7 @@ class CodexEntryLoadTest(unittest.TestCase):
                 shutil.copytree(PLUGIN_ROOT / included, root / included)
             command_path = root / "commands/apply.md"
             original = command_path.read_text(encoding="utf-8") + "\nfirst-revision\n"
-            command_path.write_text(original, encoding="utf-8")
+            command_path.write_bytes(original.encode("utf-8"))
 
             prepared = prepare_entry(root, command="apply", state_root=state_root)
             command_path.write_text("second-revision\n", encoding="utf-8")
@@ -240,7 +241,7 @@ class CodexEntryLoadTest(unittest.TestCase):
     def test_public_cli_prepare_page_finish_seam(self) -> None:
         loader = PLUGIN_ROOT / "scripts/codex_entry_load.py"
         base = [
-            "python3",
+            sys.executable,
             str(loader),
             "--plugin-root",
             str(PLUGIN_ROOT),
@@ -435,6 +436,45 @@ class CodexEntryLoadTest(unittest.TestCase):
                 for item in prepared
             )
         )
+
+    def test_first_owner_publication_race_never_replaces_a_marker(self) -> None:
+        barrier = threading.Barrier(2)
+        link = os.link
+
+        def simultaneous_link(source, target):
+            barrier.wait(timeout=10)
+            return link(source, target)
+
+        with patch("codex_entry_load.os.link", side_effect=simultaneous_link):
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                futures = [executor.submit(self.prepare, "update") for _ in range(2)]
+                results = [future.result() for future in futures]
+        self.assertEqual(2, len({result["invocation_key"] for result in results}))
+        self.assertEqual([], list(self.state_root.glob(".helixharness-owner.tmp-*")))
+
+    def test_pages_preserve_lf_crlf_and_unicode_bytes_and_finish(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "plugin 空格"
+            for included in ENTRY_FIXTURE_ROOTS:
+                shutil.copytree(PLUGIN_ROOT / included, root / included)
+            command = root / "commands/update.md"
+            content = command.read_bytes() + "\n中文 LF\nCRLF\r\nemoji 🌍\n".encode("utf-8")
+            command.write_bytes(content)
+            prepared = prepare_entry(root, command="update", state_root=self.state_root)
+            invocation = self.state_root / prepared["invocation_key"]
+            manifest = json.loads((invocation / "manifest.json").read_text(encoding="utf-8"))
+            reconstructed = b""
+            for packet in prepared["packets"]:
+                for index, metadata in enumerate(manifest["pages"][str(packet["round"])]):
+                    page_bytes = (invocation / metadata["filename"]).read_bytes()
+                    self.assertEqual(metadata["page_sha256"], hashlib.sha256(page_bytes).hexdigest())
+                    page = read_entry_page(root, invocation_key=prepared["invocation_key"],
+                                           packet_round=packet["round"], page_index=index, state_root=self.state_root)
+                    if page["path"] == "commands/update.md":
+                        reconstructed += page["content"].encode("utf-8")
+            self.assertEqual(content, reconstructed)
+            finish_entry(root, invocation_key=prepared["invocation_key"], state_root=self.state_root)
+            self.assertFalse(invocation.exists())
 
     def test_tampered_page_fails_closed(self) -> None:
         prepared = self.prepare("apply")

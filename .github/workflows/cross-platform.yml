@@ -1,0 +1,47 @@
+name: macOS, Windows and Linux
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+        python: ['3.10', '3.12']
+    env:
+      PYTHONUTF8: '1'
+      GIT_CONFIG_COUNT: '2'
+      GIT_CONFIG_KEY_0: core.hooksPath
+      GIT_CONFIG_VALUE_0: /dev/null
+      GIT_CONFIG_KEY_1: core.autocrlf
+      GIT_CONFIG_VALUE_1: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Expose Git Bash for Claude compatibility fixtures
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"C:\Program Files\Git\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append'
+      - name: Install platform test dependencies
+        working-directory: helixharness-platform
+        run: python -m pip install -e ".[server,dev]"
+      - name: Plugin suite and native runtime integration
+        working-directory: helixharness
+        run: python scripts/run_tests.py
+      - name: Host projections
+        working-directory: helixharness
+        run: python scripts/codex_skill_projection.py --check
+      - name: Platform suite
+        working-directory: helixharness-platform
+        run: python -m pytest -q
+      - name: Platform lint
+        working-directory: helixharness-platform
+        run: python -m ruff check web_ui eval bench evolution tests

@@ -7,19 +7,33 @@ Python。任何命令在第一次调用 `python3` 前都必须执行本协议，
 `command not found` 暴露给用户。
 
 - 最低 Python 版本：3.10。
-- 命令名必须是 `python3`，并且可从当前进程的 `PATH` 找到。
+- macOS/Linux/Git Bash 依次探测 `python3`、`python`、`py -3`；原生 Windows 依次探测 `python.exe`、`python3.exe`、`py.exe -3`，跳过 WindowsApps 占位别名。必须实际执行并验证 Python 3.10+。
 - Git 是 HelixHarness repo 工作流的必需依赖，也在同一次 preflight 中检查。
 - Python 不可用时无法解析授权缓存和提醒周期，因此 Init 暂不展示统计说明或开启选项，不读取或手写授权缓存。恢复 Python 后重新调用 resolver，按授权缓存和提醒周期决定是否问询，不因缺少异步地址跳过。普通生命周期命令只修复运行依赖，不新增 consent 选择。
 - 用户选择保持关闭时，不因 Python 缺失自动修改系统；不依赖 Python 的业务部分
   可以在明确警告后继续。
 
-## 唯一检查入口
+## 按操作系统选择检查入口
 
 命令入口、阶段续跑和 telemetry fallback 在任何 Python 脚本前执行：
 
 ```text
 sh {plugin_root}/scripts/runtime_preflight.sh check
 ```
+
+原生 Windows（无需 WSL 或 PATH 中的 sh）：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/runtime_preflight.ps1" check
+```
+
+本轮后续所有文档中的 `python3 script.py ...` 都是 Python 调用语义，必须使用通过预检的解释器执行。
+macOS/Linux/Git Bash 可用 `sh "{plugin_root}/scripts/runtime_preflight.sh" exec "script.py" ...`；
+Windows 可用 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/runtime_preflight.ps1" exec "script.py" ...`，
+或用回执的 `python.executable` 与 `python.arguments` 构造参数数组，PowerShell 用 `&` 调用。路径一律加引号。
+Windows 安装恢复使用同一 `.ps1` 的 `install-python --user-confirmed`。
+命令中的 POSIX 环境变量赋值、路径和 Shell 工具必须转换为宿主原生写法；不得调用 WSL 的 bash 运行原生 Windows 工作区。
+
 
 只使用脚本返回的结构化字段：
 

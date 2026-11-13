@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from bench.filesystem_runtime import remove_tree
 from bench.gradle_runtime import configure_evaluator_gradle_home
+from bench.process_runtime import spawn_group
 from bench.worker_processes import kill_group, register_group
 
 
@@ -74,6 +76,8 @@ def safe_relative_path(value: object, *, label: str) -> PurePosixPath:
     path = PurePosixPath(value)
     if (
         path.is_absolute()
+        or "\\" in value
+        or ":" in value
         or ".." in path.parts
         or path.as_posix() != value
         or any(part == ".env" or part.startswith(".env.") for part in path.parts)
@@ -147,7 +151,7 @@ def apply_workspace_preconditions(workspace: Path, manifest: dict[str, Any]) -> 
                 f"HelixHarness initialization path is a symbolic link: {value}"
             )
         if target.is_dir():
-            shutil.rmtree(target)
+            remove_tree(target)
             removed.append(value)
         elif target.exists():
             if not target.is_file():
@@ -378,7 +382,7 @@ def apply_workspace_fixture_patch(
                 "Frozen workspace fixture patch changed undeclared protected paths"
             )
     finally:
-        shutil.rmtree(validation_root, ignore_errors=True)
+        remove_tree(validation_root, ignore_errors=True)
     return apply_hidden_test_patch(
         workspace,
         patch,
@@ -490,7 +494,7 @@ def frozen_command_environment(
 
     environment = {
         key: os.environ[key]
-        for key in ("JAVA_HOME", "LANG", "LC_ALL")
+        for key in ("JAVA_HOME", "LANG", "LC_ALL", "SystemRoot", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT")
         if key in os.environ
     }
     executable_directory = str(Path(sys.executable).parent)
@@ -518,6 +522,12 @@ def frozen_command_environment(
         {
             "HOME": str(home),
             "TMPDIR": str(temporary),
+            "TMP": str(temporary),
+            "TEMP": str(temporary),
+            "USERPROFILE": str(home),
+            "APPDATA": str(home / "AppData/Roaming"),
+            "LOCALAPPDATA": str(home / "AppData/Local"),
+            "PYTHONUTF8": "1",
             "GRADLE_USER_HOME": str(resolved_gradle_home),
             "XDG_CACHE_HOME": str(cache_home),
             "CI": "true",
@@ -536,13 +546,22 @@ def run_frozen_command(
     """Run one command in its own process group and fail closed on timeout."""
 
     try:
-        process = subprocess.Popen(
-            tuple(argv),
+        command = list(argv)
+        if command and command[0] in {"python", "python3"}:
+            command[0] = sys.executable
+        if command and os.name == "nt":
+            wrapper = {"./gradlew": "gradlew.bat", "gradlew": "gradlew.bat",
+                       "./mvnw": "mvnw.cmd", "mvnw": "mvnw.cmd"}.get(command[0])
+            if wrapper and (cwd / wrapper).is_file():
+                command[0] = str((cwd / wrapper).resolve())
+            else:
+                command[0] = shutil.which(command[0], path=environment.get("PATH")) or command[0]
+        process = spawn_group(
+            tuple(command),
             cwd=cwd,
             env=environment,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            start_new_session=True,
         )
     except OSError:
         return FrozenCommandResult(returncode=None, timed_out=False)

@@ -7,6 +7,7 @@ hooks:
     - matcher: "AskUserQuestion"
       hooks:
         - type: command
+          shell: bash
           command: >-
             sh -c 'node "${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/d2c_hook_entry.cjs" PreToolUse && exit 0;
             printf "%s\n" "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"d-d2c bound guard could not start; repair the current plugin installation.\"}}"'
@@ -14,6 +15,7 @@ hooks:
   Stop:
     - hooks:
         - type: command
+          shell: bash
           command: >-
             sh -c 'node "${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/d2c_hook_entry.cjs" Stop && exit 0;
             printf "%s\n" "{\"decision\":\"block\",\"reason\":\"d-d2c bound guard could not start; repair the current plugin installation.\"}"'

@@ -222,8 +222,10 @@ bootstrap 阶段不写 usage telemetry；数据统计开启时，需求级数据
 
 **Linters**（`docs/harness/linters/`）：
 
-- `invariant-check.sh` — 基于技术栈生成基础检查脚本
-- `spec-sync-check.sh` — 完整读取 `templates/harness/spec-sync-check.sh.tpl` 并原样写入；它从脚本位置
+新生成的 linter 必须是 Python 3.10+ 标准库脚本：通过 `Path(__file__).resolve().parents[3]` 定位项目根，使用 pathlib/re/subprocess 参数数组执行项目检查，禁止生成依赖 Bash/grep/head/chmod 的实现。现有 `.sh` linter 保留，runner 可通过显式 Git Bash 兼容运行，但不得跳过检查。
+
+- `invariant-check.py` — 基于技术栈生成基础检查脚本
+- `spec-sync-check.py` — 完整读取 `templates/harness/spec-sync-check.py.tpl` 并原样写入；它从脚本位置
   解析项目根，提示代码改动与 `tasks.md` / `verify-report.md` / finding 对账之间可能存在脱节；默认
   warning-only，不做重阻断，不得重新手写相对当前工作目录的版本
 
@@ -364,7 +366,7 @@ status_entities: []
 - [x] docs/harness/infrastructure/index.md + 相关叶子规则 — {N} 个规范文件
 - [x] docs/specs/active/、docs/specs/completed/ — 仅创建目录；需求工件由后续 Propose/Apply 生成
 - [x] docs/harness/linters/index.md
-- [x] docs/harness/linters/invariant-check.sh
+- [x] docs/harness/linters/invariant-check.py
 - [x] docs/knowledge/index.md
 - [x] docs/knowledge/prd/
 - [x] docs/knowledge/prd/index.md
