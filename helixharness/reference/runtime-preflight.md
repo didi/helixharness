@@ -7,7 +7,7 @@ Python。任何命令在第一次调用 `python3` 前都必须执行本协议，
 `command not found` 暴露给用户。
 
 - 最低 Python 版本：3.10。
-- 命令名必须是 `python3`，并且可从当前进程的 `PATH` 找到。
+- 解释器按 `python3` → `python` → `py -3` 的顺序从当前进程的 `PATH` 探测，第一个真实可运行且版本合格的即被选中；WindowsApps 应用执行别名（Microsoft Store 占位）探测失败会被自动跳过。被选中的解释器由 preflight 在 `python.command` 中返回，后续 Python 调用必须使用该命令而不是硬编码 `python3`。
 - Git 是 HelixHarness repo 工作流的必需依赖，也在同一次 preflight 中检查。
 - Python 不可用时无法解析授权缓存和提醒周期，因此 Init 暂不展示统计说明或开启选项，不读取或手写授权缓存。恢复 Python 后重新调用 resolver，按授权缓存和提醒周期决定是否问询，不因缺少异步地址跳过。普通生命周期命令只修复运行依赖，不新增 consent 选择。
 - 用户选择保持关闭时，不因 Python 缺失自动修改系统；不依赖 Python 的业务部分
@@ -19,6 +19,12 @@ Python。任何命令在第一次调用 `python3` 前都必须执行本协议，
 
 ```text
 sh {plugin_root}/scripts/runtime_preflight.sh check
+```
+
+Windows 原生环境（无 `sh`）使用 PowerShell 入口，返回同一 JSON 合同：
+
+```text
+powershell -NoProfile -ExecutionPolicy Bypass -File {plugin_root}/scripts/runtime_preflight.ps1 check
 ```
 
 只使用脚本返回的结构化字段：
@@ -33,10 +39,10 @@ sh {plugin_root}/scripts/runtime_preflight.sh check
 
 ## 运行依赖可用后的来源校验
 
-Python/Git 检查通过后，在版本检查和业务读取/写入前执行：
+Python/Git 检查通过后，在版本检查和业务读取/写入前执行（解释器使用 preflight 返回的 `python.command`）：
 
 ```text
-python3 {plugin_root}/scripts/host_runtime_cli.py resolve --platform {canonical_host_id} --expected-plugin-root {session_bound_plugin_root}
+{python.command} {plugin_root}/scripts/host_runtime_cli.py resolve --platform {canonical_host_id} --expected-plugin-root {session_bound_plugin_root}
 ```
 
 两个根目录均来自当前 Host Context，不能通过搜索另一安装补齐。只有 `status=resolved` 且

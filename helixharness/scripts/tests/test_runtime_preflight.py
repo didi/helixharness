@@ -13,20 +13,36 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/runtime_preflight.sh"
 
+FAKE_INTERPRETER = (
+    "#!/bin/sh\n"
+    "for arg in \"$@\"; do\n"
+    "  if [ \"$arg\" = \"-c\" ]; then printf '%s\\n' \"$FAKE_PYTHON_VERSION\"; exit 0; fi\n"
+    "done\n"
+    "exit 0\n"
+)
+
+BROKEN_STUB = (
+    "#!/bin/sh\n"
+    "# Mimics a Windows Store app-execution alias: present on PATH but unable\n"
+    "# to run Python; the probe must skip it.\n"
+    "exit 1\n"
+)
+
 
 class RuntimePreflightTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
         self.bin_dir = Path(self.temp_dir.name)
-        fake_python = self.bin_dir / "python3"
-        fake_python.write_text(
-            "#!/bin/sh\n"
-            "if [ \"$1\" = \"-c\" ]; then printf '%s\\n' \"$FAKE_PYTHON_VERSION\"; "
-            "else exit 0; fi\n",
-            encoding="utf-8",
-        )
-        fake_python.chmod(0o755)
+        # Shadow every candidate name so the host machine's real interpreters
+        # cannot leak into a test.
+        for name in ("python3", "python", "py"):
+            self.write_fake(name, FAKE_INTERPRETER)
+
+    def write_fake(self, name: str, body: str) -> None:
+        fake = self.bin_dir / name
+        fake.write_text(body, encoding="utf-8")
+        fake.chmod(0o755)
 
     def check(self, version: str) -> dict:
         environment = os.environ.copy()
@@ -62,6 +78,36 @@ class RuntimePreflightTest(unittest.TestCase):
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["python"]["status"], "ready")
         self.assertEqual(payload["next_action"], "continue")
+
+    def test_ready_payload_reports_selected_command(self) -> None:
+        payload = self.check("3.12.13")
+        self.assertEqual(payload["python"]["command"], "python3")
+
+    def test_broken_python3_alias_falls_back_to_python(self) -> None:
+        self.write_fake("python3", BROKEN_STUB)
+        payload = self.check("3.12.16")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["python"]["status"], "ready")
+        self.assertEqual(payload["python"]["command"], "python")
+        self.assertEqual(payload["python"]["version"], "3.12.16")
+
+    def test_broken_python3_alias_falls_back_to_py_launcher(self) -> None:
+        self.write_fake("python3", BROKEN_STUB)
+        self.write_fake("python", BROKEN_STUB)
+        payload = self.check("3.11.9")
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["python"]["status"], "ready")
+        self.assertEqual(payload["python"]["command"], "py -3")
+
+    def test_all_candidates_broken_reports_unusable(self) -> None:
+        self.write_fake("python3", BROKEN_STUB)
+        self.write_fake("python", BROKEN_STUB)
+        self.write_fake("py", BROKEN_STUB)
+        payload = self.check("3.12.16")
+        self.assertFalse(payload["ok"])
+        self.assertEqual(payload["python"]["status"], "unusable")
+        self.assertIsNone(payload["python"]["command"])
+        self.assertEqual(payload["next_action"], "install_python_or_disable_telemetry")
 
     def test_docs_and_hook_share_the_same_minimum(self) -> None:
         protocol = (ROOT / "reference/runtime-preflight.md").read_text(encoding="utf-8")

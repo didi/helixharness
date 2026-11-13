@@ -226,6 +226,9 @@ bootstrap 阶段不写 usage telemetry；数据统计开启时，需求级数据
 - `spec-sync-check.sh` — 完整读取 `templates/harness/spec-sync-check.sh.tpl` 并原样写入；它从脚本位置
   解析项目根，提示代码改动与 `tasks.md` / `verify-report.md` / finding 对账之间可能存在脱节；默认
   warning-only，不做重阻断，不得重新手写相对当前工作目录的版本
+- `run-sh.ps1` — 完整读取 `templates/harness/run-sh.ps1.tpl` 并原样写入；它是项目钩子 `commandWindows`
+  的 Windows 启动器，负责定位 Git for Windows 的 sh 并运行上述 `.sh` linter；不得省略，否则原生
+  Windows 上 PostToolUse 钩子无法执行
 
 ### Phase 3.5: 写入项目上下文
 
@@ -365,6 +368,7 @@ status_entities: []
 - [x] docs/specs/active/、docs/specs/completed/ — 仅创建目录；需求工件由后续 Propose/Apply 生成
 - [x] docs/harness/linters/index.md
 - [x] docs/harness/linters/invariant-check.sh
+- [x] docs/harness/linters/run-sh.ps1
 - [x] docs/knowledge/index.md
 - [x] docs/knowledge/prd/
 - [x] docs/knowledge/prd/index.md
