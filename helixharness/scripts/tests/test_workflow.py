@@ -16,6 +16,7 @@ from unittest import mock
 import atomic_files
 import workflow
 import workflow_router
+from symlink_support import symlink_or_skip
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -1129,7 +1130,8 @@ must_fix_rounds: {must_fix_rounds}
         self.write_tasks(status="ready", rows="| T-01 | First | AC-01 | — | pending |")
         external = self.repo / "outside.txt"
         external.write_text("keep\n", encoding="utf-8")
-        (self.feature_dir / ".tasks.md.helixharness-tmp").symlink_to(external)
+        with symlink_or_skip(self):
+            (self.feature_dir / ".tasks.md.helixharness-tmp").symlink_to(external)
 
         result = self.run_cli("bind-apply", "--feature", self.feature)
 
@@ -1144,7 +1146,8 @@ must_fix_rounds: {must_fix_rounds}
         external.write_text('{"keep": true}\n', encoding="utf-8")
         state = self.repo / ".helixharness/workflow" / self.feature / "apply-state.json"
         state.parent.mkdir(parents=True)
-        state.symlink_to(external)
+        with symlink_or_skip(self):
+            state.symlink_to(external)
 
         result = self.run_cli("bind-apply", "--feature", self.feature, check=False)
 
@@ -1880,7 +1883,8 @@ must_fix_rounds: {must_fix_rounds}
         )
         symlink = self.repo / "docs/knowledge/link.md"
         symlink.parent.mkdir(parents=True)
-        symlink.symlink_to(outside)
+        with symlink_or_skip(self):
+            symlink.symlink_to(outside)
         linked = self.run_cli(
             "authorize-knowledge",
             "--feature",

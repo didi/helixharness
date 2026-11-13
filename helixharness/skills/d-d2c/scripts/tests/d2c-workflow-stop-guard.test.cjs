@@ -91,7 +91,30 @@ function isolatedHookEnv(root, overrides = {}) {
   return env
 }
 
+function posixShell() {
+  if (process.platform !== 'win32') return '/bin/sh'
+  // Configured hook commands are POSIX shell pipelines; on Windows they need
+  // a bash-compatible shell (Git for Windows ships one in Git\bin).
+  const candidates = []
+  if (process.env.GIT_BASH_PATH) candidates.push(process.env.GIT_BASH_PATH)
+  candidates.push('C:\\Program Files\\Git\\bin\\bash.exe')
+  candidates.push('C:\\Program Files (x86)\\Git\\bin\\bash.exe')
+  for (const dir of (process.env.PATH || '').split(path.delimiter)) {
+    candidates.push(path.join(dir, 'bash.exe'))
+  }
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate
+    } catch {
+      // Keep looking through the remaining candidates.
+    }
+  }
+  return null
+}
+
 function runConfiguredHook(command, root, eventName, env = {}) {
+  const shell = posixShell()
+  assert.ok(shell, 'configured hook commands require a bash-compatible shell')
   const input = eventName === 'Stop'
     ? {
         session_id: 'configured-session',
@@ -106,7 +129,7 @@ function runConfiguredHook(command, root, eventName, env = {}) {
         tool_name: 'AskUserQuestion',
         tool_input: { questions: [] },
       }
-  return spawnSync('/bin/sh', ['-c', command], {
+  return spawnSync(shell, ['-c', command], {
     cwd: root,
     input: JSON.stringify(input),
     encoding: 'utf8',
@@ -424,6 +447,10 @@ function testUserQuestionGuard() {
 }
 
 function testConfiguredHookResolution() {
+  if (!posixShell()) {
+    console.log('SKIP testConfiguredHookResolution: no bash-compatible shell found')
+    return
+  }
   const { source } = configuredHookCommands()
   assert.ok(!source.includes('${CLAUDE_SKILL_DIR}'))
   const stopCommand = configuredHookCommand('d2c-stop-guard.cjs')
@@ -446,6 +473,10 @@ function testConfiguredHookResolution() {
 }
 
 function testConfiguredHooksFailClosed() {
+  if (!posixShell()) {
+    console.log('SKIP testConfiguredHooksFailClosed: no bash-compatible shell found')
+    return
+  }
   const stopCommand = configuredHookCommand('d2c-stop-guard.cjs')
   const questionCommand = configuredHookCommand('d2c-user-question-guard.cjs')
 

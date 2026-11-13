@@ -7,6 +7,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from symlink_support import symlink_or_skip
+
 ROOT = Path(__file__).resolve().parents[2]
 
 class SourceBindingTest(unittest.TestCase):
@@ -57,7 +59,8 @@ class SourceBindingTest(unittest.TestCase):
     def test_equivalent_symlink_spelling_of_bound_root_is_accepted(self):
         with tempfile.TemporaryDirectory() as directory:
             alias = Path(directory) / "plugin-link"
-            alias.symlink_to(ROOT, target_is_directory=True)
+            with symlink_or_skip(self):
+                alias.symlink_to(ROOT, target_is_directory=True)
             result = self.invoke("host_runtime_cli.py", "resolve", "--platform", "claude-code", bound=alias)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

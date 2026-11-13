@@ -7,6 +7,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
@@ -129,7 +130,9 @@ class CodexEntryLoadTest(unittest.TestCase):
                 command_path.read_text(encoding="utf-8") + large_suffix,
                 encoding="utf-8",
             )
-            expected = command_path.read_text(encoding="utf-8")
+            # Byte-exact: prepare hashes and serves raw file bytes, so the
+            # comparison must not normalize CRLF on Windows checkouts.
+            expected = command_path.read_bytes().decode("utf-8")
             self.assertGreater(len(expected.encode("utf-8")), 100 * 1024)
 
             prepared = prepare_entry(
@@ -167,8 +170,8 @@ class CodexEntryLoadTest(unittest.TestCase):
             for included in ENTRY_FIXTURE_ROOTS:
                 shutil.copytree(PLUGIN_ROOT / included, root / included)
             command_path = root / "commands/apply.md"
-            original = command_path.read_text(encoding="utf-8") + "\nfirst-revision\n"
-            command_path.write_text(original, encoding="utf-8")
+            original = command_path.read_bytes().decode("utf-8") + "\nfirst-revision\n"
+            command_path.write_bytes(original.encode("utf-8"))
 
             prepared = prepare_entry(root, command="apply", state_root=state_root)
             command_path.write_text("second-revision\n", encoding="utf-8")
@@ -240,7 +243,7 @@ class CodexEntryLoadTest(unittest.TestCase):
     def test_public_cli_prepare_page_finish_seam(self) -> None:
         loader = PLUGIN_ROOT / "scripts/codex_entry_load.py"
         base = [
-            "python3",
+            sys.executable,
             str(loader),
             "--plugin-root",
             str(PLUGIN_ROOT),
@@ -332,7 +335,7 @@ class CodexEntryLoadTest(unittest.TestCase):
         self.assertEqual(expected_paths, set(reconstructed))
         for relative, content in reconstructed.items():
             self.assertEqual(
-                (PLUGIN_ROOT / relative).read_text(encoding="utf-8"),
+                (PLUGIN_ROOT / relative).read_bytes().decode("utf-8"),
                 content,
             )
 

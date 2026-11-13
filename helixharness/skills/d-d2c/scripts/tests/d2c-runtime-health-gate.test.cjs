@@ -20,6 +20,31 @@ const {
 
 const checkpointScript = path.resolve(__dirname, '../d2c-workflow-checkpoint.cjs')
 
+function clearReadOnly(root) {
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const full = path.join(root, entry.name)
+    try {
+      fs.chmodSync(full, 0o666)
+    } catch {
+      // Entry may already be gone; rmSync below reports any real failure.
+    }
+    if (entry.isDirectory()) clearReadOnly(full)
+  }
+}
+
+function removeTree(root) {
+  if (process.platform === 'win32') {
+    // Committed git objects are read-only on Windows, and rmSync cannot
+    // remove them; clear the flag first so fixture cleanup does not fail.
+    try {
+      clearReadOnly(root)
+    } catch {
+      // Fall through: rmSync(force) still handles the common cases.
+    }
+  }
+  fs.rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
+}
+
 function mountedProbe(overrides = {}) {
   return {
     appRootPresent: true,
@@ -163,7 +188,7 @@ function testSourceFingerprintInvalidatesAfterEdit() {
     fs.writeFileSync(path.join(root, 'page.vue'), '<template><section /></template>\n', 'utf8')
     assert.ok(validateHealthEvidence(evidence, { cwd: root }).some((item) => item.includes('已过期')))
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    removeTree(root)
   }
 }
 
@@ -211,14 +236,14 @@ function testPreviewHarnessCleanupDoesNotStaleBusinessEvidence() {
     assert.ok(!checked.files.some((file) => file.startsWith('static/d2c-preview-runtime/sample/')))
 
     fs.writeFileSync(webpack, 'module.exports = {}\n', 'utf8')
-    fs.rmSync(runtimeDir, { recursive: true, force: true })
+    removeTree(runtimeDir)
     const evidence = { status: 'passed', askUser: false, sourceFingerprint: checked }
     assert.deepStrictEqual(validateHealthEvidence(evidence, { cwd: root }), [])
 
     fs.writeFileSync(ignoredPage, '<template><aside /></template>\n', 'utf8')
     assert.ok(validateHealthEvidence(evidence, { cwd: root }).some((item) => item.includes('已过期')))
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    removeTree(root)
   }
 }
 
@@ -259,7 +284,7 @@ function testPhase1CheckpointRequiresFreshPassingHealth() {
     assert.match(stale.stderr, /已过期/)
     assert.match(stale.stderr, /askUser=false/)
   } finally {
-    fs.rmSync(root, { recursive: true, force: true })
+    removeTree(root)
   }
 }
 
