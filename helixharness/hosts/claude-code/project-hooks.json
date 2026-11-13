@@ -12,11 +12,13 @@
           "hooks": [
             {
               "type": "command",
-              "command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50"
+              "command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50",
+              "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/harness/linters/run-sh.ps1 invariant-check.sh"
             },
             {
               "type": "command",
-              "command": "bash docs/harness/linters/spec-sync-check.sh 2>&1 | head -50"
+              "command": "bash docs/harness/linters/spec-sync-check.sh 2>&1 | head -50",
+              "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/harness/linters/run-sh.ps1 spec-sync-check.sh"
             }
           ]
         }
