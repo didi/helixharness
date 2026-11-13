@@ -339,6 +339,12 @@ function entrySource(targetImport, slug) {
  *   - 可选 loader 缺失时跳过对应规则，而不是让整份配置 require 失败。
  */
 function standaloneWebpackConfigSource(projectRoot, entryAbs, templateAbs, outputAbs, entryKey, slug) {
+  // Embed posix-style absolute paths so the generated config is identical on
+  // every platform; webpack and Node both accept forward slashes on Windows.
+  const rootRef = posixPath(projectRoot);
+  const entryRef = posixPath(entryAbs);
+  const templateRef = posixPath(templateAbs);
+  const outputRef = posixPath(outputAbs);
   return [
     `'use strict';`,
     `// D2C-PREVIEW-ISOLATED ${slug}: standalone`,
@@ -363,17 +369,17 @@ function standaloneWebpackConfigSource(projectRoot, entryAbs, templateAbs, outpu
     '',
     'module.exports = {',
     "  mode: 'development',",
-    `  context: ${jsString(projectRoot)},`,
-    `  entry: { ${entryKey}: ${jsString(entryAbs)} },`,
+    `  context: ${jsString(rootRef)},`,
+    `  entry: { ${entryKey}: ${jsString(entryRef)} },`,
     '  output: {',
-    `    path: ${jsString(outputAbs)},`,
+    `    path: ${jsString(outputRef)},`,
     "    filename: '[name].js',",
     "    publicPath: './',",
     '  },',
     "  devtool: 'source-map',",
     '  resolve: {',
     "    extensions: ['.js', '.ts', '.vue', '.json'],",
-    `    alias: { vue$: 'vue/dist/vue.esm.js', '@': ${jsString(projectRoot)}, '~': ${jsString(projectRoot)} },`,
+    `    alias: { vue$: 'vue/dist/vue.esm.js', '@': ${jsString(rootRef)}, '~': ${jsString(rootRef)} },`,
     '  },',
     '  module: {',
     '    rules: [',
@@ -392,7 +398,7 @@ function standaloneWebpackConfigSource(projectRoot, entryAbs, templateAbs, outpu
     '    VueLoaderPlugin ? new VueLoaderPlugin() : null,',
     '    new HtmlWebpackPlugin({',
     "      title: 'd2c isolated preview',",
-    `      template: ${jsString(templateAbs)},`,
+    `      template: ${jsString(templateRef)},`,
     "      filename: 'index.html',",
     `      chunks: ['${entryKey}'],`,
     '      inject: true,',
