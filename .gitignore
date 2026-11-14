@@ -16,6 +16,12 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 .pytest_cache/
+.coverage*
+!.coveragerc
+coverage.json
+coverage.xml
+*-coverage.xml
+htmlcov/
 .ruff_cache/
 .playwright-cli/
 .cache/

@@ -292,6 +292,13 @@ def validate_hard_gate_analysis_output(
     findings = output.get("findings")
     if not isinstance(findings, list):
         raise HardGateAnalysisError("AI 分析缺少逐门禁结论")
+    if any(
+        not isinstance(item, dict)
+        or any(not isinstance(item.get(key), str) or not item[key]
+               for key in ("gate_id", "side", "case_id"))
+        for item in findings
+    ):
+        raise HardGateAnalysisError("AI 分析包含无效的门禁标识")
     expected = {
         (gate["gate_id"], gate["side"], gate["case_id"])
         for gate in request["hard_gates"]
@@ -311,7 +318,8 @@ def validate_hard_gate_analysis_output(
         if not isinstance(refs, list) or not refs:
             raise HardGateAnalysisError("AI 结论缺少证据引用")
         if any(
-            not isinstance(ref, dict) or ref.get("ref_id") not in allowed_refs
+            not isinstance(ref, dict) or not isinstance(ref.get("ref_id"), str)
+            or ref["ref_id"] not in allowed_refs
             for ref in refs
         ):
             raise HardGateAnalysisError("AI 结论引用了不存在的证据")

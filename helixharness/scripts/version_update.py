@@ -1100,7 +1100,9 @@ def _load_authorization(path: Path, challenge_id: str, now: datetime) -> dict[st
         raise UpdateError("invalid update authorization policy")
     created_at = _parse_timestamp(data["created_at"])
     expires_at = _parse_timestamp(data["expires_at"])
-    if created_at is None or expires_at is None or expires_at <= created_at:
+    if (created_at is None or expires_at is None or expires_at <= created_at
+            or created_at > now
+            or expires_at - created_at > timedelta(minutes=AUTH_TTL_MINUTES)):
         raise UpdateError("invalid update authorization lifetime")
     if now >= expires_at:
         raise UpdateError("update authorization challenge expired")
@@ -1171,22 +1173,19 @@ def apply_update_choice(
             authorization["authorized_at"] = _timestamp(current)
             _atomic_write(authorization_path, authorization)
             return {**authorization, "action": action}
+        if authorization["update_status"] == "recommended":
+            # Persist the decision before consuming its challenge. A policy
+            # refresh or cache write failure must leave consent retryable.
+            skipped = record_skip(
+                cache_path, authorization["target_version"],
+                "interactive-user", True, now=current,
+            )
+            _durable_unlink(authorization_path)
+            return {
+                **skipped, "action": action, "blocked": False,
+                "authorization_cancelled": True,
+            }
         _durable_unlink(authorization_path)
-
-    if authorization["update_status"] == "recommended":
-        skipped = record_skip(
-            cache_path,
-            authorization["target_version"],
-            "interactive-user",
-            True,
-            now=current,
-        )
-        return {
-            **skipped,
-            "action": action,
-            "blocked": False,
-            "authorization_cancelled": True,
-        }
     return {
         "action": action,
         "blocked": True,
@@ -1255,8 +1254,13 @@ def install(
             except UpdateHostError as exc:
                 raise UpdateError(str(exc)) from exc
             step_ids = {step.step_id for step in steps}
+            if not steps or len(step_ids) != len(steps):
+                raise UpdateError("update install step plan is empty or has duplicate step ids")
             if any(item not in step_ids for item in authorization["completed_steps"]):
                 raise UpdateError("update authorization contains an unknown completed step")
+            expected_prefix = [step.step_id for step in steps[:len(authorization["completed_steps"])]]
+            if authorization["completed_steps"] != expected_prefix:
+                raise UpdateError("update authorization completed steps are out of order")
             initial_state = authorization["state"]
 
         if initial_state == "authorized":

@@ -10,7 +10,7 @@ param(
     [string]$ScriptName
 )
 
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
 # 只接受文件名，防止路径逃逸。
 $leaf = Split-Path -Leaf $ScriptName
@@ -23,7 +23,7 @@ if ($null -eq $gitCmd) { $gitCmd = Get-Command git -ErrorAction SilentlyContinue
 if ($null -ne $gitCmd) {
     # git.exe 可能位于 Git\cmd、Git\bin 或 Git\mingw64\bin，逐级向上找 usr\bin。
     $dir = Split-Path $gitCmd.Source
-    for ($i = 0; $i -lt 4 -and $null -eq $usrBin; $i++) {
+    for ($i = 0; $i -lt 4 -and $dir -and $null -eq $usrBin; $i++) {
         $candidate = Join-Path $dir "usr\bin"
         if (Test-Path (Join-Path $candidate "sh.exe")) { $usrBin = $candidate }
         $dir = Split-Path $dir

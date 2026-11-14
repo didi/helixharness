@@ -1,6 +1,6 @@
 ﻿# HelixHarness lifecycle hook bootstrap (Windows / PowerShell).
 # Mirrors scripts/python_hook_bootstrap.sh: picks the first interpreter that
-# actually runs Python, skipping Windows Store app-execution aliases.
+# actually runs Python 3.10+, without launching WindowsApps execution aliases.
 param(
     [Parameter(Position = 0)]
     [string]$EventName = "",
@@ -9,7 +9,9 @@ param(
 )
 
 # Hook hosts read stdout as UTF-8; PS5.1 defaults to the system codepage.
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+[Console]::InputEncoding = [Console]::OutputEncoding
+$OutputEncoding = [Console]::OutputEncoding
 
 function Get-PythonCommand {
     foreach ($candidate in @(
@@ -19,9 +21,11 @@ function Get-PythonCommand {
     )) {
         # Enumerate every PATH match: a Store alias may shadow a real
         # interpreter that appears later in PATH.
-        foreach ($cmd in @(Get-Command $candidate.Exe -All -ErrorAction SilentlyContinue)) {
-            $probeArgs = $candidate.Args + @("-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)")
-            & $cmd.Source @probeArgs 2>$null | Out-Null
+        foreach ($cmd in @(Get-Command $candidate.Exe -All -CommandType Application -ErrorAction SilentlyContinue)) {
+            if ($cmd.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
+            $probeArgs = $candidate.Args + @("-c", "import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)")
+            $global:LASTEXITCODE = 1
+            try { & $cmd.Source @probeArgs 2>$null | Out-Null } catch { continue }
             if ($LASTEXITCODE -eq 0) {
                 return @{ Exe = $cmd.Source; Args = $candidate.Args }
             }

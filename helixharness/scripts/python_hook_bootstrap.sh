@@ -13,7 +13,7 @@ for candidate in python3 python py; do
     *) probe="$candidate" ;;
   esac
   if command -v "$candidate" >/dev/null 2>&1 \
-    && $probe -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+    && $probe -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
     python_cmd="$probe"
     break
   fi

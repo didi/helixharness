@@ -30,9 +30,18 @@ Tests must use synthetic data and mock paid model calls, external workers and ne
 
 Test expectations:
 
-- Every bug fix ships a regression test in `helixharness/scripts/tests/`; every behavior change updates the tests that pin the old contract.
+- Every plugin bug fix ships a regression test in `helixharness/scripts/tests/`; platform regressions belong in the owning component's tests directory. Every behavior change updates the tests that pin the old contract.
 - Tests must be hermetic: fake or shadow host-machine tools (`python3`, `git`, `$HOME`) instead of depending on what happens to be installed, so the suite behaves identically on every machine.
 - The plugin suite runs on Linux, macOS and Windows in CI (`.github/workflows/tests.yml`) and must pass before merge; run `python helixharness/scripts/run_tests.py` locally before opening a PR. Use `@unittest.skipIf` / the shared helpers in `scripts/tests/` (for example `symlink_support.symlink_or_skip`) for genuinely platform-specific behaviour rather than letting tests fail on one OS.
+- Windows CI requires execution tests under both Windows PowerShell 5.1 and PowerShell 7. On other systems, install `pwsh` or set `HELIXHARNESS_TEST_PWSH` to its executable; unavailable engines are reported as skipped. Interpreter discovery and provider calls use synthetic fixtures; these tests never install Python or update a real plugin.
+- CI collects Python subprocess and branch coverage and uploads XML reports per OS/Python combination. Each component must meet a 75% combined statement/branch baseline; this is a regression floor, not a completeness claim. PowerShell execution assertions are separate from Python coverage. To reproduce locally, install `coverage>=7.10,<8`, set `PYTHONUTF8=1`, and run:
+
+```bash
+python -m coverage run --rcfile=helixharness/.coveragerc helixharness/scripts/run_tests.py
+python -m coverage combine --rcfile=helixharness/.coveragerc
+python -m coverage report --rcfile=helixharness/.coveragerc
+(cd helixharness-platform && python -m coverage run -m pytest && python -m coverage combine && python -m coverage report)
+```
 
 ## Source boundaries
 
@@ -67,3 +76,5 @@ Unless explicitly stated otherwise, contributions intentionally submitted for in
 欢迎通过 GitHub Issue 提交问题、通过 PR 改进代码和文档；无需先部署平台。较大行为变更先说明问题、验收标准和兼容性影响。PR 面向仓库默认分支，保持单一目的，列出实际执行的验证命令和结果，并由维护者评审。
 
 使用 Python 3.10+，按上面的命令准备环境并运行相关组件测试。工作流正文放在 `workflows/`，不要复制回 `commands/`；平台三个后端保持模块边界。示例与测试使用合成数据，不提交凭据、私有对话或运行产物。贡献按 Apache-2.0 提交，并遵守社区行为准则。
+
+Windows CI 必须同时运行 PowerShell 5.1 与 7 的执行测试；其他系统可安装 `pwsh`，或通过 `HELIXHARNESS_TEST_PWSH` 指定路径，缺失时明确记录跳过。测试只用合成解释器和模型客户端，不安装 Python 或更新真实插件。CI 汇总 Python 子进程与分支覆盖率、按平台上传 XML，每组件设 75% 的语句/分支综合基线，作为防回退门槛而非完整覆盖承诺。PowerShell 执行断言独立验证；本地设置 `PYTHONUTF8=1` 并按上方 coverage 命令复现。

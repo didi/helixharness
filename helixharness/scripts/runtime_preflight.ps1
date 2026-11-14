@@ -1,7 +1,7 @@
 ﻿# HelixHarness runtime preflight (Windows / PowerShell).
 # Mirrors scripts/runtime_preflight.sh: same JSON contract for `check`.
 # Probes python.exe, python3.exe and `py -3`; Windows Store app-execution
-# aliases (WindowsApps stubs) fail the version probe and are skipped.
+# aliases (WindowsApps stubs) are skipped without launching them.
 param(
     [Parameter(Position = 0)]
     [string]$Action = "check"
@@ -10,7 +10,7 @@ param(
 $MinimumPython = "3.10"
 
 # Callers read stdout as UTF-8; PS5.1 defaults to the system codepage.
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
 
 function Get-PythonProbe {
     # Returns @{ Version = "x.y.z"; Command = "python" } for the first
@@ -25,14 +25,16 @@ function Get-PythonProbe {
     foreach ($candidate in $candidates) {
         # Enumerate every PATH match: a Store alias may shadow a real
         # interpreter that appears later in PATH.
-        $cmds = @(Get-Command $candidate.Exe -All -ErrorAction SilentlyContinue)
+        $cmds = @(Get-Command $candidate.Exe -All -CommandType Application -ErrorAction SilentlyContinue)
         if ($cmds.Count -eq 0) { continue }
         $foundAny = $true
         foreach ($cmd in $cmds) {
+            if ($cmd.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
             # Single quotes only: PS5.1 misquotes embedded double quotes
             # when passing arguments to native commands.
             $probeArgs = $candidate.Args + @("-c", "import sys; print('%d.%d.%d' % sys.version_info[:3])")
-            $output = & $cmd.Source @probeArgs 2>$null
+            $global:LASTEXITCODE = 1
+            try { $output = & $cmd.Source @probeArgs 2>$null } catch { continue }
             if ($LASTEXITCODE -ne 0) { continue }
             $version = (($output | Select-Object -First 1) + "").Trim()
             if ($version -notmatch '^\d+\.\d+\.\d+$') { continue }
@@ -43,7 +45,6 @@ function Get-PythonProbe {
             if ([int]$parts[0] -gt 3 -or ([int]$parts[0] -eq 3 -and [int]$parts[1] -ge 10)) {
                 return @{ Status = "ready"; Version = $version; Command = $candidate.Command }
             }
-            break
         }
     }
     if ($null -ne $unsupported) {

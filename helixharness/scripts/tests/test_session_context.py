@@ -22,7 +22,7 @@ class SessionContextTest(unittest.TestCase):
         # contract in the child instead of falling back to the Windows locale.
         environment = {
             name: os.environ[name]
-            for name in ("PATH", "SystemRoot", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "TEMP", "TMP")
+            for name in ("PATH", "SystemRoot", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "TEMP", "TMP", "COVERAGE_PROCESS_CONFIG")
             if name in os.environ
         }
         environment.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
@@ -40,6 +40,7 @@ class SessionContextTest(unittest.TestCase):
         environment = {
             "PATH": "synthetic-path", "SystemRoot": "C:\\Windows",
             "TEMP": "synthetic-temp", "PYTHONUTF8": "0",
+            "COVERAGE_PROCESS_CONFIG": "synthetic-trace-config",
             "ANTHROPIC_API_KEY": "synthetic-secret", "CLAUDE_PLUGIN_ROOT": "unrelated-root",
         }
         with patch.dict(os.environ, environment, clear=True), \
@@ -50,6 +51,7 @@ class SessionContextTest(unittest.TestCase):
         self.assertEqual("synthetic-temp", child_env["TEMP"])
         self.assertEqual("1", child_env["PYTHONUTF8"])
         self.assertEqual("utf-8", child_env["PYTHONIOENCODING"])
+        self.assertEqual("synthetic-trace-config", child_env["COVERAGE_PROCESS_CONFIG"])
         self.assertEqual("synthetic-session.env", child_env["CLAUDE_ENV_FILE"])
         self.assertNotIn("ANTHROPIC_API_KEY", child_env)
         self.assertNotIn("CLAUDE_PLUGIN_ROOT", child_env)

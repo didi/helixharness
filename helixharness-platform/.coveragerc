@@ -1,0 +1,16 @@
+[run]
+branch = true
+parallel = true
+patch = subprocess
+source = bench, eval, evolution, web_ui
+data_file = .coverage.platform
+disable_warnings = no-data-collected
+omit =
+    */tests/*
+    */web_ui/static/*
+
+[report]
+include_namespace_packages = true
+show_missing = true
+fail_under = 75
+precision = 1
