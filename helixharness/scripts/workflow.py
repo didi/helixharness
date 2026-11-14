@@ -209,10 +209,13 @@ def implementation_contract_receipt(text: str) -> str:
 
 def _git_bytes(repo: Path, *args: str) -> bytes:
     try:
+        environment = dict(os.environ)
+        environment["GIT_OPTIONAL_LOCKS"] = "0"
         return subprocess.run(
-            ["git", "-C", str(repo), *args],
+            ["git", "-c", f"safe.directory={repo}", "-C", str(repo), *args],
             check=True,
             capture_output=True,
+            env=environment,
         ).stdout
     except (OSError, subprocess.CalledProcessError) as exc:
         raise WorkflowError("Git review scope is unavailable") from exc
@@ -324,6 +327,14 @@ def _validate_manifest(value: Any, label: str) -> list[dict[str, Any]]:
     return value
 
 
+def _mkdir_private_directory(path: Path) -> None:
+    """Create project state without replacing inherited Windows sandbox ACLs."""
+    if os.name == "nt":
+        path.mkdir()
+    else:
+        path.mkdir(mode=0o700)
+
+
 def _state_path(
     repo: Path, feature: str, filename: str, *, create_parent: bool = False
 ) -> Path:
@@ -335,7 +346,7 @@ def _state_path(
                 raise WorkflowError("Lite private state directory is unsafe")
         elif create_parent:
             try:
-                current.mkdir(mode=0o700)
+                _mkdir_private_directory(current)
             except OSError as exc:
                 raise WorkflowError("cannot create Lite private state") from exc
     path = current / filename

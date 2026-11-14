@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 def git_bash() -> str | None:
-    """Select Git for Windows Bash, never the Windows/WSL launcher."""
+    """Select Git for Windows' POSIX shell, never the Windows/WSL launcher."""
     if os.name != "nt":
         return shutil.which("bash")
     candidates = []
@@ -23,11 +23,20 @@ def git_bash() -> str | None:
     git = shutil.which("git")
     if git:
         for parent in Path(git).resolve().parents:
-            candidates.extend((parent / "bin/bash.exe", parent / "usr/bin/bash.exe"))
+            candidates.extend((
+                parent / "bin/bash.exe",
+                parent / "usr/bin/bash.exe",
+                parent / "usr/bin/sh.exe",
+            ))
     for name in ("ProgramFiles", "ProgramFiles(x86)", "LOCALAPPDATA"):
         directory = os.environ.get(name)
         if directory:
-            candidates.extend((Path(directory) / "Git/bin/bash.exe", Path(directory) / "Programs/Git/bin/bash.exe"))
+            candidates.extend((
+                Path(directory) / "Git/bin/bash.exe",
+                Path(directory) / "Git/usr/bin/sh.exe",
+                Path(directory) / "Programs/Git/bin/bash.exe",
+                Path(directory) / "Programs/Git/usr/bin/sh.exe",
+            ))
     return next((str(path) for path in candidates if path.is_file()), None)
 
 

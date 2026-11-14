@@ -19,6 +19,8 @@ from pathlib import Path
 from codex_entry_load import (
     MAX_RESPONSE_BYTES,
     EntryLoadError,
+    _default_state_root,
+    _mkdir_private_directory,
     finish_entry,
     prepare_entry,
     read_entry_page,
@@ -43,6 +45,27 @@ class CodexEntryLoadTest(unittest.TestCase):
             resources=resources,
             state_root=self.state_root,
         )
+
+    def test_windows_state_directories_inherit_parent_acl(self) -> None:
+        target = Path("synthetic-state")
+        with patch("codex_entry_load.os.name", "nt"), patch.object(Path, "mkdir") as mkdir:
+            _mkdir_private_directory(target, parents=True, exist_ok=True)
+        mkdir.assert_called_once_with(parents=True, exist_ok=True)
+
+    def test_windows_default_rotates_away_from_legacy_acl_state(self) -> None:
+        with patch("codex_entry_load.os.name", "nt"), patch(
+            "codex_entry_load.tempfile.gettempdir", return_value="C:/synthetic-temp"
+        ):
+            self.assertEqual(
+                Path("C:/synthetic-temp/helixharness-codex-entry-state-v2-0"),
+                _default_state_root(),
+            )
+
+    def test_posix_state_directories_are_owner_only(self) -> None:
+        target = Path("synthetic-state")
+        with patch("codex_entry_load.os.name", "posix"), patch.object(Path, "mkdir") as mkdir:
+            _mkdir_private_directory(target)
+        mkdir.assert_called_once_with(parents=False, exist_ok=False, mode=0o700)
 
     def test_prepare_is_compact_and_loads_one_projected_command(self) -> None:
         packet = self.prepare("apply")

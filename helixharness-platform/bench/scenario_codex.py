@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import shlex
 import shutil
@@ -921,11 +922,13 @@ class CodexScenarioExecutionAdapter:
         run_root = self.work_root / run_id
         self._remove_runtime_tree(run_root, expected_parent=self.work_root)
         checkpoint_root = self.checkpoint_store.root
+        if checkpoint_root.is_symlink() or checkpoint_root.resolve() != checkpoint_root:
+            raise OSError("Scenario runtime cleanup target is unsafe")
         for job_id in job_ids:
             if re.fullmatch(r"sj_[0-9a-f]{32}", job_id) is None:
                 raise OSError("Scenario checkpoint cleanup id is invalid")
             self._remove_runtime_tree(
-                checkpoint_root / job_id,
+                self.checkpoint_store._episode_root(job_id),
                 expected_parent=checkpoint_root,
             )
         self.diagnostic_retention.mark_terminal(run_id)
@@ -959,7 +962,16 @@ class CodexScenarioExecutionAdapter:
     def _execute(self, job: ClaimedScenarioJob) -> dict[str, object]:
         strategy = _strategy(job.contract, job.side)
         runtime = job.runtime_policy
-        episode_root = self.work_root / job.run_id / job.case_id / job.side.lower() / f"attempt-{job.attempt_number}"
+        if os.name == "nt":
+            episode_key = hashlib.sha256(
+                f"{job.case_id}\n{job.side}".encode("utf-8")
+            ).hexdigest()[:12]
+            episode_root = self.work_root / job.run_id / f"{episode_key}-a{job.attempt_number}"
+        else:
+            episode_root = (
+                self.work_root / job.run_id / job.case_id / job.side.lower()
+                / f"attempt-{job.attempt_number}"
+            )
         if episode_root.exists():
             raise ScenarioCodexExecutionError(f"Fresh Scenario Episode already exists: {episode_root}")
         workspace = episode_root / "workspace"
@@ -1422,6 +1434,7 @@ class CodexScenarioExecutionAdapter:
             ("git", "init"),
             ("git", "config", "user.name", "HelixHarness Evaluation"),
             ("git", "config", "user.email", "evaluation@localhost"),
+            ("git", "config", "core.longpaths", "true"),
             ("git", "add", "-A"),
             ("git", "commit", "-m", "frozen scenario baseline"),
         )
@@ -1515,7 +1528,9 @@ class CodexScenarioExecutionAdapter:
         assert_safe_workspace_tree(verifier)
         results: list[dict[str, object]] = []
         for position, test in enumerate(_object_list(gold.get("execution_tests", []), "Execution tests"), start=1):
-            command_workspace = episode_root / "commands" / f"{position:03d}" / "workspace"
+            command_root = "c" if os.name == "nt" else "commands"
+            command_leaf = "w" if os.name == "nt" else "workspace"
+            command_workspace = episode_root / command_root / f"{position:03d}" / command_leaf
             command_workspace.parent.mkdir(parents=True)
             shutil.copytree(verifier, command_workspace)
             argv = test.get("argv")

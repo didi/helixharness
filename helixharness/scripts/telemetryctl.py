@@ -104,7 +104,13 @@ def main() -> int:
         exit_code = 1 if result["delivery"].get("status") != "skipped" and (result["unrecoverable"] or result["delivery"]["remaining"] or result["delivery"]["rejected"] or result["delivery"]["quarantined"] or result["delivery"].get("collection_circuits_open") or result["delivery"].get("delivery_circuits_open")) else 0
     report_path = home / "reports" / f"telemetryctl-{args.command}.json"
     telemetry_async._atomic_bytes(report_path, (json.dumps(result, ensure_ascii=False, indent=2) + "\n").encode("utf-8"))
-    print(json.dumps({"ok": exit_code == 0, **result, "report_path": str(report_path)}, ensure_ascii=False, sort_keys=True))
+    try:
+        print(json.dumps({"ok": exit_code == 0, **result, "report_path": str(report_path)}, ensure_ascii=False, sort_keys=True))
+    except (OSError, UnicodeError):
+        # Windows Task Scheduler may not attach a writable console. The durable
+        # report is the scheduler-facing result; missing stdout must not turn a
+        # completed delivery into a failed task.
+        pass
     return exit_code
 
 

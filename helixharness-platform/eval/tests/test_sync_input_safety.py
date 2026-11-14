@@ -1,5 +1,7 @@
 """Reject schedule injection and repository paths before touching external state."""
 
+import os
+
 import pytest
 
 from eval import usage_sync
@@ -43,6 +45,10 @@ def test_ledger_consumers_never_follow_escaping_symlinks(tmp_path, symlink_kind)
         sync._eval_inventory(root, "docs/eval")
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Git for Windows materializes repository symlinks as non-followed files by default",
+)
 def test_git_checkout_cannot_introduce_escaping_ledger_directory(tmp_path):
     import subprocess
 

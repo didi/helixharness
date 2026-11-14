@@ -386,6 +386,7 @@ def test_saving_dashboard_schedule_installs_automatic_sync(
     monkeypatch.setattr(usage_sync, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(usage_sync, "USAGE_SYNC_CONFIG", tmp_path / "eval" / "configs" / "usage_repos.yaml")
     monkeypatch.setattr(usage_sync, "USAGE_SYNC_CACHE", tmp_path / "eval" / ".cache")
+    monkeypatch.setattr(usage_sync.system_platform, "system", lambda: "Linux")
     monkeypatch.setattr(
         usage_sync,
         "USAGE_SYNC_SCRIPT",

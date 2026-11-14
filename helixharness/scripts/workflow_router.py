@@ -98,6 +98,10 @@ def route(repo: Path, *, command: str, feature: str | None = None,
             raise RouterError('command_not_supported')
         raw_arguments = arguments or ''
         lexer = shlex.shlex(raw_arguments, posix=True)
+        if os.name == 'nt':
+            # Native Windows paths use backslashes as ordinary characters.  POSIX
+            # shlex otherwise consumes them as escapes before routing sees them.
+            lexer.escape = ''
         lexer.whitespace_split = True
         lexer.commenters = ''
         tokens = []

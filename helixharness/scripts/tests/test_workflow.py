@@ -47,6 +47,29 @@ class LiteWorkflowCliTest(unittest.TestCase):
         )
         self.feature = "checkout"
 
+    def test_windows_private_state_directories_inherit_parent_acl(self) -> None:
+        target = self.repo / ".helixharness"
+        with mock.patch("workflow.os.name", "nt"), mock.patch.object(Path, "mkdir") as mkdir:
+            workflow._mkdir_private_directory(target)
+        mkdir.assert_called_once_with()
+
+    def test_posix_private_state_directories_keep_owner_only_mode(self) -> None:
+        target = self.repo / ".helixharness"
+        with mock.patch("workflow.os.name", "posix"), mock.patch.object(Path, "mkdir") as mkdir:
+            workflow._mkdir_private_directory(target)
+        mkdir.assert_called_once_with(mode=0o700)
+
+    def test_git_review_reads_disable_optional_index_locks(self) -> None:
+        completed = subprocess.CompletedProcess([], 0, stdout=b"ok")
+        with mock.patch("workflow.subprocess.run", return_value=completed) as run:
+            self.assertEqual(workflow._git_bytes(self.repo, "status"), b"ok")
+        environment = run.call_args.kwargs["env"]
+        self.assertEqual(environment["GIT_OPTIONAL_LOCKS"], "0")
+        self.assertEqual(
+            run.call_args.args[0][:5],
+            ["git", "-c", f"safe.directory={self.repo}", "-C", str(self.repo)],
+        )
+
     def tearDown(self) -> None:
         self.tempdir.cleanup()
 

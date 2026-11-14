@@ -10,6 +10,8 @@ from datetime import datetime, timedelta
 from unittest import mock
 from pathlib import Path
 
+from project_linter import git_bash
+
 import telemetry_consent
 
 
@@ -83,6 +85,61 @@ class LiteMetricsCliTest(unittest.TestCase):
             env=self.env,
         )
         return json.loads(completed.stdout)
+
+    def test_consent_cli_supports_windows_default_encoding_in_unicode_path(self) -> None:
+        repo = self.root / "中文 项目"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        environment = self.env.copy()
+        environment["PYTHONUTF8"] = "0"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8=0",
+                str(CONSENT),
+                "--repo-root",
+                str(repo),
+                "--platform",
+                "codex",
+                "resolve",
+            ],
+            capture_output=True,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            completed.returncode,
+            completed.stderr.decode("utf-8", errors="replace"),
+        )
+        metrics = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8=0",
+                str(SCRIPT),
+                "--repo-root",
+                str(repo),
+                "--platform",
+                "codex",
+                "start",
+                "--feature",
+                "unicode-path",
+                "--stage",
+                "propose",
+                "--trigger",
+                "user_command",
+            ],
+            capture_output=True,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            metrics.returncode,
+            metrics.stderr.decode("utf-8", errors="replace"),
+        )
 
     def enable(self, platform: str = "codex") -> None:
         subprocess.run(
@@ -378,10 +435,14 @@ Outbox(r'{home}').enqueue(
         env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
         hooks = json.loads((PLUGIN_ROOT / "hosts/claude-code/hooks.json").read_text())
         command = hooks["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+        shell = git_bash()
+        if shell is None:
+            self.skipTest("Git for Windows POSIX shell is required for Claude hooks")
+        env["PATH"] = str(Path(shell).parent) + os.pathsep + env.get("PATH", "")
 
         def end_session() -> subprocess.CompletedProcess:
             return subprocess.run(
-                ["sh", "-c", command],
+                [shell, "-c", command],
                 input=json.dumps({"hook_event_name": "SessionEnd", "cwd": str(self.repo)}),
                 capture_output=True, text=True, env=env, timeout=30,
             )

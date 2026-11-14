@@ -4,13 +4,15 @@ import pytest
 
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
-os.environ["GIT_CONFIG_COUNT"] = "3"
+os.environ["GIT_CONFIG_COUNT"] = "4"
 os.environ["GIT_CONFIG_KEY_0"] = "core.hooksPath"
 os.environ["GIT_CONFIG_VALUE_0"] = os.devnull
 os.environ["GIT_CONFIG_KEY_1"] = "user.name"
 os.environ["GIT_CONFIG_VALUE_1"] = "Demo"
 os.environ["GIT_CONFIG_KEY_2"] = "user.email"
 os.environ["GIT_CONFIG_VALUE_2"] = "demo@example.test"
+os.environ["GIT_CONFIG_KEY_3"] = "core.autocrlf"
+os.environ["GIT_CONFIG_VALUE_3"] = "input"
 
 
 @pytest.fixture(autouse=True)

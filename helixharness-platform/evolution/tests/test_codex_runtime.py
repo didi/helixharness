@@ -150,6 +150,7 @@ def test_candidate_runner_uses_low_privilege_host_isolation_without_bwrap(
     assert kwargs["env"]["HOME"] == str(tmp_path)
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX execution-user ownership contract")
 def test_candidate_prepare_grants_only_catalog_owned_roots(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

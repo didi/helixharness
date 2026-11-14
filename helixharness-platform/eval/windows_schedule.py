@@ -71,9 +71,16 @@ def install(config: Path, cache: Path, project: Path, expression: str) -> str:
         actual = ElementTree.fromstring(content)
         expected = ElementTree.fromstring(xml)
         for query in ("Actions/Exec/Command", "Actions/Exec/Arguments", "Actions/Exec/WorkingDirectory",
-                      "Settings/MultipleInstancesPolicy", "Settings/Enabled", "Triggers/TimeTrigger/Repetition/Interval"):
+                      "Settings/MultipleInstancesPolicy", "Triggers/TimeTrigger/Repetition/Interval"):
             path = "/".join(f"{{{NAMESPACE}}}{part}" for part in query.split("/"))
             if actual.findtext(path) != expected.findtext(path):
+                raise ValueError("Windows task readback differs from the requested definition")
+        # Task Scheduler omits boolean nodes that equal their schema default.
+        # Missing Enabled therefore means true; an explicit false still fails closed.
+        for query in ("Settings/Enabled", "Triggers/TimeTrigger/Enabled"):
+            path = "/".join(f"{{{NAMESPACE}}}{part}" for part in query.split("/"))
+            enabled = actual.findtext(path)
+            if enabled is not None and enabled.strip().lower() != "true":
                 raise ValueError("Windows task readback differs from the requested definition")
     except (ElementTree.ParseError, UnicodeError) as exc:
         raise OSError("Windows task readback is not valid XML") from exc

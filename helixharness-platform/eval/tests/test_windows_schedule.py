@@ -1,5 +1,6 @@
 from datetime import datetime
 from types import SimpleNamespace
+from xml.etree import ElementTree
 
 import pytest
 import yaml
@@ -28,6 +29,49 @@ def test_installer_verifies_xml_and_uses_parameter_arrays(tmp_path, monkeypatch)
     assert captured[0][4] == "/XML"
     assert "中文" in xml.decode("utf-16")
     assert "InteractiveToken" in xml.decode("utf-16")
+
+
+def test_installer_accepts_task_scheduler_omitted_default_enabled_nodes(tmp_path, monkeypatch):
+    """Task Scheduler normalizes explicit true values by omitting default nodes."""
+    stored = None
+
+    def run(command, **kwargs):
+        nonlocal stored
+        if "/Create" in command:
+            from pathlib import Path
+
+            requested = ElementTree.fromstring(Path(command[command.index("/XML") + 1]).read_bytes())
+            namespace = f"{{{windows_schedule.NAMESPACE}}}"
+            settings = requested.find(f"{namespace}Settings")
+            settings.remove(settings.find(f"{namespace}Enabled"))
+            trigger = requested.find(f"{namespace}Triggers/{namespace}TimeTrigger")
+            trigger.remove(trigger.find(f"{namespace}Enabled"))
+            stored = ElementTree.tostring(requested, encoding="utf-16", xml_declaration=True)
+            return SimpleNamespace(returncode=0)
+        return SimpleNamespace(returncode=0, stdout=stored)
+
+    monkeypatch.setattr(windows_schedule.subprocess, "run", run)
+    assert windows_schedule.install(tmp_path / "sync.yaml", tmp_path / "cache", tmp_path, "@hourly")
+
+
+def test_installer_rejects_an_explicitly_disabled_stored_task(tmp_path, monkeypatch):
+    stored = None
+
+    def run(command, **kwargs):
+        nonlocal stored
+        if "/Create" in command:
+            from pathlib import Path
+
+            requested = ElementTree.fromstring(Path(command[command.index("/XML") + 1]).read_bytes())
+            namespace = f"{{{windows_schedule.NAMESPACE}}}"
+            requested.find(f"{namespace}Settings/{namespace}Enabled").text = "false"
+            stored = ElementTree.tostring(requested, encoding="utf-16", xml_declaration=True)
+            return SimpleNamespace(returncode=0)
+        return SimpleNamespace(returncode=0, stdout=stored)
+
+    monkeypatch.setattr(windows_schedule.subprocess, "run", run)
+    with pytest.raises(ValueError, match="readback differs"):
+        windows_schedule.install(tmp_path / "sync.yaml", tmp_path / "cache", tmp_path, "@hourly")
 
 
 def test_unverified_schedule_is_not_reported_as_installed(tmp_path, monkeypatch):

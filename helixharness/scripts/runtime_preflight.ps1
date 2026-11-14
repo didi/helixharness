@@ -16,17 +16,20 @@ function Join-NativeArguments([string[]]$Values) {
     }) -join ' ')
 }
 
-function Invoke-HelixPython($Python, [string[]]$Values, [string]$InputText, [bool]$RedirectInput) {
+function Invoke-HelixPython($Python, [string[]]$Values, [bool]$RedirectInput) {
     $info = New-Object System.Diagnostics.ProcessStartInfo
     $info.FileName = $Python.executable
-    $info.Arguments = Join-NativeArguments (@($Python.arguments) + @('-X', 'utf8') + $Values)
+    $info.Arguments = Join-NativeArguments (@($Python.arguments) + $Values)
     $info.UseShellExecute = $false
     $info.RedirectStandardInput = $RedirectInput
     $process = [System.Diagnostics.Process]::Start($info)
     try {
         if ($RedirectInput) {
-            $bytes = [System.Text.Encoding]::UTF8.GetBytes($InputText)
-            $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+            # Keep hook payloads byte-for-byte intact. Windows PowerShell 5.1
+            # decodes redirected Console.In with its legacy console code page,
+            # so ReadToEnd followed by UTF-8 encoding corrupts non-ASCII JSON.
+            $inputStream = [Console]::OpenStandardInput()
+            $inputStream.CopyTo($process.StandardInput.BaseStream)
             $process.StandardInput.Close()
         }
         $process.WaitForExit()
@@ -50,11 +53,53 @@ function Find-HelixPython {
                     continue
                 }
                 if ([version]$version -ge [version]'3.10') {
-                    return @{ status = 'ready'; version = "$version"; executable = $candidate.Source; arguments = $prefix }
+                    return @{ status = 'ready'; version = "$version"; executable = $candidate.Source; arguments = @($prefix) + @('-X', 'utf8') }
                 }
                 $status = 'unsupported_version'
             } catch { $status = 'unusable' }
         }
+    }
+    # uv-managed interpreters are installed independently from uv's cache.
+    # Read those directories directly so Codex's workspace sandbox does not
+    # need write access to %LOCALAPPDATA%\uv\cache just to locate Python.
+    $managedRoots = @(
+        $env:UV_PYTHON_INSTALL_DIR,
+        $(if ($env:APPDATA) { Join-Path $env:APPDATA 'uv\python' }),
+        $(if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'uv\python' }),
+        $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE '.local\share\uv\python' })
+    ) | Where-Object { $_ } | Select-Object -Unique
+    foreach ($root in $managedRoots) {
+        try {
+            $directories = @($root) + @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+                Sort-Object Name -Descending | Select-Object -ExpandProperty FullName)
+            foreach ($directory in $directories) {
+                foreach ($managed in @((Join-Path $directory 'python.exe'), (Join-Path $directory 'Scripts\python.exe'))) {
+                    if (-not (Test-Path -LiteralPath $managed -PathType Leaf)) { continue }
+                    $version = & $managed -c 'import sys; print(str(sys.version_info.major)+chr(46)+str(sys.version_info.minor)+chr(46)+str(sys.version_info.micro))' 2>$null
+                    if ($LASTEXITCODE -eq 0 -and "$version" -match '^\d+\.\d+\.\d+$' -and
+                            [version]$version -ge [version]'3.10') {
+                        return @{ status = 'ready'; version = "$version"; executable = $managed; arguments = @('-X', 'utf8') }
+                    }
+                }
+            }
+        } catch { $status = 'unusable' }
+    }
+    # Codex Desktop can expose uv while omitting its managed Python directory
+    # from the hook PATH. Reuse an already-installed interpreter, but never let
+    # preflight download one implicitly.
+    foreach ($uv in @(Get-Command 'uv.exe' -CommandType Application -All -ErrorAction SilentlyContinue)) {
+        try {
+            $managed = & $uv.Source --no-python-downloads python find '>=3.10' 2>$null | Select-Object -Last 1
+            if ($LASTEXITCODE -ne 0 -or -not $managed) { continue }
+            $managed = "$managed".Trim()
+            if (-not (Test-Path -LiteralPath $managed -PathType Leaf)) { continue }
+            $version = & $managed -c 'import sys; print(str(sys.version_info.major)+chr(46)+str(sys.version_info.minor)+chr(46)+str(sys.version_info.micro))' 2>$null
+            if ($LASTEXITCODE -eq 0 -and "$version" -match '^\d+\.\d+\.\d+$' -and
+                    [version]$version -ge [version]'3.10') {
+                return @{ status = 'ready'; version = "$version"; executable = $managed; arguments = @('-X', 'utf8') }
+            }
+            $status = 'unusable'
+        } catch { $status = 'unusable' }
     }
     return @{ status = $status; version = $null; executable = $null; arguments = @() }
 }
@@ -109,14 +154,13 @@ switch ($Action) {
             '{"continue":true,"systemMessage":"HelixHarness runtime_target_missing"}'
             exit 0
         }
-        $payload = [Console]::In.ReadToEnd()
-        $code = Invoke-HelixPython $python @($RuntimeArguments[1]) $payload $true
+        $code = Invoke-HelixPython $python @($RuntimeArguments[1]) $true
         exit $code
     }
     'exec' {
         if ($python.status -ne 'ready') { Write-Check $python; exit 2 }
         if (-not $RuntimeArguments) { exit 2 }
-        $code = Invoke-HelixPython $python $RuntimeArguments '' $false
+        $code = Invoke-HelixPython $python $RuntimeArguments $false
         exit $code
     }
 }

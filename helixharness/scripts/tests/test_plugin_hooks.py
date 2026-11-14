@@ -1,8 +1,11 @@
 import json
 import os
 import subprocess
+import shlex
 import unittest
 from pathlib import Path
+
+from project_linter import git_bash
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -30,10 +33,15 @@ class PluginHooksTest(unittest.TestCase):
                 if os.name == "nt":
                     env.update({key: value for key, value in os.environ.items()
                                 if key.upper() in {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA"}})
-                argv = ["sh", "-c", command]
+                shell = git_bash()
+                if os.name == "nt" and host == "claude-code" and shell is None:
+                    self.skipTest("Git for Windows POSIX shell is required for Claude hooks")
+                if shell is not None:
+                    env["PATH"] = str(Path(shell).parent) + os.pathsep + env["PATH"]
+                argv = [shell or "sh", "-c", command]
                 if os.name == "nt" and host == "codex":
                     command = hooks["SessionStart"][0]["hooks"][0]["commandWindows"].replace("${PLUGIN_ROOT}", str(ROOT))
-                    argv = ["cmd.exe", "/d", "/s", "/c", command]
+                    argv = shlex.split(command, posix=True)
                 process = subprocess.run(
                     argv,
                     input=json.dumps(

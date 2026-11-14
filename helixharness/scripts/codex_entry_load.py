@@ -185,7 +185,19 @@ def _selected_entry(
 
 def _default_state_root() -> Path:
     uid = os.getuid() if hasattr(os, "getuid") else 0
-    return Path(tempfile.gettempdir()) / f"helixharness-codex-entry-state-v1-{uid}"
+    # v1 Windows directories may carry a sandbox-SID-only DACL from the old
+    # mode=0o700 mkdir call. Rotate once so fixed installations do not remain
+    # blocked by an inaccessible directory left by an earlier invocation.
+    generation = "v2" if os.name == "nt" else "v1"
+    return Path(tempfile.gettempdir()) / f"helixharness-codex-entry-state-{generation}-{uid}"
+
+
+def _mkdir_private_directory(path: Path, *, parents: bool = False, exist_ok: bool = False) -> None:
+    """Create state directories without replacing inherited Windows sandbox ACLs."""
+    options: dict[str, Any] = {"parents": parents, "exist_ok": exist_ok}
+    if os.name != "nt":
+        options["mode"] = 0o700
+    path.mkdir(**options)
 
 
 def _secure_state_root(value: Path | None) -> Path:
@@ -194,7 +206,11 @@ def _secure_state_root(value: Path | None) -> Path:
         raise EntryLoadError("entry state root must not be a symlink")
     if root.exists() and not root.is_dir():
         raise EntryLoadError("entry state root is invalid")
-    root.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Passing mode=0o700 to mkdir on current Windows Python versions creates a
+    # new DACL. Under the Codex restricted token that DACL can be owned by the
+    # sandbox SID and become inaccessible to the next loader process. Inherit
+    # the ACL from the existing temp/workspace parent instead.
+    _mkdir_private_directory(root, parents=True, exist_ok=True)
     owner = root / STATE_OWNER_NAME
     if not owner.exists() and not owner.is_symlink():
         foreign = [
@@ -225,7 +241,8 @@ def _secure_state_root(value: Path | None) -> Path:
         raise EntryLoadError("entry state root is not owned by HelixHarness") from exc
     if owner_value != STATE_OWNER_VALUE:
         raise EntryLoadError("entry state root is not owned by HelixHarness")
-    root.chmod(0o700)
+    if os.name != "nt":
+        root.chmod(0o700)
     resolved = root.resolve()
     if not resolved.is_dir():
         raise EntryLoadError("entry state root is invalid")
@@ -355,7 +372,7 @@ def prepare_entry(
         invocation = _invocation_dir(secure_root, invocation_key)
         staging = secure_root / f".staging-{invocation_key}"
         try:
-            staging.mkdir(mode=0o700)
+            _mkdir_private_directory(staging)
             break
         except FileExistsError:
             continue

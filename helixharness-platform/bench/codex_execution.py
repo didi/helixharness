@@ -851,7 +851,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -912,7 +912,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -985,7 +985,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -1306,9 +1306,17 @@ class WorkflowCheckpointStore:
         ):
             raise CodexExecutionError("Workflow checkpoint Episode directory is invalid")
         episode_root = self.root / episode_id
+        if os.name == "nt" and len(str(episode_root)) > 180:
+            compact_id = hashlib.sha256(episode_id.encode("utf-8")).hexdigest()[:12]
+            episode_root = self.root / f"e-{compact_id}"
         if episode_root.is_symlink() or (episode_root.exists() and not episode_root.is_dir()):
             raise CodexExecutionError("Workflow checkpoint Episode directory is invalid")
         return episode_root
+
+    @staticmethod
+    def _temporary_checkpoint_name() -> str:
+        token = uuid.uuid4().hex
+        return f".t-{token[:8]}" if os.name == "nt" else f".tmp-{token}"
 
     @staticmethod
     def _manifest(checkpoint_root: Path) -> dict[str, Any]:
