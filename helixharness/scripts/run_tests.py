@@ -46,6 +46,10 @@ def main() -> int:
     _ensure_utf8_mode()
     _sanitize_git_env()
     root = Path(__file__).resolve().parent
+    # coverage/runpy on Python 3.10 need not add the script directory to
+    # sys.path as direct execution does. Tests import the bundled scripts.
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
     suite = unittest.TestLoader().discover(str(root / "tests"), pattern="test_*.py")
     result = unittest.TextTestRunner(verbosity=1).run(suite)
     return 0 if result.wasSuccessful() else 1

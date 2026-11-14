@@ -89,7 +89,8 @@ class PowerShellRuntimeTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='helix PS 测试 ')
         self.addCleanup(self.temp.cleanup)
-        self.folder = Path(self.temp.name)
+        # PowerShell expands Windows 8.3 aliases (RUNNER~1) in script paths.
+        self.folder = Path(self.temp.name).resolve()
         self.log = self.folder/'calls.jsonl'
         self.target = self.folder/'target with spaces.py'
         self.target.write_text('import json, sys\nprint(json.dumps({"stdin":sys.stdin.read(), "argv":sys.argv[1:]}, ensure_ascii=False))\nsys.exit(7)\n', encoding='utf-8')

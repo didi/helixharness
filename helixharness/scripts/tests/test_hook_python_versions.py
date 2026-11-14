@@ -30,11 +30,11 @@ class HookPythonVersionsTest(unittest.TestCase):
         self.target.write_text('import json,sys\nprint(json.dumps(sys.stdin.read(), ensure_ascii=False))\nsys.exit(7)\n', encoding='utf-8')
 
     def candidate(self, name, version, broken=False):
-        code = ("import os,sys\nargs=sys.argv[1:]\n"
+        code = ("import subprocess,sys\nargs=sys.argv[1:]\n"
                 + ("assert args.pop(0)=='-3'\n" if name == 'py' else '')
                 + ('sys.exit(1)\n' if broken else '')
                 + f"if args[0]=='-c':\n sys.version_info={version!r}\n exec(args[1])\n"
-                + "else:\n os.execv(sys.executable,[sys.executable]+args)\n")
+                + "else:\n sys.exit(subprocess.run([sys.executable]+args).returncode)\n")
         script = '#!/bin/sh\nexec ' + shlex.quote(Path(sys.executable).as_posix()) + ' -c ' + shlex.quote(code) + ' "$@"\n'
         path = self.bin/name
         path.write_text(script, encoding='utf-8', newline='\n')
