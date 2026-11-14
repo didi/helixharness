@@ -32,9 +32,12 @@
   `scripts/codex_skill_projection.py` 确定性生成。canonical 的 `disable-model-invocation: true` 映射为
   `allow_implicit_invocation: false`；未声明时显式映射为 `true`，保证 command/Autopilot 内部调度
   不被误关。false 只禁止无提示自动选择，command contract 声明的 `invoke_skill(name)` 仍由 Codex
-  runtime 显式映射为 `$helix:{name}`。显示名称和短描述只用于发现，不得加入第二份业务步骤。
+  runtime 显式映射为 `$helix:{name}`。canonical 显式声明的 `user-invocable` 必须原值投影到 Codex
+  Skill frontmatter，不能因宿主投影而把内部方法变成用户入口。显示名称和短描述只用于发现，不得加入第二份业务步骤。
 - Codex 方法薄入口必须先绑定 `hosts/codex/host.json`、公共 Host Runtime/Tool Semantics 与
-  `resources.runtime`，然后才执行 canonical 正文；正文首次派发 Agent/Task 时再按需读取公共协议和
+  `resources.runtime`，并在任何 Python 调用前读取 `reference/runtime-preflight.md`；原生 Windows
+  只使用 `scripts/runtime_preflight.ps1` 选中的解释器执行后续 Python，不直接调用 PATH 中的
+  `python3` / `python` 别名。然后才执行 canonical 正文；正文首次派发 Agent/Task 时再按需读取公共协议和
   `resources.subagent_protocol`。直接调用方法 Skill 与从公共 command 调用时使用同一能力映射。
 - Host Context、projection 和 manifest 已给出的资源路径必须直接使用；不得枚举或搜索 plugin 根目录、
   安装目录或 cache 来重新发现同名资源，也不得用 `find/rg/ls/wc/stat` 试探已绑定资源的位置或长度。

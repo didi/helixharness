@@ -10,6 +10,15 @@ TDD 是红灯 → 绿灯循环。本 Skill 规定如何让这个循环产出值�
 
 ## HelixHarness 集成
 
+### 入口门禁（任何测试或业务写入前执行）
+
+TDD 只能继承已经建立的 HelixHarness 工作流上下文，以下二者必须满足其一：
+
+1. Apply 已加载 `docs/specs/active/<feature>/spec.md` 与对应 `tasks.md`，且 Spec 的 Testing Decisions 已确认当前公共测试 seam；
+2. Bug Fix 已记录可重复的失败场景，并已确认要观察的公共 seam。
+
+聊天中的实现请求、仓库中的普通需求文件或临时测试说明，都不能替代上述 active Spec / Bug Fix 上下文。门禁不满足时，立即返回 `BLOCKED: helixharness_tdd_context_missing`，不得创建或修改测试、业务代码、TDD 证据或 HelixHarness 工件，并引导用户先进入 Propose 或 Bug Fix。
+
 从当前 `spec.md`、`tasks.md` 或已复现的 Bug 场景中选择一个行为切片。测试 seam 必须已经在 Spec 的 Testing Decisions 中确认；seam 缺失或公共接口仍有争议时，返回 HelixHarness Propose 确认，不要在实现阶段自行创建测试入口。
 
 复用 HelixHarness Apply 已通过 `reference/loading-protocol.md` 加载的项目入口、`docs/harness/` 约束、`docs/knowledge/` 知识、Spec 和当前 Task。只有任务边界变化时才按该协议重新评估索引叶子。测试名称和接口词汇使用这些已加载事实以及当前代码、配置和测试中的项目语言。
