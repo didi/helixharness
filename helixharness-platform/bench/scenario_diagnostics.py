@@ -6,13 +6,14 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+
+from bench.filesystem_runtime import remove_tree
 
 _RUN_DIRECTORY = re.compile(r"sv2_[0-9a-f]{32}")
 _JOB_ID = re.compile(r"sj_[0-9a-f]{32}")
@@ -198,7 +199,7 @@ class ScenarioDiagnosticRetentionService:
                 retained.append(path.name)
                 continue
             try:
-                shutil.rmtree(path)
+                remove_tree(path)
             except FileNotFoundError:
                 pass
             except OSError as exc:

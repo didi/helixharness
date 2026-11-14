@@ -86,6 +86,10 @@ print("child started", flush=True)
 time.sleep(30)
 ''')
             native.chmod(0o700)
+            if os.name == "nt":
+                wrapper = native.with_suffix(".cmd")
+                wrapper.write_text('@"' + sys.executable + '" "' + str(native) + '" %*\n')
+                native = wrapper
             prompt = folder / "prompt.txt"
             prompt.write_text("synthetic timeout test")
             root = Path(__file__).resolve().parents[2]
@@ -132,6 +136,10 @@ emit({"type":"result","num_turns":3,"is_error":False,"result":"finished"})
 assert sys.stdin.read() == ""
 ''')
             native.chmod(0o700)
+            if os.name == "nt":
+                wrapper = native.with_suffix(".cmd")
+                wrapper.write_text('@"' + sys.executable + '" "' + str(native) + '" %*\n')
+                native = wrapper
             prompt = folder / "prompt.txt"
             prompt.write_text("synthetic test")
             root = Path(__file__).resolve().parents[2]

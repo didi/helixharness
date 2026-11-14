@@ -386,6 +386,7 @@ def test_saving_dashboard_schedule_installs_automatic_sync(
     monkeypatch.setattr(usage_sync, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(usage_sync, "USAGE_SYNC_CONFIG", tmp_path / "eval" / "configs" / "usage_repos.yaml")
     monkeypatch.setattr(usage_sync, "USAGE_SYNC_CACHE", tmp_path / "eval" / ".cache")
+    monkeypatch.setattr(usage_sync.system_platform, "system", lambda: "Linux")
     monkeypatch.setattr(
         usage_sync,
         "USAGE_SYNC_SCRIPT",
@@ -473,7 +474,9 @@ def test_background_task_start_and_poll() -> None:
     assert manager.start("sync", fake_long_task, "v", []) is True
     assert "hx-trigger" in manager.status_html("sync", just_started=True)
     assert manager.start("sync", fake_long_task, "v", []) is False
-    time.sleep(0.1)
+    deadline = time.monotonic() + 2
+    while manager.status("sync")["running"] and time.monotonic() < deadline:
+        time.sleep(0.01)
     assert not manager.status("sync")["running"]
     completed = manager.status_html("sync")
     assert "done" in completed

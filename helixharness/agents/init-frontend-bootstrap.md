@@ -39,7 +39,7 @@ description: "前端项目初始化收尾 agent。消费扫描产物，生成 ha
 | 不变量 | `templates/harness/frontend/invariants/component.md.tpl` | 组件开发规约 |
 | 不变量 | `templates/harness/frontend/invariants/state.md.tpl` | 状态管理规约 |
 | 不变量 | `templates/harness/frontend/invariants/api.md.tpl` | API 调用规约 |
-| linter | `templates/harness/spec-sync-check.sh.tpl` | 跨工作目录稳定定位 active specs |
+| linter | `templates/harness/spec-sync-check.py.tpl` | 跨工作目录稳定定位 active specs |
 | 宿主入口 | Host Kit 的 `entry_template` | `entry_file` 生成或合并 |
 
 > 如果某模板文件不存在，返回父流程报告缺失的具体模板路径；不得读取相邻仓库替代，
@@ -139,51 +139,30 @@ fi
 
 **Linters**（`docs/harness/linters/`）——与后端 Phase 3 对齐，linter 脚本随 harness 一起生成：
 
-`invariant-check.sh`：
+`invariant-check.py`：
 
-```bash
-#!/bin/bash
-# invariant-check.sh — 前端项目 invariant 快速检查
-# 每次 Write/Edit 后自动运行，输出前 50 行
+```python
+from pathlib import Path
+import re
 
-echo "=== HelixHarness frontend invariant check ==="
-
-WARNINGS=0
-
-# 组件命名检查：src 下文件是否遵循命名规范
-if [ -d "src" ]; then
-  BAD_NAMES=$(find src -type f \( -name "*.vue" -o -name "*.tsx" \) \
-    -not -name "index.*" \
-    -not -name "main.*" \
-    -not -name "App.*" \
-    | grep -E '/([a-z][a-z0-9]*)-[a-z]' || true)
-  if [ -n "$BAD_NAMES" ]; then
-    echo "⚠️  以下组件文件使用 kebab-case 命名（建议 PascalCase）："
-    echo "$BAD_NAMES"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-fi
-
-# 检查 any 类型使用量
-if ls tsconfig*.json >/dev/null 2>&1; then
-  ANY_COUNT=$(grep -r ': any' src/ --include="*.ts" --include="*.tsx" --include="*.vue" 2>/dev/null | wc -l | tr -d ' ')
-  if [ "$ANY_COUNT" -gt 10 ]; then
-    echo "⚠️  项目中存在 $ANY_COUNT 处 ': any' 类型声明，建议逐步替换"
-    WARNINGS=$((WARNINGS + 1))
-  fi
-fi
-
-if [ "$WARNINGS" -eq 0 ]; then
-  echo "✅ 未发现明显 invariant 违规"
-else
-  echo "⚠️  共发现 $WARNINGS 类潜在问题，请在 commit 前检查"
-fi
+root = Path(__file__).resolve().parents[3]
+src = root / "src"
+files = [p for p in src.rglob("*") if p.suffix in {".ts", ".tsx", ".vue"} and p.is_file()]
+bad_names = [p.relative_to(root).as_posix() for p in files
+             if p.suffix in {".tsx", ".vue"} and re.match(r"[a-z][a-z0-9]*-[a-z]", p.name)]
+for name in bad_names:
+    print(f"WARNING component naming: {name}")
+if list(root.glob("tsconfig*.json")):
+    count = sum(sum(": any" in line for line in p.read_text(encoding="utf-8", errors="replace").splitlines()) for p in files)
+    if count > 10:
+        print(f"WARNING: {count} lines contain ': any'")
+print("HelixHarness invariant check complete")
 ```
 
-`spec-sync-check.sh`：完整读取 `templates/harness/spec-sync-check.sh.tpl` 并原样写入。不得重新手写
+`spec-sync-check.py`：完整读取 `templates/harness/spec-sync-check.py.tpl` 并原样写入。不得重新手写
 依赖当前工作目录的版本；模板已经从脚本位置解析项目根并保持 warning-only。
 
-生成后执行 `chmod +x docs/harness/linters/invariant-check.sh docs/harness/linters/spec-sync-check.sh`。
+使用预检选中的 Python 执行两个 `.py` 脚本；不依赖 chmod、Bash、grep、head。
 
 ### Phase 3：生成 knowledge 索引、占位文件与 project-context
 
@@ -381,8 +360,8 @@ fi
 - [x] docs/harness/infrastructure/build.md — 构建规范
 - [x] docs/harness/infrastructure/types.md — 类型系统规范
 - [x] docs/harness/infrastructure/lint.md — 代码质量规范
-- [x] docs/harness/linters/invariant-check.sh — invariant 自动检查
-- [x] docs/harness/linters/spec-sync-check.sh — spec 同步提醒
+- [x] docs/harness/linters/invariant-check.py — invariant 自动检查
+- [x] docs/harness/linters/spec-sync-check.py — spec 同步提醒
 - [x] docs/knowledge/index.md — 知识库索引
 - [x] docs/knowledge/project-context.md — 项目上下文
 - [x] docs/knowledge/domain-mapping.md — 别名→域映射表（需手动填写）

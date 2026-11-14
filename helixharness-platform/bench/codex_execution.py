@@ -23,6 +23,7 @@ from bench.codex_runtime_launcher import (
     isolated_gradle_home,
     sanitized_environment,
 )
+from bench.filesystem_runtime import remove_tree
 from bench.gradle_runtime import configure_evaluator_gradle_home
 from bench.report_models import (
     ClaimedJob,
@@ -200,7 +201,7 @@ def _stage_validation_repair_hint(detail: str) -> str | None:
 def validate_java8_runtime(java_home: Path) -> None:
     """Require an executable Java 8 runtime before materializing an Episode."""
 
-    java = java_home.expanduser() / "bin" / "java"
+    java = java_home.expanduser() / "bin" / ("java.exe" if os.name == "nt" else "java")
     if not java.is_file() or not os.access(java, os.X_OK):
         raise CodexExecutionError("统一 Java 8 运行时不可用：JAVA_HOME/bin/java 不可执行")
     try:
@@ -263,7 +264,7 @@ def _clone_tree_copy_on_write(source: Path, target: Path) -> None:
             pass  # A missing or unusable native executable must not block portable copying.
     if not cloned:
         if target.is_dir() and not target.is_symlink():
-            shutil.rmtree(target)
+            remove_tree(target)
         elif target.exists() or target.is_symlink():
             target.unlink()
         shutil.copytree(source, target, symlinks=True)
@@ -284,10 +285,10 @@ def _clone_gradle_cache_directory(source: Path, target: Path) -> None:
         try:
             temporary.replace(target)
         except FileExistsError:
-            shutil.rmtree(temporary)
+            remove_tree(temporary)
     except Exception:
         if temporary.exists():
-            shutil.rmtree(temporary)
+            remove_tree(temporary)
         raise
 
 
@@ -850,7 +851,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -878,7 +879,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,
@@ -911,7 +912,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -939,7 +940,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,
@@ -984,7 +985,7 @@ class WorkflowCheckpointStore:
         manifest_path = checkpoint_root / "checkpoint.json"
         if not checkpoint_root.exists():
             episode_root.mkdir(parents=True, exist_ok=True)
-            temporary_root = episode_root / f".tmp-{uuid.uuid4().hex}"
+            temporary_root = episode_root / self._temporary_checkpoint_name()
             temporary_root.mkdir()
             try:
                 checkpoint_workspace = temporary_root / "workspace"
@@ -1014,7 +1015,7 @@ class WorkflowCheckpointStore:
                 )
                 temporary_root.rename(checkpoint_root)
             except Exception:
-                shutil.rmtree(temporary_root, ignore_errors=True)
+                remove_tree(temporary_root, ignore_errors=True)
                 raise
         return self._load_checkpoint(
             manifest_path,
@@ -1305,9 +1306,17 @@ class WorkflowCheckpointStore:
         ):
             raise CodexExecutionError("Workflow checkpoint Episode directory is invalid")
         episode_root = self.root / episode_id
+        if os.name == "nt" and len(str(episode_root)) > 180:
+            compact_id = hashlib.sha256(episode_id.encode("utf-8")).hexdigest()[:12]
+            episode_root = self.root / f"e-{compact_id}"
         if episode_root.is_symlink() or (episode_root.exists() and not episode_root.is_dir()):
             raise CodexExecutionError("Workflow checkpoint Episode directory is invalid")
         return episode_root
+
+    @staticmethod
+    def _temporary_checkpoint_name() -> str:
+        token = uuid.uuid4().hex
+        return f".t-{token[:8]}" if os.name == "nt" else f".tmp-{token}"
 
     @staticmethod
     def _manifest(checkpoint_root: Path) -> dict[str, Any]:

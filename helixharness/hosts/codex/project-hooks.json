@@ -12,11 +12,11 @@
           "hooks": [
             {
               "type": "command",
-              "command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50"
+              "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter invariant-check"
             },
             {
               "type": "command",
-              "command": "bash docs/harness/linters/spec-sync-check.sh 2>&1 | head -50"
+              "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter spec-sync-check"
             }
           ]
         }

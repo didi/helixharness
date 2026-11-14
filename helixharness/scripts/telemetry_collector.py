@@ -462,8 +462,21 @@ def collect_finished(
                 reason_code=exc.reason_code,
             )
             report["skipped"] += 1
-        except Exception:
+        except Exception as exc:
             report["failed"] += 1
+            if isinstance(exc, PermissionError):
+                reason_code = "permission_denied"
+            elif isinstance(exc, TimeoutError):
+                reason_code = "timeout"
+            elif isinstance(exc, OSError):
+                reason_code = "io_error"
+            elif isinstance(exc, ValueError):
+                reason_code = "invalid_state"
+            else:
+                reason_code = "collection_exception"
+            reasons = report.setdefault("failure_reason_codes", [])
+            if reason_code not in reasons:
+                reasons.append(reason_code)
     return report
 
 

@@ -176,7 +176,7 @@ function testNuxtConfigCanInitializePreview() {
   assert.match(standalone, /VueLoaderPlugin/)
   assert.match(standalone, /HtmlWebpackPlugin/)
   assert.match(standalone, /nuxt-sample-entry\.js/)
-  assert.match(standalone, /static\/d2c-preview-runtime\/nuxt-sample/)
+  assert.match(standalone.replaceAll('\\\\', '/'), /static\/d2c-preview-runtime\/nuxt-sample/)
   assert.ok(fs.existsSync(path.join(fixture.root, 'client/d2c-preview/nuxt-sample-entry.js')))
   const generatedTemplate = path.join(fixture.root, 'client/d2c-preview/nuxt-sample-template.html')
   assert.ok(fs.existsSync(generatedTemplate))
@@ -189,10 +189,10 @@ function testNuxtConfigCanInitializePreview() {
     'Page.vue',
   ])
   assert.ok(harness.files.some((entry) => (
-    entry.kind === 'created' && entry.path.endsWith('/static/d2c-preview-runtime/nuxt-sample')
+    entry.kind === 'created' && entry.path.replaceAll('\\', '/').endsWith('/static/d2c-preview-runtime/nuxt-sample')
   )))
   assert.ok(harness.files.some((entry) => (
-    entry.kind === 'created' && entry.path.endsWith('/client/d2c-preview/nuxt-sample-webpack.config.cjs')
+    entry.kind === 'created' && entry.path.replaceAll('\\', '/').endsWith('/client/d2c-preview/nuxt-sample-webpack.config.cjs')
   )))
   write(path.join(runtimeDir, 'runtime.js'), 'window.__previewRuntime = true\n')
 

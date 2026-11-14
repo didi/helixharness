@@ -106,7 +106,8 @@ function runConfiguredHook(command, root, eventName, env = {}) {
         tool_name: 'AskUserQuestion',
         tool_input: { questions: [] },
       }
-  return spawnSync('/bin/sh', ['-c', command], {
+  const shell = process.env.HELIXHARNESS_TEST_POSIX_SHELL || '/bin/sh'
+  return spawnSync(shell, ['-c', command], {
     cwd: root,
     input: JSON.stringify(input),
     encoding: 'utf8',

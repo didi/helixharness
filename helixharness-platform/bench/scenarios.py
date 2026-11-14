@@ -141,7 +141,7 @@ def load_scenario_source(source_directory: Path) -> ScenarioSource:
             raise ScenarioSourceError("workspace_path must not be empty")
         if any(path.is_symlink() for path in workspace_files):
             raise ScenarioSourceError("workspace_path must not contain symbolic links")
-        declared_paths.update(str(path.relative_to(source_directory)) for path in workspace_files)
+        declared_paths.update(path.relative_to(source_directory).as_posix() for path in workspace_files)
 
     hidden_patch = manifest.get("hidden_test_patch")
     if hidden_patch is not None:

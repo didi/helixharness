@@ -8,21 +8,30 @@ import tempfile
 import unittest
 
 
+from project_linter import git_bash
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
 @unittest.skipUnless(shutil.which("node"), "Node.js required for native d2c guards")
 class D2CHookBindingTest(unittest.TestCase):
     def run_hook(self, root, project, event, path=None):
+        shell = git_bash()
+        if shell is None:
+            self.skipTest("Git for Windows POSIX shell is required for Claude hooks")
         source = (root / "skills/d-d2c/SKILL.md").read_text().split("---", 2)[1]
         section = source.split(f"  {event}:", 1)[1]
         command = re.search(r"command: >-\n((?: {12,}.+\n)+)", section)
         self.assertIsNotNone(command)
         command = " ".join(line.strip() for line in command.group(1).splitlines())
+        inherited_path = path if path is not None else os.environ["PATH"]
+        shell_path = inherited_path
+        if os.name == "nt":
+            shell_path = str(Path(shell).parent) + os.pathsep + inherited_path
         result = subprocess.run(
-            ["/bin/sh", "-c", command],
+            [shell, "-c", command],
             input=json.dumps({"cwd": str(project), "hook_event_name": event}),
-            env={"PATH": path if path is not None else os.environ["PATH"], "CLAUDE_PLUGIN_ROOT": str(root),
+            env={**{key: value for key, value in os.environ.items() if key.upper() in {"SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP"}}, "PATH": shell_path, "CLAUDE_PLUGIN_ROOT": str(root),
                  "CLAUDE_PROJECT_DIR": str(project), "CLAUDE_CONFIG_DIR": str(project / "config")},
             cwd=project, capture_output=True, text=True, timeout=10,
         )
@@ -58,6 +67,7 @@ class D2CHookBindingTest(unittest.TestCase):
             self.assertEqual("deny", self.run_hook(root, project, "PreToolUse")["hookSpecificOutput"]["permissionDecision"])
             self.assertEqual("block", self.run_hook(root, project, "Stop")["decision"])
 
+    @unittest.skipIf(os.name == "nt", "POSIX minimal-PATH fixture")
     def test_missing_node_blocks(self):
         with tempfile.TemporaryDirectory(prefix="helixharness-d2c-") as tmp:
             project = Path(tmp)

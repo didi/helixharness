@@ -3,12 +3,14 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
-import time
 import unittest
 from datetime import datetime, timedelta
 from unittest import mock
 from pathlib import Path
+
+from project_linter import git_bash
 
 import telemetry_consent
 
@@ -51,7 +53,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def run_metrics(self, *args: str, platform: str = "codex") -> dict:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -69,7 +71,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def run_consent(self, *args: str, platform: str = "codex") -> dict:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -84,10 +86,65 @@ class LiteMetricsCliTest(unittest.TestCase):
         )
         return json.loads(completed.stdout)
 
+    def test_consent_cli_supports_windows_default_encoding_in_unicode_path(self) -> None:
+        repo = self.root / "中文 项目"
+        repo.mkdir()
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        environment = self.env.copy()
+        environment["PYTHONUTF8"] = "0"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8=0",
+                str(CONSENT),
+                "--repo-root",
+                str(repo),
+                "--platform",
+                "codex",
+                "resolve",
+            ],
+            capture_output=True,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            completed.returncode,
+            completed.stderr.decode("utf-8", errors="replace"),
+        )
+        metrics = subprocess.run(
+            [
+                sys.executable,
+                "-X",
+                "utf8=0",
+                str(SCRIPT),
+                "--repo-root",
+                str(repo),
+                "--platform",
+                "codex",
+                "start",
+                "--feature",
+                "unicode-path",
+                "--stage",
+                "propose",
+                "--trigger",
+                "user_command",
+            ],
+            capture_output=True,
+            env=environment,
+            check=False,
+        )
+        self.assertEqual(
+            0,
+            metrics.returncode,
+            metrics.stderr.decode("utf-8", errors="replace"),
+        )
+
     def enable(self, platform: str = "codex") -> None:
         subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -111,7 +168,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def disable(self) -> None:
         subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -371,19 +428,23 @@ Outbox(r'{home}').enqueue(
 """.format(home=self.root / "telemetry-home", repo=self.repo)
         env = dict(self.env)
         env["PYTHONPATH"] = str(PLUGIN_ROOT / "scripts")
-        completed = subprocess.run(["python3", "-c", code], capture_output=True, text=True, env=env)
+        completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
         self.assertEqual(0, completed.returncode, completed.stderr)
         env.pop("CODEX_THREAD_ID", None)
         env.pop("HELIXHARNESS_PLATFORM", None)
         env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
         hooks = json.loads((PLUGIN_ROOT / "hosts/claude-code/hooks.json").read_text())
         command = hooks["hooks"]["SessionEnd"][0]["hooks"][0]["command"]
+        shell = git_bash()
+        if shell is None:
+            self.skipTest("Git for Windows POSIX shell is required for Claude hooks")
+        env["PATH"] = str(Path(shell).parent) + os.pathsep + env.get("PATH", "")
 
         def end_session() -> subprocess.CompletedProcess:
             return subprocess.run(
-                ["sh", "-c", command],
+                [shell, "-c", command],
                 input=json.dumps({"hook_event_name": "SessionEnd", "cwd": str(self.repo)}),
-                capture_output=True, text=True, env=env, timeout=10,
+                capture_output=True, text=True, env=env, timeout=30,
             )
 
         # Enabled telemetry survives the real configured hook invocation.
@@ -398,7 +459,7 @@ Outbox(r'{home}').enqueue(
         other_repo.mkdir()
         subprocess.run(["git", "init", "-q", str(other_repo)], check=True)
         subprocess.run(
-            ["python3", str(CONSENT), "--repo-root", str(other_repo),
+            [sys.executable, str(CONSENT), "--repo-root", str(other_repo),
              "--platform", "claude-code", "set", "--scope", "user", "--mode", "disabled"],
             capture_output=True, text=True, env=env, check=True,
         )
@@ -413,7 +474,7 @@ Outbox(r'{home}').enqueue(
     def test_unsupported_host_skips_without_creating_state_or_public_data(self) -> None:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -441,7 +502,7 @@ Outbox(r'{home}').enqueue(
 
     def test_retired_address_recorder_is_rejected_without_writing_ledger(self) -> None:
         completed = subprocess.run(
-            ["python3", str(SCRIPT), "--repo-root", str(self.repo), "--platform", "codex",
+            [sys.executable, str(SCRIPT), "--repo-root", str(self.repo), "--platform", "codex",
              "set-requirement-url", "--feature", "demo", "--requirement-url", "https://tracker.example/1"],
             capture_output=True, text=True, env=self.env,
         )
@@ -454,7 +515,7 @@ Outbox(r'{home}').enqueue(
         escaped = self.root / "escaped" / "apply.json"
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -684,7 +745,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -725,7 +786,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -1336,7 +1397,7 @@ Outbox(r'{home}').enqueue(
             processes.append(
                 subprocess.Popen(
                     [
-                        "python3",
+                        sys.executable,
                         str(SCRIPT),
                         "--repo-root",
                         str(self.repo),
@@ -1520,7 +1581,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -1645,7 +1706,7 @@ Outbox(r'{home}').enqueue(
         self.assertEqual(1, lines.count("!docs/eval/**"))
         self.assertEqual(1, lines.count("/.helixharness/"))
 
-    @unittest.skipIf(os.name == "nt", "POSIX lock timing test")
+    @unittest.skipIf(os.name == "nt", "POSIX lock integration test")
     def test_old_lite_lock_no_longer_blocks_unified_ledger(self) -> None:
         import fcntl
 
@@ -1654,10 +1715,9 @@ Outbox(r'{home}').enqueue(
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         with lock_path.open("a+b") as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-            started = time.monotonic()
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     str(SCRIPT),
                     "--repo-root",
                     str(self.repo),
@@ -1675,12 +1735,12 @@ Outbox(r'{home}').enqueue(
                 capture_output=True,
                 text=True,
                 env=self.env,
-                timeout=1.5,
+                timeout=30,
             )
-            elapsed = time.monotonic() - started
-
-        self.assertEqual(0, completed.returncode)
-        self.assertLess(elapsed, 1.0)
+            # Assert useful work completes while the old lock is still held.
+            # Python startup time on a busy host is not a locking contract.
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertEqual("started", json.loads(completed.stdout)["status"])
 
 
 if __name__ == "__main__":

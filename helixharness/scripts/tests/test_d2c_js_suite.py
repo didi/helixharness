@@ -7,9 +7,12 @@ dependencies.
 """
 
 from pathlib import Path
+import os
 import shutil
 import subprocess
 import unittest
+
+from project_linter import git_bash
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
@@ -24,11 +27,17 @@ class D2cScriptSuiteTest(unittest.TestCase):
         if not RUNNER.exists():
             self.fail(f"d-d2c test runner is missing: {RUNNER}")
 
+        env = os.environ.copy()
+        shell = git_bash()
+        if shell is not None:
+            env["HELIXHARNESS_TEST_POSIX_SHELL"] = shell
+            env["PATH"] = str(Path(shell).parent) + os.pathsep + env.get("PATH", "")
         result = subprocess.run(
             [node, str(RUNNER)],
             cwd=str(RUNNER.parent),
             capture_output=True,
             text=True,
+            env=env,
         )
         if result.returncode != 0:
             self.fail(

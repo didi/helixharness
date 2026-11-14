@@ -29,6 +29,7 @@ def test_pool_uses_defaults_and_saved_web_configuration():
     assert len({command[command.index("--worker-id") + 1] for command in configured}) == 4
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX signal/ps assertions; Windows trees covered by test_cross_platform_runtime")
 def test_pool_recovers_exited_child_and_stops_survivor(tmp_path):
     record = tmp_path / "child-pids"
     worker = tmp_path / "synthetic_worker.py"
@@ -87,6 +88,7 @@ def test_pool_rejects_invalid_arguments_before_starting_workers(arguments):
 
 
 @pytest.mark.parametrize("kill_worker", [False, True])
+@pytest.mark.skipif(os.name == "nt", reason="POSIX signal/ps assertions; Windows trees covered by test_cross_platform_runtime")
 def test_pool_cleans_isolated_verifier_on_stop_or_worker_crash(tmp_path, kill_worker):
     record = tmp_path / "verifier-pid"
     worker_record = tmp_path / "worker-pid"

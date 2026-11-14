@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
@@ -15,10 +16,19 @@ SCRIPT = ROOT / "hosts/claude-code/hook_entry.py"
 
 class SessionContextTest(unittest.TestCase):
     def run_hook(self, payload: str, **extra_env: str) -> subprocess.CompletedProcess:
+        environment = {"PATH": os.environ.get("PATH", "")}
+        if os.name == "nt":
+            for key, value in os.environ.items():
+                if key.upper() in {
+                    "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP",
+                    "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+                }:
+                    environment[key] = value
+        environment.update(extra_env)
         return subprocess.run(
             [sys.executable, str(SCRIPT)],
             input=payload, text=True, capture_output=True, check=True,
-            env={"PATH": os.environ.get("PATH", ""), **extra_env},
+            env=environment,
         )
 
     def context(self, result: subprocess.CompletedProcess) -> str:
@@ -60,7 +70,10 @@ class SessionContextTest(unittest.TestCase):
             self.assertEqual(result.stdout, "")
             self.assertIn("export HELIXHARNESS_LITE_SESSION_CWD='/project with spaces'", env_file.read_text())
             self.assertIn("export HELIXHARNESS_LITE_SESSION_ID=session-one", env_file.read_text())
-            self.assertIn("export HELIXHARNESS_BOUND_PLUGIN_ROOT=" + str(ROOT), env_file.read_text())
+            self.assertIn(
+                "export HELIXHARNESS_BOUND_PLUGIN_ROOT=" + shlex.quote(str(ROOT)),
+                env_file.read_text(),
+            )
 
     def test_skill_and_direct_command_refresh_source_next_to_entry(self):
         cases = [

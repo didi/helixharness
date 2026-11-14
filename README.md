@@ -65,6 +65,8 @@ Knowledge accumulates as **reviewable repository documents**. You control what b
 
 Requirements: Python 3.10+, Git and a plugin-capable Codex or Claude Code installation. Make sure the host is signed in or has its model configuration set up and is working normally.
 
+For macOS and native Windows setup, interpreter detection and host-specific requirements, see [platform support](docs/platform-support.md). Windows Codex uses PowerShell; Windows Claude Code uses Git for Windows Bash.
+
 After the repository is public, run the commands for your host in a terminal. No manual source clone is needed:
 
 ```bash

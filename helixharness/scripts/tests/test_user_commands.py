@@ -147,7 +147,8 @@ class UserCommandsTest(unittest.TestCase):
         user_config.set_endpoint('telemetry', 'https://stats.example/report', user_confirmed=True)
         self.assertEqual(json.loads(target.read_text())['custom'], {'keep': True})
         if os.name != 'nt':
-            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            if os.name != "nt":
+                self.assertEqual(target.stat().st_mode & 0o777, 0o600)
         with mock.patch.object(reporting_config, 'DEFAULT_REPORT_ENDPOINT', 'https://default.example/report'):
             result = user_config.set_endpoint('telemetry', None, user_confirmed=True)
         self.assertEqual(result['endpoint'], 'https://default.example/report')

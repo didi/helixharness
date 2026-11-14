@@ -167,6 +167,7 @@ function browserExecutableCandidates() {
   ]
   if (process.env.LOCALAPPDATA) {
     candidates.push(
+      path.win32.join(process.env.LOCALAPPDATA, 'Google', 'Chrome', 'Application', 'chrome.exe'),
       path.win32.join(
         process.env.LOCALAPPDATA,
         'Microsoft',
@@ -194,8 +195,10 @@ function guessChrome() {
   // 兜底：尝试 PATH 中的命令
   for (const cmd of ['google-chrome-stable', 'google-chrome', 'microsoft-edge-stable', 'microsoft-edge', 'chromium-browser', 'chromium', 'brave-browser', 'chrome', 'edge']) {
     try {
-      const resolved = require('child_process').execSync(`which ${cmd} 2>/dev/null || where ${cmd} 2>nul`, { encoding: 'utf8', timeout: 3000 }).trim()
-      if (resolved) return resolved
+      const resolver = process.platform === 'win32' ? 'where.exe' : 'which'
+      const resolved = require('child_process').execFileSync(resolver, [cmd], { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] })
+      const executable = resolved.split(/\r?\n/).map((entry) => entry.trim()).find((entry) => entry && fs.existsSync(entry))
+      if (executable) return executable
     } catch (_) { /* ignore */ }
   }
   return null

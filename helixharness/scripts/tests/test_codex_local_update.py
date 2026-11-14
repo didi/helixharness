@@ -25,7 +25,7 @@ class CodexMarketplaceRefreshTest(unittest.TestCase):
     def test_local_source_needs_no_git_upgrade(self):
         self.source("local")
         with self.adapter.refresh_marketplace(self.runner) as snapshot:
-            self.assertEqual(Path("/synthetic/marketplace"), snapshot)
+            self.assertEqual(Path("/synthetic/marketplace").resolve(), snapshot)
         self.runner.run.assert_not_called()
 
     def test_git_check_reads_new_ref_without_touching_host_snapshot(self):

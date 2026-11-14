@@ -46,6 +46,7 @@ MAX_BATCH_COMPRESSED_BYTES = 1024 * 1024
 MAX_BATCH_ITEMS = 100
 BATCH_PAUSE_SECONDS = 0.5
 RUNTIME_FILES = (
+    "eval_json.py",
     "reporting_config.py",
     "git_target.py",
     "telemetry_async.py",
@@ -55,6 +56,17 @@ RUNTIME_FILES = (
     "telemetry_protocol.py",
     "telemetry_trace.py",
     "telemetry_consent_state.py",
+)
+RUNTIME_SCRIPT_DIRECTORIES = (
+    "host_runtime",
+    "telemetry_hosts",
+)
+RUNTIME_RESOURCE_DIRECTORIES = (
+    ".claude-plugin",
+    ".codex-plugin",
+    "commands",
+    "hosts",
+    "reference",
 )
 
 
@@ -852,11 +864,27 @@ def _run_once_unlocked(
         for platform in sorted(platforms):
             try:
                 consent = consent_resolver(repo_path, platform)
-            except Exception:
+            except Exception as exc:
                 consent = {}
                 consent_failed = True
+                exception_name = type(exc).__name__
+                if exception_name == "ConsentError":
+                    consent_failure_code = "consent_state_error"
+                elif exception_name == "HostContractError":
+                    consent_failure_code = "consent_host_contract_invalid"
+                elif isinstance(exc, PermissionError):
+                    consent_failure_code = "consent_permission_denied"
+                elif isinstance(exc, FileNotFoundError):
+                    consent_failure_code = "consent_path_unavailable"
+                elif isinstance(exc, OSError):
+                    consent_failure_code = "consent_io_error"
+                elif isinstance(exc, ValueError):
+                    consent_failure_code = "consent_invalid_state"
+                else:
+                    consent_failure_code = "consent_unavailable"
             else:
                 consent_failed = False
+                consent_failure_code = None
             if not consent_failed and consent.get("effective_mode") != "enabled":
                 _clear_collection_scope(state, repo=repo_path, platform=platform)
                 repository_results.append(
@@ -899,7 +927,16 @@ def _run_once_unlocked(
                     platform=platform,
                 )
             except Exception:
-                collection = {"collected": 0, "skipped": 0, "failed": 1}
+                collection = {
+                    "collected": 0,
+                    "skipped": 0,
+                    "failed": 1,
+                    **(
+                        {"failure_reason_codes": [consent_failure_code]}
+                        if consent_failure_code
+                        else {}
+                    ),
+                }
             failed = int(collection.get("failed") or 0)
             collection_failed += failed
             if failed:
@@ -924,6 +961,21 @@ def _run_once_unlocked(
                         _scoped_circuits(state, "collection_circuits")
                         .get(key, {})
                         .get("circuit_open")
+                    ),
+                    **(
+                        {
+                            "failure_reason_codes": sorted(
+                                {
+                                    str(code)
+                                    for code in collection.get(
+                                        "failure_reason_codes", []
+                                    )
+                                    if isinstance(code, str) and code
+                                }
+                            )
+                        }
+                        if collection.get("failure_reason_codes")
+                        else {}
                     ),
                 }
             )
@@ -1200,25 +1252,42 @@ def register_repository(repo: Path, platform: str, home: str | Path | None = Non
 
 def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
     root = telemetry_home(home)
-    version = _runtime_version(Path(plugin_root))
-    source = Path(plugin_root) / "scripts"
+    plugin = Path(plugin_root).resolve()
+    version = _runtime_version(plugin)
+    source = plugin / "scripts"
     target = root / "runtime"
     target.mkdir(parents=True, exist_ok=True)
     for filename in RUNTIME_FILES:
         candidate = source / filename
         if candidate.is_file():
             shutil.copy2(candidate, target / filename)
-    source_hosts = source / "telemetry_hosts"
-    target_hosts = target / "telemetry_hosts"
-    if source_hosts.is_dir():
-        if target_hosts.exists():
-            shutil.rmtree(target_hosts)
-        shutil.copytree(source_hosts, target_hosts, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    for directory in RUNTIME_SCRIPT_DIRECTORIES:
+        source_directory = source / directory
+        target_directory = target / directory
+        if source_directory.is_dir():
+            if target_directory.exists():
+                shutil.rmtree(target_directory)
+            shutil.copytree(
+                source_directory,
+                target_directory,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
+    for directory in RUNTIME_RESOURCE_DIRECTORIES:
+        source_directory = plugin / directory
+        target_directory = root / directory
+        if source_directory.is_dir():
+            if target_directory.exists():
+                shutil.rmtree(target_directory)
+            shutil.copytree(
+                source_directory,
+                target_directory,
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+            )
     wrapper = root / "bin" / "telemetryctl"
     command = f"#!{sys.executable}\nimport runpy\nrunpy.run_path({str(target / 'telemetryctl.py')!r}, run_name='__main__')\n"
     _atomic_bytes(wrapper, command.encode("utf-8"), 0o700)
     windows_wrapper = root / "bin" / "telemetryctl.cmd"
-    windows_command = f'@"{sys.executable}" "{target / "telemetryctl.py"}" %*\r\n'
+    windows_command = f'@"{sys.executable}" -X utf8 "{target / "telemetryctl.py"}" %*\r\n'
     _atomic_bytes(windows_wrapper, windows_command.encode("utf-8"), 0o700)
     _atomic_bytes(root / "runtime-manifest.json", (json.dumps({"version": version, "installed_at": _now(), "plugin_root": str(Path(plugin_root).resolve())}) + "\n").encode("utf-8"))
     return wrapper
@@ -1226,28 +1295,39 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
 
 def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) -> bool:
     source = Path(plugin_root).resolve() / "scripts"
-    target = telemetry_home(home) / "runtime"
+    root = telemetry_home(home)
+    target = root / "runtime"
+
+    def tree_files(path: Path) -> set[Path]:
+        return {
+            item.relative_to(path)
+            for item in path.rglob("*")
+            if item.is_file()
+            and "__pycache__" not in item.parts
+            and item.suffix != ".pyc"
+        }
+
+    def trees_match(source_directory: Path, target_directory: Path) -> bool:
+        source_files = tree_files(source_directory)
+        target_files = tree_files(target_directory)
+        return source_files == target_files and all(
+            (target_directory / relative).read_bytes()
+            == (source_directory / relative).read_bytes()
+            for relative in source_files
+        )
+
     try:
         for filename in RUNTIME_FILES:
             candidate = source / filename
-            if candidate.is_file() and (target / filename).read_bytes() != candidate.read_bytes():
+            if not candidate.is_file() or (target / filename).read_bytes() != candidate.read_bytes():
                 return False
-        source_hosts = source / "telemetry_hosts"
-        target_hosts = target / "telemetry_hosts"
-        source_files = {
-            path.relative_to(source_hosts)
-            for path in source_hosts.rglob("*.py")
-            if path.is_file()
-        }
-        target_files = {
-            path.relative_to(target_hosts)
-            for path in target_hosts.rglob("*.py")
-            if path.is_file()
-        }
-        return source_files == target_files and all(
-            (target_hosts / relative).read_bytes()
-            == (source_hosts / relative).read_bytes()
-            for relative in source_files
+        for directory in RUNTIME_SCRIPT_DIRECTORIES:
+            if not trees_match(source / directory, target / directory):
+                return False
+        plugin = source.parent
+        return all(
+            trees_match(plugin / directory, root / directory)
+            for directory in RUNTIME_RESOURCE_DIRECTORIES
         )
     except OSError:
         return False
@@ -1293,7 +1373,7 @@ def _windows_task_xml(home: str | Path | None = None) -> str:
     root = telemetry_home(home)
     executable = escape(str(Path(sys.executable).resolve()))
     script = str((root / "runtime" / "telemetryctl.py").resolve())
-    arguments = escape(f'"{script}" run --all')
+    arguments = escape(f'-X utf8 "{script}" run --all')
     working_directory = escape(str((root / "runtime").resolve()))
     username = str(os.environ.get("USERNAME") or getpass.getuser()).strip()
     domain = str(os.environ.get("USERDOMAIN") or "").strip()
@@ -1351,7 +1431,7 @@ def _windows_task_is_current(home: str | Path | None, payload: Any) -> bool:
         and value("task:Actions/task:Exec/task:Command")
         == str(Path(sys.executable).resolve())
         and value("task:Actions/task:Exec/task:Arguments")
-        == f'"{(runtime / "telemetryctl.py").resolve()}" run --all'
+        == f'-X utf8 "{(runtime / "telemetryctl.py").resolve()}" run --all'
         and value("task:Actions/task:Exec/task:WorkingDirectory")
         == str(runtime.resolve())
     )

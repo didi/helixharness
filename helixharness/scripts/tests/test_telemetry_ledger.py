@@ -88,7 +88,8 @@ class TelemetryLedgerTest(unittest.TestCase):
         self.assertNotIn("logical_stage_run_id", locator)
         if os.name != "nt":
             locator_path = self.repo / ".helixharness" / "telemetry-v2" / "locators" / f"{started['entry_id']}.json"
-            self.assertEqual(0o600, locator_path.stat().st_mode & 0o777)
+            if os.name != "nt":
+                self.assertEqual(0o600, locator_path.stat().st_mode & 0o777)
 
 
     def test_address_is_not_emitted_and_historical_value_is_not_rewritten(self) -> None:
@@ -611,8 +612,11 @@ class TelemetryLedgerTest(unittest.TestCase):
         self.assertEqual(["codex", "claude-code"], [entry["platform"] for entry in ledger["entries"]])
 
     def test_lock_times_out_instead_of_waiting_forever(self) -> None:
+        lock_module = telemetry_ledger.msvcrt if os.name == "nt" else telemetry_ledger.fcntl
+        lock_method = "locking" if os.name == "nt" else "flock"
+        lock_error = OSError() if os.name == "nt" else BlockingIOError()
         with mock.patch.object(telemetry_ledger, "LOCK_TIMEOUT_SECONDS", 0.02), mock.patch.object(
-            telemetry_ledger.fcntl, "flock", side_effect=BlockingIOError()
+            lock_module, lock_method, side_effect=lock_error
         ), mock.patch.object(time, "sleep", return_value=None):
             with self.assertRaisesRegex(telemetry_ledger.LedgerError, "timed out"):
                 with telemetry_ledger._lock(self.repo):

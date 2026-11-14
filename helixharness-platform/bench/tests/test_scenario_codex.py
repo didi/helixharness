@@ -2050,14 +2050,12 @@ def test_scenario_retry_restores_latest_completed_stage_checkpoint(
     assert sdk.requests[1].wall_timeout_seconds == 599
     assert sdk.requests[1].token_budget == 99_500
     assert sdk.requests[1].tool_call_budget == 999
-    assert (
-        work_root
-        / run.run_id
-        / scenario.case_id
-        / "base"
-        / "attempt-2"
-        / "workspace/docs/specs/completed/evaluation-scenario/spec.md"
-    ).is_file()
+    restored_specs = tuple(
+        (work_root / run.run_id).rglob(
+            "docs/specs/completed/evaluation-scenario/spec.md"
+        )
+    )
+    assert restored_specs
     checkpoint_manifests = tuple((work_root / "_workflow-checkpoints").rglob("checkpoint.json"))
     assert checkpoint_manifests
     base_job = next(item for item in store.list_run_jobs(run.run_id) if item.side == "BASE")

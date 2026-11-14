@@ -1,4 +1,6 @@
+import base64
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -9,6 +11,41 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class ProjectHooksTest(unittest.TestCase):
+    def test_legacy_hooks_are_upgraded_without_losing_user_options(self):
+        from project_hooks_cli import project_hooks
+
+        with tempfile.TemporaryDirectory(prefix="helix space ") as temporary:
+            repo = Path(temporary)
+            target = repo / ".codex/hooks.json"
+            target.parent.mkdir()
+            legacy = {"hooks": {"PostToolUse": [{"matcher": "Write|Edit|MultiEdit", "hooks": [
+                {"type": "command", "command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50", "timeout": 23},
+                {"type": "command", "command": "echo custom"},
+            ]}]}}
+            target.write_text(json.dumps(legacy))
+            with self.assertRaises(ValueError):
+                project_hooks(repo, "codex", "check")
+            self.assertEqual(legacy, json.loads(target.read_text()))
+            project_hooks(repo, "codex", "merge")
+            handlers = json.loads(target.read_text())["hooks"]["PostToolUse"][0]["hooks"]
+            self.assertEqual(3, len(handlers))
+            self.assertEqual(23, handlers[0]["timeout"])
+            windows_source = base64.b64decode(handlers[0]["commandWindows"].split()[-1]).decode("utf-16-le")
+            self.assertIn("project_linter.py", windows_source if os.name == "nt" else handlers[0]["command"])
+            self.assertIn("commandWindows", handlers[0])
+            self.assertEqual("echo custom", handlers[1]["command"])
+            project_hooks(repo, "codex", "check")
+
+    def test_windows_hook_quotes_paths_without_cmd_expansion(self):
+        from project_hooks_cli import windows_command
+
+        command = windows_command(["C:\\Python\\python.exe", "C:\\space & %PATH%\\it's a script.py"])
+        self.assertNotIn("%PATH%", command)
+        self.assertNotIn("&", command)
+        source = base64.b64decode(command.split()[-1]).decode("utf-16-le")
+        self.assertIn("it''s a script.py", source)
+        self.assertIn("%PATH%", source)
+
     def test_fresh_merge_repeat_and_user_settings_preservation(self):
         for host, relative in (
             ("codex", ".codex/hooks.json"),

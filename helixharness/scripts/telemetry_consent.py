@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -37,6 +38,16 @@ VALID_INTERACTIVE_ACTIONS = {
     "disable_project",
     "disable_user",
 }
+
+
+def _configure_utf8_stdio() -> None:
+    """Keep the JSON CLI contract UTF-8 under legacy Windows code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="strict")
+
+
 PROJECT_KEY_PATTERN = re.compile(r"^prj_[0-9a-f]{16}$")
 CONSENT_EPOCH_PATTERN = re.compile(r"^cep_[0-9a-f]{24}$")
 SCOPE_TIME_FIELDS = {"enabled_at", "disabled_at", "last_prompted_at", "next_prompt_after"}
@@ -86,12 +97,11 @@ def _git(repo: Path, *args: str) -> str:
             ["git", "-C", str(repo), *args],
             check=True,
             capture_output=True,
-            text=True,
             timeout=1.0,
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
-    return proc.stdout.strip()
+    return os.fsdecode(proc.stdout).strip()
 
 
 def _repo_root(value: str) -> Path:
@@ -100,6 +110,8 @@ def _repo_root(value: str) -> Path:
     if root:
         return Path(root).resolve()
     for current in (candidate, *candidate.parents):
+        if (current / ".git").exists():
+            return current
         if (current / "helixharness.workspace.yaml").is_file():
             return current
     raise ConsentError(f"not a git repository or HelixHarness workspace: {candidate}")
@@ -397,16 +409,18 @@ def _cache_lock(
     # existing lock with a write-capable mode makes otherwise read-only
     # consent resolution fail in sandboxed hosts.
     with lock_path.open("r" if read_existing else "a+") as handle:
+        acquired = False
         if os.name == "nt":
             while True:
                 try:
-                    handle.seek(0)
-                    if not handle.read(1):
+                    handle.seek(0, os.SEEK_END)
+                    if handle.tell() == 0:
                         handle.write("0")
                         handle.flush()
                     handle.seek(0)
                     mode = msvcrt.LK_NBLCK if deadline is not None else msvcrt.LK_LOCK
                     msvcrt.locking(handle.fileno(), mode, 1)
+                    acquired = True
                     break
                 except OSError as exc:
                     if deadline is None:
@@ -422,7 +436,7 @@ def _cache_lock(
         try:
             yield
         finally:
-            if os.name == "nt":
+            if os.name == "nt" and acquired:
                 handle.seek(0)
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
@@ -841,6 +855,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    _configure_utf8_stdio()
     args = _parser().parse_args()
     repo: Path | None = None
     try:

@@ -1,9 +1,16 @@
 """Reject schedule injection and repository paths before touching external state."""
 
+import os
+
 import pytest
 
 from eval import usage_sync
 from eval.cli import sync_helixharness_usage as sync
+
+
+@pytest.fixture(autouse=True)
+def posix_cron_adapter(monkeypatch):
+    monkeypatch.setattr(usage_sync.system_platform, "system", lambda: "Linux")
 
 
 @pytest.mark.parametrize("symlink_kind", ["directory", "feature", "file"])
@@ -38,6 +45,10 @@ def test_ledger_consumers_never_follow_escaping_symlinks(tmp_path, symlink_kind)
         sync._eval_inventory(root, "docs/eval")
 
 
+@pytest.mark.skipif(
+    os.name == "nt",
+    reason="Git for Windows materializes repository symlinks as non-followed files by default",
+)
 def test_git_checkout_cannot_introduce_escaping_ledger_directory(tmp_path):
     import subprocess
 

@@ -65,6 +65,8 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 需要 Python 3.10+、Git，以及支持插件市场的 Codex 或 Claude Code。先确保宿主已完成登录或模型配置，能够正常使用。
 
+macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。
+
 仓库公开后，在终端选择对应宿主安装，无需先手动克隆源码：
 
 ```bash

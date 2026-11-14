@@ -25,6 +25,7 @@ from telemetry_hosts import (
 SCHEMA_VERSION = "1.0"
 PROJECT_KEY_PATTERN = re.compile(r"^prj_[0-9a-f]{16}$")
 CONSENT_EPOCH_PATTERN = re.compile(r"^cep_[0-9a-f]{24}$")
+CACHE_LOCK_TIMEOUT_SECONDS = 5.0
 
 if os.name == "nt":
     import msvcrt
@@ -56,12 +57,11 @@ def _git(repo: Path, *args: str) -> str:
             ["git", "-C", str(repo), *args],
             check=True,
             capture_output=True,
-            text=True,
             timeout=1.0,
         )
     except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
         return ""
-    return result.stdout.strip()
+    return os.fsdecode(result.stdout).strip()
 
 
 def _repo_root(value: str | Path) -> Path:
@@ -69,6 +69,9 @@ def _repo_root(value: str | Path) -> Path:
     root = _git(candidate, "rev-parse", "--show-toplevel")
     if root:
         return Path(root).resolve()
+    for current in (candidate, *candidate.parents):
+        if (current / ".git").exists():
+            return current
     raise ConsentError(f"not a Git repository: {candidate}")
 
 
@@ -221,19 +224,30 @@ def _cache_lock(path: Path) -> Iterator[None]:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     read_existing = os.name != "nt"
     with lock_path.open("r" if read_existing else "a+") as handle:
+        acquired = False
         try:
             if os.name == "nt":
-                handle.seek(0)
-                if not handle.read(1):
+                handle.seek(0, os.SEEK_END)
+                if handle.tell() == 0:
                     handle.write("0")
                     handle.flush()
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                deadline = time.monotonic() + CACHE_LOCK_TIMEOUT_SECONDS
+                while True:
+                    try:
+                        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                        acquired = True
+                        break
+                    except OSError as exc:
+                        remaining = deadline - time.monotonic()
+                        if remaining <= 0:
+                            raise ConsentError("consent cache lock timed out") from exc
+                        time.sleep(min(0.05, remaining))
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
             yield
         finally:
-            if os.name == "nt":
+            if os.name == "nt" and acquired:
                 handle.seek(0)
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:

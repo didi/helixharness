@@ -51,7 +51,7 @@ def _configured_builder(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("uid,override,expected", [(501, None, None), (0, None, "nobody"), (501, "worker", "worker")])
 def test_candidate_service_selects_usable_user_isolation(tmp_path, monkeypatch, uid, override, expected):
-    monkeypatch.setattr(main.os, "geteuid", lambda: uid)
+    monkeypatch.setattr(main.os, "geteuid", lambda: uid, raising=False)
     if override is not None:
         monkeypatch.setenv("HELIXHARNESS_PLATFORM_EVOLUTION_EXECUTION_USER", override)
     _, _, _, runner, _, _ = _configured_builder(tmp_path, monkeypatch)

@@ -90,6 +90,31 @@ class TelemetryAsyncV2Test(unittest.TestCase):
                 self.assertEqual("endpoint_unconfigured", delivery["reason"])
                 self.assertEqual("skipped", delivery["status"])
 
+    def test_telemetryctl_succeeds_when_scheduler_has_no_console(self) -> None:
+        clean = {
+            "pending": 0,
+            "accepted": 0,
+            "duplicate": 0,
+            "retryable": 0,
+            "rejected": 0,
+            "consent_removed": 0,
+            "remaining": 0,
+            "collection_failed": 0,
+            "corrupt_quarantined": 0,
+            "repository_results": [],
+            "skipped_existing_worker": 0,
+            "quarantined": 0,
+            "collection_circuits_open": 0,
+            "delivery_circuits_open": 0,
+            "circuit_open": 0,
+            "consecutive_failures": 0,
+        }
+        with mock.patch.object(telemetry_async, "run_once", return_value=clean), \
+             mock.patch("sys.argv", ["telemetryctl", "--home", str(self.home), "run", "--all"]), \
+             mock.patch("builtins.print", side_effect=OSError("no console")):
+            self.assertEqual(0, telemetryctl.main())
+        self.assertTrue((self.home / "reports" / "telemetryctl-run.json").is_file())
+
     def test_endpoint_configuration_errors_and_precedence(self) -> None:
         config = self.home / "config.json"
         with mock.patch.object(reporting_config, "DEFAULT_REPORT_ENDPOINT", ""):
@@ -292,7 +317,12 @@ class TelemetryAsyncV2Test(unittest.TestCase):
         with mock.patch.object(
             telemetry_collector,
             "collect_finished",
-            return_value={"collected": 0, "skipped": 0, "failed": 2},
+            return_value={
+                "collected": 0,
+                "skipped": 0,
+                "failed": 2,
+                "failure_reason_codes": ["permission_denied"],
+            },
         ):
             report = telemetry_async.run_once(
                 self.home,
@@ -302,6 +332,10 @@ class TelemetryAsyncV2Test(unittest.TestCase):
                 },
             )
         self.assertEqual(2, report["collection_failed"])
+        self.assertEqual(
+            ["permission_denied"],
+            report["repository_results"][0]["failure_reason_codes"],
+        )
         self.assertEqual(0, report["remaining"])
 
     def test_corrupt_outbox_is_reported_as_unrecovered(self) -> None:
@@ -322,7 +356,9 @@ class TelemetryAsyncV2Test(unittest.TestCase):
         failed = mock.Mock(returncode=1)
         with mock.patch.dict(os.environ, {"HELIXHARNESS_TELEMETRY_DISABLE_SCHEDULER": ""}), mock.patch.object(telemetry_async.system_platform, "system", return_value="Darwin"), mock.patch.object(
             telemetry_async, "_launchd_path", return_value=plist
-        ), mock.patch.object(telemetry_async.subprocess, "run", return_value=failed):
+        ), mock.patch.object(telemetry_async.os, "getuid", return_value=501, create=True), mock.patch.object(
+            telemetry_async.subprocess, "run", return_value=failed
+        ):
             result = telemetry_async.ensure_scheduler(self.home)
         self.assertFalse(result["healthy"])
         self.assertEqual("launchd_bootstrap_failed", result["error"])
@@ -337,6 +373,8 @@ class TelemetryAsyncV2Test(unittest.TestCase):
             telemetry_async.system_platform, "system", return_value="Darwin"
         ), mock.patch.object(
             telemetry_async, "_launchd_path", return_value=plist
+        ), mock.patch.object(
+            telemetry_async.os, "getuid", return_value=501, create=True
         ), mock.patch.object(
             telemetry_async.subprocess, "run", return_value=completed
         ):
@@ -370,10 +408,13 @@ class TelemetryAsyncV2Test(unittest.TestCase):
         self.assertEqual("windows-task-scheduler", result["scheduler"])
         task_xml = self.home / "scheduler" / "helixharness-telemetry.xml"
         content = task_xml.read_text(encoding="utf-16")
-        element_tree.parse(task_xml)
+        task = element_tree.parse(task_xml)
         self.assertIn("<MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>", content)
         self.assertIn("<ExecutionTimeLimit>PT15M</ExecutionTimeLimit>", content)
         self.assertIn("<Interval>PT10M</Interval>", content)
+        namespace = {"task": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
+        arguments = task.findtext(".//task:Arguments", namespaces=namespace)
+        self.assertTrue(str(arguments).startswith('-X utf8 "'), arguments)
         self.assertLess(content.index("<StartBoundary>"), content.index("<Repetition>"))
         self.assertIn("<UserId>", content)
         self.assertIn("<LogonTrigger>", content)
@@ -830,6 +871,22 @@ class TelemetryAsyncV2Test(unittest.TestCase):
             check=False,
         )
         self.assertEqual(0, completed.returncode, completed.stderr)
+
+        installed_cli = telemetry_async.subprocess.run(
+            [
+                telemetry_async.sys.executable,
+                "-X",
+                "utf8",
+                str(runtime / "telemetryctl.py"),
+                "--help",
+            ],
+            cwd=self.home,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, installed_cli.returncode, installed_cli.stderr)
+        self.assertIn("repair", installed_cli.stdout)
 
     def test_runtime_repair_refreshes_changed_files_without_version_bump(self) -> None:
         repo = self.home / "refresh-repo"

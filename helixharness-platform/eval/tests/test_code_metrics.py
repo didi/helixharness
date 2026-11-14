@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -248,6 +249,7 @@ def test_temporary_missing_objects_can_be_resolved_on_next_read(archived_repo, m
     assert archive_code_delta(log, str(root))["lines_added"] == 6
 
 
+@pytest.mark.skipif(os.name == "nt", reason="Windows filenames cannot contain tabs or newlines")
 def test_numstat_handles_renames_and_unusual_literal_paths(archived_repo):
     root, log = archived_repo
     checkpoint = log["entries"][-1]["checkpoint"]
@@ -277,7 +279,11 @@ def test_unknown_schema_is_not_guessed_as_a_known_version(archived_repo):
 
 def test_file_change_projection_is_escaped_and_cached_values_are_not_mutable(archived_repo):
     root, log = archived_repo
-    name = "docs/knowledge/<sample>&.md"
+    name = (
+        "docs/knowledge/sample&.md"
+        if os.name == "nt"
+        else "docs/knowledge/<sample>&.md"
+    )
     (root / name).parent.mkdir(parents=True)
     (root / name).write_text("# <标题>&\n正文不展示\n")
     git(root, "add", ".")
@@ -292,8 +298,13 @@ def test_file_change_projection_is_escaped_and_cached_values_are_not_mutable(arc
     path.parent.mkdir(parents=True)
     path.write_text(json.dumps(log))
     html = render_usage_overview_html([str(root)])
-    assert "docs/knowledge/&lt;sample&gt;&amp;.md</code>" in html
-    assert "docs/knowledge/<sample>&.md" not in html
+    escaped_name = (
+        "docs/knowledge/sample&amp;.md"
+        if os.name == "nt"
+        else "docs/knowledge/&lt;sample&gt;&amp;.md"
+    )
+    assert escaped_name + "</code>" in html
+    assert name not in html
     assert "&lt;标题&gt;&amp;</b>" in html
     assert "正文不展示" not in html
 
