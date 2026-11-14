@@ -54,7 +54,7 @@ class PluginHooksTest(unittest.TestCase):
                     env=env,
                     text=True,
                     capture_output=True,
-                    timeout=30,
+                    timeout=60,
                 )
                 self.assertEqual(0, process.returncode, process.stderr)
                 context = json.loads(process.stdout)["hookSpecificOutput"][

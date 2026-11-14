@@ -17,9 +17,32 @@ function Join-NativeArguments([string[]]$Values) {
 }
 
 function Invoke-HelixPython($Python, [string[]]$Values, [bool]$RedirectInput) {
+    $inputBytes = $null
+    if ($RedirectInput) {
+        # Buffer the finite hook payload before starting Python. This avoids a
+        # Windows pipe-lifetime race where the child can keep PowerShell's
+        # redirected console input open while CopyTo waits for EOF.
+        $inputStream = [Console]::OpenStandardInput()
+        $buffer = New-Object System.IO.MemoryStream
+        try {
+            $inputStream.CopyTo($buffer)
+            $inputBytes = $buffer.ToArray()
+        } finally { $buffer.Dispose() }
+    }
     $info = New-Object System.Diagnostics.ProcessStartInfo
     $info.FileName = $Python.executable
-    $info.Arguments = Join-NativeArguments (@($Python.arguments) + $Values)
+    $pythonValues = $Values
+    if ($RedirectInput) {
+        # Windows PowerShell 5.1 exposes no ProcessStartInfo.StandardInputEncoding,
+        # and its default writer can add a UTF-8 BOM. Decode only hook stdin as
+        # utf-8-sig so both Windows PowerShell and PowerShell 7 transports work;
+        # leave stdout/stderr on the runtime's ordinary UTF-8 configuration.
+        $pythonValues = @(
+            '-c',
+            "import runpy,sys; sys.stdin.reconfigure(encoding='utf-8-sig'); runpy.run_path(sys.argv[1], run_name='__main__')"
+        ) + $Values
+    }
+    $info.Arguments = Join-NativeArguments (@($Python.arguments) + $pythonValues)
     $info.UseShellExecute = $false
     $info.RedirectStandardInput = $RedirectInput
     $process = [System.Diagnostics.Process]::Start($info)
@@ -30,20 +53,16 @@ function Invoke-HelixPython($Python, [string[]]$Values, [bool]$RedirectInput) {
             # so ReadToEnd followed by UTF-8 encoding corrupts non-ASCII JSON.
             # Some Windows hosts also prepend a UTF-8 BOM to redirected text;
             # JSON hooks require that transport marker to be removed.
-            $inputStream = [Console]::OpenStandardInput()
-            $prefix = New-Object byte[] 3
-            $prefixLength = 0
-            while ($prefixLength -lt 3) {
-                $read = $inputStream.Read($prefix, $prefixLength, 3 - $prefixLength)
-                if ($read -eq 0) { break }
-                $prefixLength += $read
+            $offset = 0
+            if ($inputBytes.Length -ge 3 -and $inputBytes[0] -eq 0xEF -and
+                    $inputBytes[1] -eq 0xBB -and $inputBytes[2] -eq 0xBF) {
+                $offset = 3
             }
-            $hasUtf8Bom = $prefixLength -eq 3 -and $prefix[0] -eq 0xEF -and
-                $prefix[1] -eq 0xBB -and $prefix[2] -eq 0xBF
-            if (-not $hasUtf8Bom -and $prefixLength -gt 0) {
-                $process.StandardInput.BaseStream.Write($prefix, 0, $prefixLength)
+            if ($inputBytes.Length -gt $offset) {
+                $process.StandardInput.BaseStream.Write(
+                    $inputBytes, $offset, $inputBytes.Length - $offset
+                )
             }
-            $inputStream.CopyTo($process.StandardInput.BaseStream)
             $process.StandardInput.Close()
         }
         $process.WaitForExit()
