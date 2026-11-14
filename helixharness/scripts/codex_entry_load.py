@@ -183,13 +183,17 @@ def _selected_entry(
     return root, packets
 
 
-def _default_state_root() -> Path:
-    uid = os.getuid() if hasattr(os, "getuid") else 0
+def _default_state_root(
+    *,
+    platform_name: str | None = None,
+    uid: int | None = None,
+) -> Path:
+    effective_uid = (os.getuid() if hasattr(os, "getuid") else 0) if uid is None else uid
     # v1 Windows directories may carry a sandbox-SID-only DACL from the old
     # mode=0o700 mkdir call. Rotate once so fixed installations do not remain
     # blocked by an inaccessible directory left by an earlier invocation.
-    generation = "v2" if os.name == "nt" else "v1"
-    return Path(tempfile.gettempdir()) / f"helixharness-codex-entry-state-{generation}-{uid}"
+    generation = "v2" if (platform_name or os.name) == "nt" else "v1"
+    return Path(tempfile.gettempdir()) / f"helixharness-codex-entry-state-{generation}-{effective_uid}"
 
 
 def _mkdir_private_directory(path: Path, *, parents: bool = False, exist_ok: bool = False) -> None:
@@ -353,6 +357,24 @@ def _write_state_manifest(invocation: Path, manifest: dict[str, Any]) -> None:
     temporary_manifest.replace(invocation / "manifest.json")
 
 
+def _publish_state_directory(
+    staging: Path,
+    invocation: Path,
+    *,
+    platform_name: str | None = None,
+) -> None:
+    """Atomically publish state, tolerating brief Windows file-scanner leases."""
+    attempts = 20 if (platform_name or os.name) == "nt" else 1
+    for attempt in range(attempts):
+        try:
+            staging.replace(invocation)
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts or invocation.exists():
+                raise
+            time.sleep(0.02)
+
+
 def prepare_entry(
     plugin_root: Path,
     *,
@@ -438,7 +460,7 @@ def prepare_entry(
                 "packets": response_packets,
             }
         )
-        staging.replace(invocation)
+        _publish_state_directory(staging, invocation)
         return result
     except Exception:
         _remove_state_tree(staging, ignore_errors=True)

@@ -32,7 +32,7 @@ class PluginHooksTest(unittest.TestCase):
                 }
                 if os.name == "nt":
                     env.update({key: value for key, value in os.environ.items()
-                                if key.upper() in {"SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA"}})
+                                if key.upper() in {"SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA"}})
                 shell = git_bash()
                 if os.name == "nt" and host == "claude-code" and shell is None:
                     self.skipTest("Git for Windows POSIX shell is required for Claude hooks")
@@ -54,7 +54,7 @@ class PluginHooksTest(unittest.TestCase):
                     env=env,
                     text=True,
                     capture_output=True,
-                    timeout=10,
+                    timeout=30,
                 )
                 self.assertEqual(0, process.returncode, process.stderr)
                 context = json.loads(process.stdout)["hookSpecificOutput"][

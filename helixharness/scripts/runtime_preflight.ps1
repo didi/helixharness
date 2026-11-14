@@ -28,7 +28,21 @@ function Invoke-HelixPython($Python, [string[]]$Values, [bool]$RedirectInput) {
             # Keep hook payloads byte-for-byte intact. Windows PowerShell 5.1
             # decodes redirected Console.In with its legacy console code page,
             # so ReadToEnd followed by UTF-8 encoding corrupts non-ASCII JSON.
+            # Some Windows hosts also prepend a UTF-8 BOM to redirected text;
+            # JSON hooks require that transport marker to be removed.
             $inputStream = [Console]::OpenStandardInput()
+            $prefix = New-Object byte[] 3
+            $prefixLength = 0
+            while ($prefixLength -lt 3) {
+                $read = $inputStream.Read($prefix, $prefixLength, 3 - $prefixLength)
+                if ($read -eq 0) { break }
+                $prefixLength += $read
+            }
+            $hasUtf8Bom = $prefixLength -eq 3 -and $prefix[0] -eq 0xEF -and
+                $prefix[1] -eq 0xBB -and $prefix[2] -eq 0xBF
+            if (-not $hasUtf8Bom -and $prefixLength -gt 0) {
+                $process.StandardInput.BaseStream.Write($prefix, 0, $prefixLength)
+            }
             $inputStream.CopyTo($process.StandardInput.BaseStream)
             $process.StandardInput.Close()
         }

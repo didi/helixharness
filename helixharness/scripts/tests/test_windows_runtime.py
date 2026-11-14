@@ -44,6 +44,19 @@ class WindowsRuntimeTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), {"message": "中文 🌍"})
 
+    def test_lifecycle_strips_utf8_bom_from_stdin(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "hook.py"
+            script.write_text("import json,sys; print(json.dumps(json.load(sys.stdin)))", encoding="utf-8")
+            result = subprocess.run(
+                [*self.base, "hook", "SessionStart", str(script)],
+                input=b'\xef\xbb\xbf{"message":"ok"}',
+                capture_output=True,
+                timeout=20,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
+            self.assertEqual(json.loads(result.stdout), {"message": "ok"})
+
     def test_install_requires_explicit_confirmation(self):
         result = subprocess.run([*self.base, "install-python"], capture_output=True, text=True, encoding="utf-8", timeout=20)
         self.assertEqual(result.returncode, 2)

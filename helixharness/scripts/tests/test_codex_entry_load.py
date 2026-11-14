@@ -21,6 +21,7 @@ from codex_entry_load import (
     EntryLoadError,
     _default_state_root,
     _mkdir_private_directory,
+    _publish_state_directory,
     finish_entry,
     prepare_entry,
     read_entry_page,
@@ -53,12 +54,10 @@ class CodexEntryLoadTest(unittest.TestCase):
         mkdir.assert_called_once_with(parents=True, exist_ok=True)
 
     def test_windows_default_rotates_away_from_legacy_acl_state(self) -> None:
-        with patch("codex_entry_load.os.name", "nt"), patch(
-            "codex_entry_load.tempfile.gettempdir", return_value="C:/synthetic-temp"
-        ):
+        with patch("codex_entry_load.tempfile.gettempdir", return_value="C:/synthetic-temp"):
             self.assertEqual(
                 Path("C:/synthetic-temp/helixharness-codex-entry-state-v2-0"),
-                _default_state_root(),
+                _default_state_root(platform_name="nt", uid=0),
             )
 
     def test_posix_state_directories_are_owner_only(self) -> None:
@@ -249,16 +248,24 @@ class CodexEntryLoadTest(unittest.TestCase):
             "init": {"project_config", "project_hooks", "subagent_protocol", "telemetry_protocol"},
             "ut": {"ut", "subagent_protocol", "telemetry_protocol"},
         }
-        host = json.loads((PLUGIN_ROOT / "hosts/codex/host.json").read_text())
+        host = json.loads(
+            (PLUGIN_ROOT / "hosts/codex/host.json").read_text(encoding="utf-8")
+        )
         for command, keys in required.items():
             with self.subTest(command=command):
-                entry = (PLUGIN_ROOT / f"hosts/codex/skills/{command}/SKILL.md").read_text()
+                entry = (
+                    PLUGIN_ROOT / f"hosts/codex/skills/{command}/SKILL.md"
+                ).read_text(encoding="utf-8")
                 resources = tuple(re.findall(r"--resource ([a-z_]+)", entry))
                 prepared = self.prepare(command, resources)
                 paths = {item["path"] for packet in prepared["packets"] for item in packet["resources"]}
                 expected = {host["adapters"][key].removeprefix("resource:") for key in keys}
                 self.assertLessEqual(expected, paths, f"{command} entry packet omits required resources")
-                footer = (PLUGIN_ROOT / f"commands/{command}.md").read_text().split("宿主资源声明：")[-1]
+                footer = (
+                    (PLUGIN_ROOT / f"commands/{command}.md")
+                    .read_text(encoding="utf-8")
+                    .split("宿主资源声明：")[-1]
+                )
                 self.assertLessEqual(keys, set(re.findall(r"resources\.([a-z_]+)", footer)))
 
     def test_public_cli_prepare_page_finish_seam(self) -> None:
@@ -460,6 +467,27 @@ class CodexEntryLoadTest(unittest.TestCase):
             )
         )
 
+    def test_windows_publish_retries_a_transient_directory_lease(self) -> None:
+        staging = self.state_root / ".staging-retry"
+        invocation = self.state_root / "published-retry"
+        staging.mkdir(parents=True)
+        (staging / "manifest.json").write_text("{}", encoding="utf-8")
+        original_replace = Path.replace
+        attempts = 0
+
+        def flaky_replace(path: Path, target: Path) -> Path:
+            nonlocal attempts
+            if path == staging and attempts < 2:
+                attempts += 1
+                raise PermissionError("synthetic scanner lease")
+            return original_replace(path, target)
+
+        with patch.object(Path, "replace", new=flaky_replace):
+            _publish_state_directory(staging, invocation, platform_name="nt")
+
+        self.assertEqual(2, attempts)
+        self.assertTrue((invocation / "manifest.json").is_file())
+
     def test_first_owner_publication_race_never_replaces_a_marker(self) -> None:
         barrier = threading.Barrier(2)
         link = os.link
@@ -502,7 +530,8 @@ class CodexEntryLoadTest(unittest.TestCase):
     def test_tampered_page_fails_closed(self) -> None:
         prepared = self.prepare("apply")
         invocation = self.state_root / prepared["invocation_key"]
-        page_path = next(invocation.glob("page-*.txt"))
+        manifest = json.loads((invocation / "manifest.json").read_text(encoding="utf-8"))
+        page_path = invocation / manifest["pages"]["1"][0]["filename"]
         page_path.chmod(0o600)
         page_path.write_text("tampered", encoding="utf-8")
 

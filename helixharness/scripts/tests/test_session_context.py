@@ -16,10 +16,19 @@ SCRIPT = ROOT / "hosts/claude-code/hook_entry.py"
 
 class SessionContextTest(unittest.TestCase):
     def run_hook(self, payload: str, **extra_env: str) -> subprocess.CompletedProcess:
+        environment = {"PATH": os.environ.get("PATH", "")}
+        if os.name == "nt":
+            for key, value in os.environ.items():
+                if key.upper() in {
+                    "SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP",
+                    "USERPROFILE", "LOCALAPPDATA", "APPDATA",
+                }:
+                    environment[key] = value
+        environment.update(extra_env)
         return subprocess.run(
             [sys.executable, str(SCRIPT)],
             input=payload, text=True, capture_output=True, check=True,
-            env={"PATH": os.environ.get("PATH", ""), **extra_env},
+            env=environment,
         )
 
     def context(self, result: subprocess.CompletedProcess) -> str:

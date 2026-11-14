@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import subprocess
+import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -37,6 +38,16 @@ VALID_INTERACTIVE_ACTIONS = {
     "disable_project",
     "disable_user",
 }
+
+
+def _configure_utf8_stdio() -> None:
+    """Keep the JSON CLI contract UTF-8 under legacy Windows code pages."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="strict")
+
+
 PROJECT_KEY_PATTERN = re.compile(r"^prj_[0-9a-f]{16}$")
 CONSENT_EPOCH_PATTERN = re.compile(r"^cep_[0-9a-f]{24}$")
 SCOPE_TIME_FIELDS = {"enabled_at", "disabled_at", "last_prompted_at", "next_prompt_after"}
@@ -844,6 +855,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    _configure_utf8_stdio()
     args = _parser().parse_args()
     repo: Path | None = None
     try:
