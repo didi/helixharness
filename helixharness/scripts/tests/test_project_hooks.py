@@ -87,6 +87,22 @@ class ProjectHooksTest(unittest.TestCase):
                     0, subprocess.run([*base, "check"], capture_output=True).returncode
                 )
 
+    def test_payloads_carry_a_windows_entrypoint_with_shipped_launcher(self):
+        launcher = ROOT / "templates/harness/run-sh.ps1.tpl"
+        self.assertTrue(launcher.is_file(), "commandWindows launcher template missing")
+        for host in ("codex", "claude-code"):
+            with self.subTest(host=host):
+                payload = json.loads(
+                    (ROOT / f"hosts/{host}/project-hooks.json").read_text(encoding="utf-8")
+                )["payload"]
+                for group in payload["hooks"]["PostToolUse"]:
+                    for handler in group["hooks"]:
+                        self.assertEqual("command", handler["type"])
+                        windows = handler.get("commandWindows", "")
+                        self.assertIn("run-sh.ps1", windows)
+                        linter = handler["command"].split()[1]
+                        self.assertIn(linter.rsplit("/", 1)[-1], windows)
+
     def test_invalid_user_settings_are_not_overwritten(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)

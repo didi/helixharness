@@ -3,28 +3,68 @@ set -u
 
 MINIMUM_PYTHON="3.10"
 
-python_status() {
-  if ! command -v python3 >/dev/null 2>&1; then
-    PYTHON_STATUS="missing"
-    PYTHON_VERSION=""
-    return
-  fi
-  PYTHON_VERSION="$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || true)"
-  case "$PYTHON_VERSION" in
-    [0-9]*.[0-9]*.[0-9]*) ;;
+probe_python_version() {
+  # Prints the interpreter version only when the candidate runs a real Python.
+  # Windows Store app-execution aliases (WindowsApps stubs) fail this probe and
+  # are skipped in favour of the next candidate.
+  case "$1" in
+    py)
+      command -v py >/dev/null 2>&1 || return 1
+      py -3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null
+      ;;
     *)
-      PYTHON_STATUS="unusable"
-      return
+      command -v "$1" >/dev/null 2>&1 || return 1
+      "$1" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null
       ;;
   esac
-  old_ifs=$IFS
-  IFS=.
-  set -- $PYTHON_VERSION
-  IFS=$old_ifs
-  if [ "$1" -gt 3 ] || { [ "$1" -eq 3 ] && [ "$2" -ge 10 ]; }; then
-    PYTHON_STATUS="ready"
-  else
+}
+
+candidate_command() {
+  case "$1" in
+    py) printf '%s' "py -3" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+python_status() {
+  PYTHON_STATUS="missing"
+  PYTHON_VERSION=""
+  PYTHON_COMMAND=""
+  found_any=false
+  probed_version=""
+  probed_command=""
+  for candidate in python3 python py; do
+    version="$(probe_python_version "$candidate" || true)"
+    case "$version" in
+      [0-9]*.[0-9]*.[0-9]*)
+        if [ -z "$probed_version" ]; then
+          probed_version="$version"
+          probed_command="$(candidate_command "$candidate")"
+        fi
+        old_ifs=$IFS
+        IFS=.
+        set -- $version
+        IFS=$old_ifs
+        if [ "$1" -gt 3 ] || { [ "$1" -eq 3 ] && [ "$2" -ge 10 ]; }; then
+          PYTHON_STATUS="ready"
+          PYTHON_VERSION="$version"
+          PYTHON_COMMAND="$(candidate_command "$candidate")"
+          return
+        fi
+        ;;
+      *)
+        if command -v "$candidate" >/dev/null 2>&1; then
+          found_any=true
+        fi
+        ;;
+    esac
+  done
+  if [ -n "$probed_version" ]; then
     PYTHON_STATUS="unsupported_version"
+    PYTHON_VERSION="$probed_version"
+    PYTHON_COMMAND="$probed_command"
+  elif [ "$found_any" = "true" ]; then
+    PYTHON_STATUS="unusable"
   fi
 }
 
@@ -49,9 +89,10 @@ emit_check() {
     ok=true
     next_action="continue"
   fi
-  printf '{"schema_version":"1.0","ok":%s,"python":{"status":"%s","minimum_version":"%s","version":%s},"git":{"status":"%s"},"next_action":"%s"}\n' \
+  printf '{"schema_version":"1.0","ok":%s,"python":{"status":"%s","minimum_version":"%s","version":%s,"command":%s},"git":{"status":"%s"},"next_action":"%s"}\n' \
     "$ok" "$PYTHON_STATUS" "$MINIMUM_PYTHON" \
     "$(if [ -n "$PYTHON_VERSION" ]; then printf '"%s"' "$PYTHON_VERSION"; else printf 'null'; fi)" \
+    "$(if [ -n "$PYTHON_COMMAND" ]; then printf '"%s"' "$PYTHON_COMMAND"; else printf 'null'; fi)" \
     "$GIT_STATUS" "$next_action"
 }
 
@@ -82,8 +123,8 @@ install_python() {
 
   python_status
   if [ "$PYTHON_STATUS" = "ready" ]; then
-    printf '{"schema_version":"1.0","ok":true,"installed":false,"python":{"status":"ready","minimum_version":"%s","version":"%s"},"next_action":"continue"}\n' \
-      "$MINIMUM_PYTHON" "$PYTHON_VERSION"
+    printf '{"schema_version":"1.0","ok":true,"installed":false,"python":{"status":"ready","minimum_version":"%s","version":"%s","command":"%s"},"next_action":"continue"}\n' \
+      "$MINIMUM_PYTHON" "$PYTHON_VERSION" "$PYTHON_COMMAND"
     return 0
   fi
 
@@ -158,8 +199,8 @@ install_python() {
       "安装命令已完成，但当前 PATH 中仍没有 Python 3.10+；统计保持关闭。"
     return 1
   fi
-  printf '{"schema_version":"1.0","ok":true,"installed":true,"python":{"status":"ready","minimum_version":"%s","version":"%s"},"next_action":"continue"}\n' \
-    "$MINIMUM_PYTHON" "$PYTHON_VERSION"
+  printf '{"schema_version":"1.0","ok":true,"installed":true,"python":{"status":"ready","minimum_version":"%s","version":"%s","command":"%s"},"next_action":"continue"}\n' \
+    "$MINIMUM_PYTHON" "$PYTHON_VERSION" "$PYTHON_COMMAND"
 }
 
 case "${1:-}" in
