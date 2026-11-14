@@ -44,6 +44,30 @@ class EntryLoadError(ValueError):
     """Raised when a Codex entry cannot be loaded deterministically."""
 
 
+def _replace_dir(source: Path, target: Path) -> None:
+    # Windows virus scanners briefly hold freshly written files open, which
+    # makes renaming the parent directory fail with ACCESS_DENIED. Retry a
+    # few times before giving up.
+    for attempt in range(5):
+        try:
+            source.replace(target)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.05 * (attempt + 1))
+
+
+def _rmtree(path: Path, *, ignore_errors: bool = False) -> None:
+    def _force_writable(func, target, _exc_info):
+        # Page files are chmod 0o400; Windows refuses to delete read-only
+        # files, so restore write permission and retry.
+        os.chmod(target, 0o600)
+        func(target)
+
+    shutil.rmtree(path, ignore_errors=ignore_errors, onerror=_force_writable)
+
+
 def _object(path: Path) -> dict[str, Any]:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -203,12 +227,24 @@ def _secure_state_root(value: Path | None) -> Path:
             if entry.name != STATE_OWNER_NAME
             and not entry.name.startswith(f"{STATE_OWNER_NAME}.tmp-")
         ]
-        if foreign:
+        # Another invocation may publish the owner and start staging between
+        # our initial existence check and directory enumeration.
+        if foreign and not owner.exists() and not owner.is_symlink():
             raise EntryLoadError("entry state root is not owned by HelixHarness")
-        temporary_owner = root / f"{STATE_OWNER_NAME}.tmp-{secrets.token_hex(8)}"
-        temporary_owner.write_text(STATE_OWNER_VALUE, encoding="utf-8")
-        temporary_owner.chmod(0o600)
-        temporary_owner.replace(owner)
+        if not owner.exists() and not owner.is_symlink():
+            temporary_owner = root / f"{STATE_OWNER_NAME}.tmp-{secrets.token_hex(8)}"
+            temporary_owner.write_text(STATE_OWNER_VALUE, encoding="utf-8")
+            temporary_owner.chmod(0o600)
+            try:
+                temporary_owner.replace(owner)
+            except PermissionError:
+                # Windows cannot replace an owner marker another invocation
+                # has open for validation. Only accept its publication after
+                # the same symlink/type/content checks below.
+                if not owner.exists() and not owner.is_symlink():
+                    raise
+            finally:
+                temporary_owner.unlink(missing_ok=True)
     if owner.is_symlink() or not owner.is_file():
         raise EntryLoadError("entry state root is not owned by HelixHarness")
     try:
@@ -259,7 +295,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
             continue
         if is_staging:
             if old_enough:
-                shutil.rmtree(child)
+                _rmtree(child)
             continue
         try:
             manifest = _object(child / "manifest.json")
@@ -267,7 +303,7 @@ def _cleanup_expired(state_root: Path, now: float) -> None:
         except (EntryLoadError, OSError, TypeError, ValueError):
             expired = old_enough
         if expired:
-            shutil.rmtree(child)
+            _rmtree(child)
 
 
 def _chunk_text(text: str) -> list[str]:
@@ -355,9 +391,11 @@ def prepare_entry(
                     page_index = len(packet_pages)
                     filename = f"page-{packet_round}-{page_index}.txt"
                     page_path = staging / filename
-                    page_path.write_text(chunk, encoding="utf-8")
-                    page_path.chmod(0o400)
                     page_bytes = chunk.encode("utf-8")
+                    # Write bytes: text mode would translate newlines on
+                    # Windows and break the page_sha256 integrity check.
+                    page_path.write_bytes(page_bytes)
+                    page_path.chmod(0o400)
                     packet_pages.append(
                         {
                             "filename": filename,
@@ -396,10 +434,10 @@ def prepare_entry(
                 "packets": response_packets,
             }
         )
-        staging.replace(invocation)
+        _replace_dir(staging, invocation)
         return result
     except Exception:
-        shutil.rmtree(staging, ignore_errors=True)
+        _rmtree(staging, ignore_errors=True)
         raise
 
 
@@ -427,7 +465,7 @@ def _state_manifest(
     if manifest.get("plugin_root") != str(plugin_root.resolve()):
         raise EntryLoadError("entry state belongs to a different plugin root")
     if float(manifest.get("expires_at", 0)) <= time.time():
-        shutil.rmtree(invocation)
+        _rmtree(invocation)
         raise EntryLoadError("entry state is missing or expired")
     return invocation, manifest
 
@@ -510,7 +548,7 @@ def finish_entry(
         for packet_round, packet_pages in pages.items()
     ):
         raise EntryLoadError("entry pages are not fully consumed")
-    shutil.rmtree(invocation)
+    _rmtree(invocation)
     return _bounded(
         {"schema_version": SCHEMA_VERSION, "status": "finished", "invocation_key": invocation_key, "command": manifest["command"]}
     )

@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import time
 import unittest
@@ -51,7 +52,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def run_metrics(self, *args: str, platform: str = "codex") -> dict:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -69,7 +70,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def run_consent(self, *args: str, platform: str = "codex") -> dict:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -87,7 +88,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def enable(self, platform: str = "codex") -> None:
         subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -111,7 +112,7 @@ class LiteMetricsCliTest(unittest.TestCase):
     def disable(self) -> None:
         subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(CONSENT),
                 "--repo-root",
                 str(self.repo),
@@ -371,7 +372,7 @@ Outbox(r'{home}').enqueue(
 """.format(home=self.root / "telemetry-home", repo=self.repo)
         env = dict(self.env)
         env["PYTHONPATH"] = str(PLUGIN_ROOT / "scripts")
-        completed = subprocess.run(["python3", "-c", code], capture_output=True, text=True, env=env)
+        completed = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, env=env)
         self.assertEqual(0, completed.returncode, completed.stderr)
         env.pop("CODEX_THREAD_ID", None)
         env.pop("HELIXHARNESS_PLATFORM", None)
@@ -398,7 +399,7 @@ Outbox(r'{home}').enqueue(
         other_repo.mkdir()
         subprocess.run(["git", "init", "-q", str(other_repo)], check=True)
         subprocess.run(
-            ["python3", str(CONSENT), "--repo-root", str(other_repo),
+            [sys.executable, str(CONSENT), "--repo-root", str(other_repo),
              "--platform", "claude-code", "set", "--scope", "user", "--mode", "disabled"],
             capture_output=True, text=True, env=env, check=True,
         )
@@ -413,7 +414,7 @@ Outbox(r'{home}').enqueue(
     def test_unsupported_host_skips_without_creating_state_or_public_data(self) -> None:
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -441,7 +442,7 @@ Outbox(r'{home}').enqueue(
 
     def test_retired_address_recorder_is_rejected_without_writing_ledger(self) -> None:
         completed = subprocess.run(
-            ["python3", str(SCRIPT), "--repo-root", str(self.repo), "--platform", "codex",
+            [sys.executable, str(SCRIPT), "--repo-root", str(self.repo), "--platform", "codex",
              "set-requirement-url", "--feature", "demo", "--requirement-url", "https://tracker.example/1"],
             capture_output=True, text=True, env=self.env,
         )
@@ -454,7 +455,7 @@ Outbox(r'{home}').enqueue(
         escaped = self.root / "escaped" / "apply.json"
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -684,7 +685,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -725,7 +726,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -1336,7 +1337,7 @@ Outbox(r'{home}').enqueue(
             processes.append(
                 subprocess.Popen(
                     [
-                        "python3",
+                        sys.executable,
                         str(SCRIPT),
                         "--repo-root",
                         str(self.repo),
@@ -1520,7 +1521,7 @@ Outbox(r'{home}').enqueue(
 
         completed = subprocess.run(
             [
-                "python3",
+                sys.executable,
                 str(SCRIPT),
                 "--repo-root",
                 str(self.repo),
@@ -1657,7 +1658,7 @@ Outbox(r'{home}').enqueue(
             started = time.monotonic()
             completed = subprocess.run(
                 [
-                    "python3",
+                    sys.executable,
                     str(SCRIPT),
                     "--repo-root",
                     str(self.repo),

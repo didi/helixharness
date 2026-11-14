@@ -17,6 +17,7 @@ import telemetry_consent
 import user_config
 import test_workspace
 import test_workflow
+from symlink_support import symlink_or_skip
 
 
 class UserCommandsTest(unittest.TestCase):
@@ -108,7 +109,8 @@ class UserCommandsTest(unittest.TestCase):
         external = self.root / 'external.md'
         external.write_text('must not read')
         (directory / 'spec.md').unlink()
-        (directory / 'spec.md').symlink_to(external)
+        with symlink_or_skip(self):
+            (directory / 'spec.md').symlink_to(external)
         self.assertIn('unsafe', project_status.snapshot(self.repo, 'demo')['features'][0]['issues'][0])
         self.feature(state='completed')
         self.assertIn('both', project_status.snapshot(self.repo, 'demo')['features'][0]['issues'][0])
@@ -178,7 +180,8 @@ class UserCommandsTest(unittest.TestCase):
         home.mkdir()
         external = self.root / 'external.json'
         external.write_text('{"keep": true}')
-        (home / 'config.json').symlink_to(external)
+        with symlink_or_skip(self):
+            (home / 'config.json').symlink_to(external)
         with self.assertRaises(user_config.ConfigError):
             user_config.set_endpoint('telemetry', 'https://example.test/report', user_confirmed=True)
         self.assertEqual(external.read_text(), '{"keep": true}')

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -15,11 +17,50 @@ SCRIPT = ROOT / "hosts/claude-code/hook_entry.py"
 
 class SessionContextTest(unittest.TestCase):
     def run_hook(self, payload: str, **extra_env: str) -> subprocess.CompletedProcess:
-        return subprocess.run(
+        # Keep host credentials/bindings isolated, but retain the OS variables
+        # Windows needs to load Python and its DLLs. Preserve the suite's UTF-8
+        # contract in the child instead of falling back to the Windows locale.
+        environment = {
+            name: os.environ[name]
+            for name in ("PATH", "SystemRoot", "WINDIR", "SYSTEMDRIVE", "COMSPEC", "TEMP", "TMP", "COVERAGE_PROCESS_CONFIG")
+            if name in os.environ
+        }
+        environment.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+        environment.update(extra_env)
+        result = subprocess.run(
             [sys.executable, str(SCRIPT)],
-            input=payload, text=True, capture_output=True, check=True,
-            env={"PATH": os.environ.get("PATH", ""), **extra_env},
+            input=payload, text=True, encoding="utf-8", capture_output=True, check=False,
+            env=environment,
         )
+        self.assertEqual(result.returncode, 0,
+                         f"Hook exited with {result.returncode}\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}")
+        return result
+
+    def test_hook_retains_runtime_environment_without_inheriting_host_secrets(self):
+        environment = {
+            "PATH": "synthetic-path", "SystemRoot": "C:\\Windows",
+            "TEMP": "synthetic-temp", "PYTHONUTF8": "0",
+            "COVERAGE_PROCESS_CONFIG": "synthetic-trace-config",
+            "ANTHROPIC_API_KEY": "synthetic-secret", "CLAUDE_PLUGIN_ROOT": "unrelated-root",
+        }
+        with patch.dict(os.environ, environment, clear=True), \
+             patch("subprocess.run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run:
+            self.run_hook("{}", CLAUDE_ENV_FILE="synthetic-session.env")
+        child_env = run.call_args.kwargs["env"]
+        self.assertEqual("C:\\Windows", child_env["SystemRoot"])
+        self.assertEqual("synthetic-temp", child_env["TEMP"])
+        self.assertEqual("1", child_env["PYTHONUTF8"])
+        self.assertEqual("utf-8", child_env["PYTHONIOENCODING"])
+        self.assertEqual("synthetic-trace-config", child_env["COVERAGE_PROCESS_CONFIG"])
+        self.assertEqual("synthetic-session.env", child_env["CLAUDE_ENV_FILE"])
+        self.assertNotIn("ANTHROPIC_API_KEY", child_env)
+        self.assertNotIn("CLAUDE_PLUGIN_ROOT", child_env)
+
+    def test_hook_failure_includes_the_captured_stderr(self):
+        failure = subprocess.CompletedProcess([], 1, "", "synthetic DLL load failure")
+        with patch("subprocess.run", return_value=failure):
+            with self.assertRaisesRegex(AssertionError, "synthetic DLL load failure"):
+                self.run_hook("{}")
 
     def context(self, result: subprocess.CompletedProcess) -> str:
         output = json.loads(result.stdout)["hookSpecificOutput"]
@@ -60,7 +101,10 @@ class SessionContextTest(unittest.TestCase):
             self.assertEqual(result.stdout, "")
             self.assertIn("export HELIXHARNESS_LITE_SESSION_CWD='/project with spaces'", env_file.read_text())
             self.assertIn("export HELIXHARNESS_LITE_SESSION_ID=session-one", env_file.read_text())
-            self.assertIn("export HELIXHARNESS_BOUND_PLUGIN_ROOT=" + str(ROOT), env_file.read_text())
+            self.assertIn(
+                "export HELIXHARNESS_BOUND_PLUGIN_ROOT=" + shlex.quote(str(ROOT)),
+                env_file.read_text(),
+            )
 
     def test_skill_and_direct_command_refresh_source_next_to_entry(self):
         cases = [

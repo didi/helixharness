@@ -11,6 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 
+@unittest.skipIf(os.name == "nt", "requires POSIX /bin/sh and absolute paths")
 @unittest.skipUnless(shutil.which("node"), "Node.js required for native d2c guards")
 class D2CHookBindingTest(unittest.TestCase):
     def run_hook(self, root, project, event, path=None):

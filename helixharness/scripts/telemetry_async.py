@@ -1357,6 +1357,12 @@ def _windows_task_is_current(home: str | Path | None, payload: Any) -> bool:
     )
 
 
+def _uid() -> int:
+    # os.getuid is POSIX-only; Windows has no launchd path in practice, but the
+    # Darwin branches are exercised under mocks on any host.
+    return os.getuid() if hasattr(os, "getuid") else 0
+
+
 def scheduler_status(home: str | Path | None = None) -> dict[str, Any]:
     root = telemetry_home(home)
     host = system_platform.system()
@@ -1375,7 +1381,7 @@ def scheduler_status(home: str | Path | None = None) -> dict[str, Any]:
             return {"scheduler": "missing", "path": str(path), "healthy": False}
         try:
             result = subprocess.run(
-                ["launchctl", "print", f"gui/{os.getuid()}/com.helixharness.telemetry"],
+                ["launchctl", "print", f"gui/{_uid()}/com.helixharness.telemetry"],
                 check=False,
                 capture_output=True,
                 timeout=3,
@@ -1417,7 +1423,8 @@ def ensure_scheduler(home: str | Path | None = None) -> dict[str, Any]:
 <key>ProcessType</key><string>Background</string>
 </dict></plist>'''
         _atomic_bytes(path, content.encode("utf-8"), 0o644)
-        result = subprocess.run(["launchctl", "bootstrap", f"gui/{os.getuid()}", str(path)], check=False, capture_output=True, timeout=3)
+        uid = _uid()
+        result = subprocess.run(["launchctl", "bootstrap", f"gui/{uid}", str(path)], check=False, capture_output=True, timeout=3)
         health = scheduler_status(root)
         if result.returncode != 0 and not health.get("healthy"):
             return {"scheduler": "launchd", "path": str(path), "healthy": False, "error": "launchd_bootstrap_failed"}
@@ -1449,10 +1456,10 @@ def remove_scheduler(home: str | Path | None = None) -> dict[str, Any]:
         path = _launchd_path()
         if not path.exists():
             return {"scheduler": "launchd", "removed": True}
-        result = subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}", str(path)], check=False, capture_output=True, timeout=3)
+        result = subprocess.run(["launchctl", "bootout", f"gui/{_uid()}", str(path)], check=False, capture_output=True, timeout=3)
         if result.returncode != 0:
             probe = subprocess.run(
-                ["launchctl", "print", f"gui/{os.getuid()}/com.helixharness.telemetry"],
+                ["launchctl", "print", f"gui/{_uid()}/com.helixharness.telemetry"],
                 check=False,
                 capture_output=True,
                 timeout=3,
@@ -1498,7 +1505,7 @@ def wake_detached(home: str | Path | None = None) -> bool:
         command = [
             "launchctl",
             "kickstart",
-            f"gui/{os.getuid()}/com.helixharness.telemetry",
+            f"gui/{_uid()}/com.helixharness.telemetry",
         ]
     elif host == "Windows":
         command = ["schtasks", "/Run", "/TN", WINDOWS_TASK_NAME]

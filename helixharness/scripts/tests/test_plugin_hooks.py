@@ -27,6 +27,8 @@ class PluginHooksTest(unittest.TestCase):
                     "CODEX_THREAD_ID": "fixture-codex",
                     "CLAUDE_SESSION_ID": "fixture-claude",
                 }
+                if "COVERAGE_PROCESS_CONFIG" in os.environ:
+                    env["COVERAGE_PROCESS_CONFIG"] = os.environ["COVERAGE_PROCESS_CONFIG"]
                 process = subprocess.run(
                     ["sh", "-c", command],
                     input=json.dumps(

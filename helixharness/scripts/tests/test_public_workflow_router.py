@@ -9,6 +9,7 @@ from unittest.mock import patch
 from workflow_router import route
 from workflow_target import resolve_workflow_target, WorkflowTargetError
 from workflow import WorkflowError
+from symlink_support import symlink_or_skip
 from host_runtime import HostRegistry
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -74,7 +75,9 @@ class PublicRouterTest(unittest.TestCase):
             self.assertEqual(self.run_route(args)[0],2)
         self.assertEqual(self.run_route('demo',command='verify')[0],2)
         outside=self.repo/'outside';outside.mkdir()
-        docs=self.repo/'docs';docs.symlink_to(outside,target_is_directory=True)
+        docs=self.repo/'docs'
+        with symlink_or_skip(self):
+            docs.symlink_to(outside,target_is_directory=True)
         self.assertEqual(self.run_route('demo request')[0],2)
 
     def test_bug_fix_and_archived_identity(self):

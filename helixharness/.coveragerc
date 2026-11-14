@@ -1,0 +1,16 @@
+[run]
+branch = true
+parallel = true
+patch = subprocess
+source = helixharness
+data_file = .coverage.plugin
+disable_warnings = no-data-collected
+omit =
+    */tests/*
+    */scripts/run_tests.py
+
+[report]
+include_namespace_packages = true
+show_missing = true
+fail_under = 75
+precision = 1

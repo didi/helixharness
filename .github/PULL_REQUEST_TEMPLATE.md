@@ -13,3 +13,4 @@
 - [ ] This change is focused and contains no credentials, private conversations or runtime data.
 - [ ] Relevant tests and documentation have been updated.
 - [ ] Third-party notices are preserved.
+- [ ] Plugin tests pass locally: `python helixharness/scripts/run_tests.py`（本地已跑通插件测试集）

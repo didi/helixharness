@@ -183,6 +183,10 @@ fi
 `spec-sync-check.sh`：完整读取 `templates/harness/spec-sync-check.sh.tpl` 并原样写入。不得重新手写
 依赖当前工作目录的版本；模板已经从脚本位置解析项目根并保持 warning-only。
 
+`run-sh.ps1`：完整读取 `templates/harness/run-sh.ps1.tpl` 并原样写入。它是项目钩子 `commandWindows`
+的 Windows 启动器，负责定位 Git for Windows 的 sh 并运行上述 `.sh` linter；不得省略，否则原生
+Windows 上 PostToolUse 钩子无法执行。
+
 生成后执行 `chmod +x docs/harness/linters/invariant-check.sh docs/harness/linters/spec-sync-check.sh`。
 
 ### Phase 3：生成 knowledge 索引、占位文件与 project-context
@@ -383,6 +387,7 @@ fi
 - [x] docs/harness/infrastructure/lint.md — 代码质量规范
 - [x] docs/harness/linters/invariant-check.sh — invariant 自动检查
 - [x] docs/harness/linters/spec-sync-check.sh — spec 同步提醒
+- [x] docs/harness/linters/run-sh.ps1 — Windows 项目钩子启动器
 - [x] docs/knowledge/index.md — 知识库索引
 - [x] docs/knowledge/project-context.md — 项目上下文
 - [x] docs/knowledge/domain-mapping.md — 别名→域映射表（需手动填写）

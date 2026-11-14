@@ -141,15 +141,24 @@ def _command_skill_frontmatter(path: Path, name: str) -> str:
     )
 
 
-def projected_methods(plugin_root: Path) -> dict[Path, str]:
-    root = plugin_root.resolve()
-    projection = json.loads(
-        (root / "hosts/codex/command-projection.json").read_text(encoding="utf-8")
-    )
-    entrypoints = projection.get("entrypoints")
+def _entrypoints(root: Path) -> dict[str, list[str]]:
+    try:
+        projection = json.loads((root / "hosts/codex/command-projection.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ProjectionError("Codex command projection is invalid") from exc
+    entrypoints = projection.get("entrypoints") if isinstance(projection, dict) else None
     if not isinstance(entrypoints, dict):
         raise ProjectionError("Codex command projection is invalid")
-    command_names = set(entrypoints)
+    for name, resources in entrypoints.items():
+        if (not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9-]*", name)
+                or resources != [f"hosts/codex/skills/{name}/SKILL.md", f"commands/{name}.md"]):
+            raise ProjectionError("Codex command projection is invalid")
+    return entrypoints
+
+
+def projected_methods(plugin_root: Path) -> dict[Path, str]:
+    root = plugin_root.resolve()
+    command_names = set(_entrypoints(root))
     result: dict[Path, str] = {}
     for canonical in sorted((root / "skills").glob("*/SKILL.md")):
         name = canonical.parent.name
@@ -174,17 +183,14 @@ def projected_methods(plugin_root: Path) -> dict[Path, str]:
 
 def _command_targets(plugin_root: Path) -> dict[Path, str]:
     root = plugin_root.resolve()
-    projection = json.loads(
-        (root / "hosts/codex/command-projection.json").read_text(encoding="utf-8")
-    )
     result: dict[Path, str] = {}
-    for name in projection["entrypoints"]:
+    for name in _entrypoints(root):
         canonical = root / "commands" / f"{name}.md"
         target = root / "hosts/codex/skills" / name / "SKILL.md"
         if not target.is_file():
             raise ProjectionError(f"Codex command projection is missing: {name}")
         body = target.read_text(encoding="utf-8")
-        body_end = body.index("\n---\n", 4) + len("\n---\n")
+        body_end = len(_frontmatter(target))
         result[target] = _command_skill_frontmatter(canonical, name) + body[body_end:]
     return result
 
@@ -208,12 +214,11 @@ def projected_openai_metadata(plugin_root: Path) -> dict[Path, str]:
 
 
 def write(plugin_root: Path) -> None:
-    for path, content in _command_targets(plugin_root).items():
-        path.write_text(content, encoding="utf-8")
-    for path, content in projected_methods(plugin_root).items():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-    for path, content in projected_openai_metadata(plugin_root).items():
+    # Validate every canonical input before changing any existing projection.
+    # An invalid method must not leave command frontmatter partially updated.
+    planned = {**_command_targets(plugin_root), **projected_methods(plugin_root),
+               **projected_openai_metadata(plugin_root)}
+    for path, content in planned.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 

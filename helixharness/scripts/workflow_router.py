@@ -100,6 +100,10 @@ def route(repo: Path, *, command: str, feature: str | None = None,
         lexer = shlex.shlex(raw_arguments, posix=True)
         lexer.whitespace_split = True
         lexer.commenters = ''
+        if os.name == 'nt':
+            # Keep backslashes in native Windows paths (C:\...\file.md) instead
+            # of treating them as POSIX escape characters.
+            lexer.escape = ''
         tokens = []
         quoted = []
         while True:

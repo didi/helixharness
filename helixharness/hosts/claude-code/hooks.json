@@ -6,6 +6,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionStart \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.ps1\" SessionStart \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
             "timeout": 3
           }
         ]
@@ -17,6 +18,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" CwdChanged \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.ps1\" CwdChanged \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
             "timeout": 3
           }
         ]
@@ -28,6 +30,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" SessionEnd \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.ps1\" SessionEnd \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
             "timeout": 3
           }
         ]
@@ -40,6 +43,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" PreToolUse \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.ps1\" PreToolUse \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
             "timeout": 3
           }
         ]
@@ -52,6 +56,7 @@
           {
             "type": "command",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.sh\" UserPromptExpansion \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/scripts/python_hook_bootstrap.ps1\" UserPromptExpansion \"${CLAUDE_PLUGIN_ROOT}/hosts/claude-code/hook_entry.py\"",
             "timeout": 3
           }
         ]

@@ -82,10 +82,15 @@ def _active_lock(repo: Path) -> Iterator[None]:
     with path.open("a+b") as handle:
         deadline = time.monotonic() + ACTIVE_LOCK_TIMEOUT_SECONDS
         if os.name == "nt":
-            handle.seek(0, os.SEEK_END)
-            if handle.tell() == 0:
-                handle.write(b"\0")
-                handle.flush()
+            try:
+                handle.seek(0, os.SEEK_END)
+                if handle.tell() == 0:
+                    handle.write(b"\0")
+                    handle.flush()
+            except PermissionError:
+                # Another process holds the byte-range lock: the byte is
+                # already initialized, and locking past EOF is allowed.
+                pass
             handle.seek(0)
             while True:
                 try:
