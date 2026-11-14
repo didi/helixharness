@@ -16,7 +16,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       PYTHONUTF8: "1"
-      HELIXHARNESS_REQUIRE_POWERSHELL_TESTS: ${{ runner.os == 'Windows' && '1' || '0' }}
+      HELIXHARNESS_REQUIRE_POWERSHELL_TESTS: ${{ matrix.os == 'windows-latest' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
