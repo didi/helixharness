@@ -227,12 +227,24 @@ def _secure_state_root(value: Path | None) -> Path:
             if entry.name != STATE_OWNER_NAME
             and not entry.name.startswith(f"{STATE_OWNER_NAME}.tmp-")
         ]
-        if foreign:
+        # Another invocation may publish the owner and start staging between
+        # our initial existence check and directory enumeration.
+        if foreign and not owner.exists() and not owner.is_symlink():
             raise EntryLoadError("entry state root is not owned by HelixHarness")
-        temporary_owner = root / f"{STATE_OWNER_NAME}.tmp-{secrets.token_hex(8)}"
-        temporary_owner.write_text(STATE_OWNER_VALUE, encoding="utf-8")
-        temporary_owner.chmod(0o600)
-        temporary_owner.replace(owner)
+        if not owner.exists() and not owner.is_symlink():
+            temporary_owner = root / f"{STATE_OWNER_NAME}.tmp-{secrets.token_hex(8)}"
+            temporary_owner.write_text(STATE_OWNER_VALUE, encoding="utf-8")
+            temporary_owner.chmod(0o600)
+            try:
+                temporary_owner.replace(owner)
+            except PermissionError:
+                # Windows cannot replace an owner marker another invocation
+                # has open for validation. Only accept its publication after
+                # the same symlink/type/content checks below.
+                if not owner.exists() and not owner.is_symlink():
+                    raise
+            finally:
+                temporary_owner.unlink(missing_ok=True)
     if owner.is_symlink() or not owner.is_file():
         raise EntryLoadError("entry state root is not owned by HelixHarness")
     try:
