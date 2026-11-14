@@ -8,6 +8,7 @@ import base64
 import copy
 import json
 import os
+import re
 import shlex
 import sys
 import tempfile
@@ -17,6 +18,7 @@ from host_runtime import HostContractError, HostRegistry
 from host_runtime.project_hooks import load_project_hooks
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
+WINDOWS_COMMAND_PREFIX = "powershell.exe -NoProfile -NonInteractive -EncodedCommand "
 
 
 def windows_command(argv: list[str]) -> str:
@@ -24,7 +26,31 @@ def windows_command(argv: list[str]) -> str:
     literals = " ".join("'" + item.replace("'", "''") + "'" for item in argv)
     source = f"& {literals}; exit $LASTEXITCODE"
     encoded = base64.b64encode(source.encode("utf-16-le")).decode("ascii")
-    return f"powershell.exe -NoProfile -NonInteractive -EncodedCommand {encoded}"
+    return WINDOWS_COMMAND_PREFIX + encoded
+
+
+def is_bound_linter_command(command: str, linter_args: list[str]) -> bool:
+    """Recognize our generated command with any absolute interpreter path."""
+    if command.startswith(WINDOWS_COMMAND_PREFIX):
+        try:
+            encoded = command.removeprefix(WINDOWS_COMMAND_PREFIX)
+            source = base64.b64decode(encoded, validate=True).decode("utf-16-le")
+        except ValueError:
+            return False
+        match = re.match(r"^& '((?:[^']|'')*)' ", source)
+        if match is None:
+            return False
+        python = match[1].replace("''", "'")
+        return Path(python).is_absolute() and command == windows_command([python, *linter_args])
+    try:
+        argv = shlex.split(command)
+    except ValueError:
+        return False
+    return (
+        argv[1:] == linter_args
+        and Path(argv[0]).is_absolute()
+        and command == shlex.join(argv)
+    )
 
 
 def validate_events(events: dict) -> None:
@@ -46,7 +72,7 @@ def validate_events(events: dict) -> None:
                     raise ValueError(f"missing project hook command: {event}")
 
 
-def merge_payload(current: dict, required: dict) -> dict:
+def merge_payload(current: dict, required: dict, bound_linters: dict[str, tuple[str, list[str]]]) -> dict:
     result = copy.deepcopy(current)
     events = result.setdefault("hooks", {})
     if not isinstance(events, dict):
@@ -65,17 +91,32 @@ def merge_payload(current: dict, required: dict) -> dict:
                 groups.append(copy.deepcopy(expected))
                 continue
             for handler in expected["hooks"]:
+                command = handler.get("command")
+                legacy, linter_args = bound_linters.get(command, ("", [])) if isinstance(command, str) else ("", [])
                 found = False
                 for group in matching:
                     kept = []
                     for existing in group["hooks"]:
-                        if all(
-                            existing.get(key) == handler.get(key)
-                            for key in ("type", "command")
+                        old_command = existing.get("command")
+                        if existing.get("type") == handler["type"] and (
+                            old_command == command
+                            or (
+                                linter_args and isinstance(old_command, str)
+                                and (old_command == legacy or is_bound_linter_command(old_command, linter_args))
+                            )
                         ):
                             if found:
                                 continue
                             found = True
+                            if command != old_command:
+                                existing["command"] = command
+                            old_windows = existing.get("commandWindows")
+                            if (
+                                "commandWindows" in handler and linter_args
+                                and isinstance(old_windows, str)
+                                and is_bound_linter_command(old_windows, linter_args)
+                            ):
+                                existing["commandWindows"] = handler["commandWindows"]
                             for key in ("commandWindows", "shell"):
                                 if key in handler:
                                     existing.setdefault(key, handler[key])
@@ -108,6 +149,7 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
         raise ValueError("settings.hooks must be an object")
     validate_events(current.get("hooks", {}))
     required = copy.deepcopy(contract.payload)
+    bound_linters: dict[str, tuple[str, list[str]]] = {}
     # Bind the interpreter that actually passed preflight, including paths with
     # spaces. No dependency on python3 aliases, WSL or head in project hooks.
     for groups in required["hooks"].values():
@@ -129,17 +171,8 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
                             # native paths rather than sending them through cmd.exe.
                             handler["command"] = shlex.join(argv)
                             handler["shell"] = "bash"
-                        # Upgrade only the exact legacy command owned by this plugin.
-                        for old_groups in current.get("hooks", {}).values():
-                            if not isinstance(old_groups, list):
-                                continue
-                            for old_group in old_groups:
-                                if not isinstance(old_group, dict):
-                                    continue
-                                for old in old_group.get("hooks", []):
-                                    if isinstance(old, dict) and old.get("command") == legacy:
-                                        old["command"] = handler["command"]
-    merged = merge_payload(current, required)
+                        bound_linters[handler["command"]] = (legacy, argv[1:])
+    merged = merge_payload(current, required, bound_linters)
     if action == "check":
         if not exists or original != merged:
             raise ValueError("project_hooks_missing_or_duplicated")

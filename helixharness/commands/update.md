@@ -33,7 +33,7 @@ $ARGUMENTS
 ### Step 1：调用统一版本入口
 
 ```text
-python3 {plugin_root}/scripts/version_update.py \
+{helix_python} "{plugin_root}/scripts/version_update.py" \
   --platform {canonical_host_id} --repo-root {repo_root} check --force-refresh
 ```
 

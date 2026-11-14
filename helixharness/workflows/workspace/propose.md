@@ -58,7 +58,7 @@ testing_seam_confirmed: true
 生成后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-validate --feature "{feature}" --stage propose
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-validate --feature "{feature}" --stage propose
 ```
 
 ## 4. 调度各仓完整 Single Propose
@@ -66,7 +66,7 @@ python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}"
 执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command propose
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command propose
 ```
 
 按返回的拓扑批次调度。每个 job 明确返回 RepoJob identity、ownership、依赖、`arguments`、`command`、预期 Single workflow、completion check、`source` 与 `workspace_contract_sha256`：`source` 是 Workspace 根概要设计的绝对路径，公共调用必须等价于 `/helix:propose {feature} {source}`，不能省略 requirement。严格按 RepoJob Dispatch Contract 在 registry repo path 执行该完整公共命令；不能直接调用内部生成函数，也不能由 Workspace 根代写一套“简化版子仓工件”。子仓 Router 因不存在 Workspace marker，必须进入 `workflows/single/propose.md`。
@@ -82,7 +82,7 @@ workspace_contract_sha256: {workspace_spec_receipt}
 `write` repo 的本地方案覆盖实现与验证；`read` repo 只生成兼容性检查任务，不得引入业务代码修改。每个子仓必须独立通过：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_path}" validate-tasks --feature "{feature}" --stage propose
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_path}" validate-tasks --feature "{feature}" --stage propose
 ```
 
 任一子仓失败时保留已完成子仓的本地状态；重跑从当前子仓工件恢复，不重写已确认的 Workspace Spec。

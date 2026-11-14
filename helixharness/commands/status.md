@@ -26,7 +26,7 @@ $ARGUMENTS
 ## 执行
 
 ```bash
-python3 "{plugin_root}/scripts/project_status.py" --repo-root "{repo_root}"
+{helix_python} "{plugin_root}/scripts/project_status.py" --repo-root "{repo_root}"
 ```
 
 按实际参数追加 `--feature "{feature}"`、`--completed`，安全传参；只运行当前插件捆绑脚本。默认列出全部 active，不启动 Router 或其他命令。

@@ -13,7 +13,7 @@ Router 返回 `reason=lite_archive_telemetry_recovery` 时，业务归档已经�
 在启动 HelixHarness 统计或进入归档门禁前，读取 `reference/eval-protocol.md` 第 2 节的共享 consent 合同，并执行：
 
 ```bash
-python3 "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
 ```
 
 Archive 只读取当前 `effective_mode`。即使无缓存或 `prompt_due=true`，也不得展示固定数据说明或 `allowed_actions[]`，不得调用 `choose/set/install-python`；当前没有有效开启记录时按 disabled 继续，把授权询问留给下一次用户直接执行 HelixHarness Propose。未注册宿主同样不询问并按 disabled 继续。resolver 或缓存异常只输出 `WARN:telemetry_consent_cache_unavailable` 并按 disabled 继续，不得阻塞业务或手写缓存。
@@ -39,7 +39,7 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 在定位 feature 后、进入归档门禁前，执行：
 
 ```bash
-python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage archive --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
+{helix_python} "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage archive --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
 ```
 
 `reason=lite_archive_telemetry_recovery` 时不执行本节的 `start`，按第 4 节恢复既有 Archive Stage。
@@ -51,7 +51,7 @@ python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform 
 先执行统一确定性 preflight：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-preflight --feature "{feature}" --review-choice
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-preflight --feature "{feature}" --review-choice
 ```
 
 它必须确认：
@@ -87,7 +87,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-pr
 - 选择 2：把刚展示结果中的 `current_scope_sha256` 原样传给下方命令。脚本重新核对内容与其他门禁，将用户选择、摘要及变化路径写入 `verify-report.md`，并保存私有 `archive-review-acceptance.json`；保留原 Review HEAD、摘要及双轴结论，不重写 `review-state.json`，不把此次变化标记成已复审。
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" accept-review-drift --feature "{feature}" --expected-scope-sha256 "{current_scope_sha256}" --user-confirmed
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" accept-review-drift --feature "{feature}" --expected-scope-sha256 "{current_scope_sha256}" --user-confirmed
 ```
 
 确认前后内容再次变化时，旧确认失效，重新执行本节 preflight 并重新展示选择；仅暂存、原样提交或 push 不会使确认失效。此选择只放宽内容漂移，不豁免工件缺失、任务未完成、原 Review 不通过、Spec/Tasks 收据不匹配、执行前用户改动范围冲突或未解决的 Git 合并冲突。进入 `finalizing` 后仍按第 3 节只允许已授权的 knowledge 更新，不能通过新确认掩盖归档收尾期间的并发代码修改。
@@ -101,7 +101,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" accept-rev
 初次 preflight 通过后先执行只读范围检查：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-code-scope --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-code-scope --feature "{feature}"
 ```
 
 正常路径的需求范围等于已封存的 Apply Review Scope；`review_accepted_changes=true` 时使用用户刚确认的内容快照，`reviewed_paths` 仍仅表示原 Review 路径。不根据全局 `git status`、分支名称、提交时间或文件语义重新判断。后续只使用命令返回的 `committed_paths`、`working_tree_paths` 和 `excluded_preexisting_paths`；既有用户改动自动排除。接受内容变化不等于授权 commit 或 push，仍执行下方提交选择。命令失败或返回 `sealed != true` 时输出 `BLOCKED:lite_artifact_invalid`。
@@ -109,7 +109,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-co
 随后执行只读 Git 状态检查：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-git-state
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-git-state
 ```
 
 若返回的 `operations` 或 `unmerged_paths` 非空，立即输出 `BLOCKED:git_operation_in_progress`；不得自动解决冲突或继续归档。无法确定当前分支、目标分支或 merge-base 时停止。Git 信息只用于记录代码获取方式，不得扩大已封存的需求范围。
@@ -142,7 +142,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-gi
 展示对现有 knowledge 文件的精确修改建议，等待用户确认。此时只能展示候选 diff 或文本说明，`authorize-knowledge` 成功前不得对 knowledge 文件执行 Edit 或 Write，也不得通过格式化器、生成器或 shell 间接写入。用户拒绝知识更新不阻止归档。把用户确认的 repo-relative 文件路径 JSON 编码为一个参数；没有更新时传空数组。在对 knowledge 文件的首次写入前执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" authorize-knowledge --feature "{feature}" --paths-json '{confirmed_paths_json}'
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" authorize-knowledge --feature "{feature}" --paths-json '{confirmed_paths_json}'
 ```
 
 该命令先要求每个路径都是 `docs/knowledge/` 下已存在的 regular non-symlink 文件且全部祖先目录安全，再重新执行 `ready` preflight，并把只允许本轮变化的精确 knowledge 文件路径写入私有 `archive-state.json`；路径不存在、不是具体文件、包含目录穿越/重复、经过 symlink，或当前 scope 已漂移时均阻断。命令成功后才可对授权列表中的文件执行首次写入。若因提前写入、并发修改或任何 scope 漂移失败，输出 `BLOCKED:lite_review_scope_drift` 并保留当前工作区和 Git 历史供用户判断；不得自动执行 `git reset`、`git restore`、`git checkout`，不得回退已完成的 Apply Scope 提交，也不得修改文件后自行重试授权。用户拒绝知识更新时以 `[]` 授权零路径后继续。不要自动创建新的 CONTEXT/ADR 文档体系，不修改 harness。
@@ -205,7 +205,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" authorize-
 获得上述“提交最终 eval-log”授权后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" commit-ledger --feature "{feature}" --commit-authorized
+{helix_python} "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" commit-ledger --feature "{feature}" --commit-authorized
 ```
 
 该确定性操作只提交 `docs/eval/{feature}/eval-log.json`，提交信息固定为 `chore(eval): record {feature}`，并验证新提交只包含最终 `eval-log.json`；它不得夹带既有 staged/unstaged 文件，本身不自动 push。重复执行在 Ledger 已提交且未变化时幂等跳过。未选择含“提交最终 eval-log”的固定选项、telemetry disabled、finish 未 recorded 或前置 Apply Scope 精确提交失败时不得调用。Ledger 提交失败只输出 `WARN:lite_ledger_commit_failed` 并保留可手工提交文件，不回滚业务归档、不修改实现 commit 引用，也不自动扩大提交范围。

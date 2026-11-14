@@ -8,7 +8,7 @@ triggers:
 插件根为当前文件的 `../../../..`。完整读取 `hosts/codex/skill-entry.md`，执行 runtime preflight，然后执行一次（Windows 使用 `.ps1 exec` 或预检回执中的解释器；下方是 POSIX 示例）：
 
 ```bash
-python3 {plugin_root}/scripts/codex_entry_load.py --plugin-root {plugin_root} --command config
+sh "{plugin_root}/scripts/runtime_preflight.sh" exec "{plugin_root}/scripts/codex_entry_load.py" --plugin-root "{plugin_root}" --command config
 ```
 
 按协议完整消费 packet，以唯一 `commands/config.md` 为命令契约。

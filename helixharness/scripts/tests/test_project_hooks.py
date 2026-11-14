@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -149,6 +150,47 @@ class ProjectHooksTest(unittest.TestCase):
                 )
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual(raw, target.read_text())
+
+    def test_reinit_replaces_old_python_hooks_and_keeps_custom_hooks(self):
+        from project_hooks_cli import project_hooks
+
+        for host in ("codex", "claude-code"):
+            with self.subTest(host=host), tempfile.TemporaryDirectory(prefix="helix space ") as directory:
+                repo = Path(directory)
+                old_python = str(repo / "Python '3.11'" / "python3")
+                new_python = str(repo / "Python 3.14" / "python3")
+                with patch("project_hooks_cli.sys.executable", old_python):
+                    initial = project_hooks(repo, host, "merge")
+                    target = repo / initial["settings_file"]
+                original = json.loads(target.read_text())
+                old_groups = original["hooks"]["PostToolUse"]
+                old_handlers = old_groups[0]["hooks"]
+                custom = {"type": "command", "command": "echo invariant-check", "timeout": 17}
+                old_handlers[0]["timeout"] = 23
+                old_handlers.append(custom)
+                # Projects that have already hit the bug can have duplicate stale entries.
+                old_groups.append({
+                    "matcher": old_groups[0]["matcher"],
+                    "hooks": [old_handlers[0].copy()],
+                })
+                untouched = {"hooks": [{"type": "command", "command": "echo custom stop"}]}
+                original["hooks"]["Stop"] = [untouched]
+                target.write_text(json.dumps(original))
+
+                with patch("project_hooks_cli.sys.executable", new_python):
+                    with self.assertRaisesRegex(ValueError, "project_hooks_missing_or_duplicated"):
+                        project_hooks(repo, host, "check")
+                    self.assertTrue(project_hooks(repo, host, "merge")["changed"])
+                    self.assertFalse(project_hooks(repo, host, "merge")["changed"])
+                    self.assertEqual("pass", project_hooks(repo, host, "check")["status"])
+                    updated = json.loads(target.read_text())["hooks"]
+                    target.unlink()
+                    project_hooks(repo, host, "merge")
+                    expected = json.loads(target.read_text())["hooks"]["PostToolUse"][0]["hooks"]
+                current = [handler for group in updated["PostToolUse"] for handler in group["hooks"]]
+                expected[0]["timeout"] = 23
+                self.assertEqual([*expected, custom], current)
+                self.assertEqual([untouched], updated["Stop"])
 
     def test_complete_required_hooks_do_not_hide_invalid_user_events(self):
         from project_hooks_cli import project_hooks

@@ -32,7 +32,7 @@ Host Kit 的 update adapter。未来新增宿主必须先实现正式安装识�
 当前版本只能通过统一脚本识别：
 
 ```text
-python3 {plugin_root}/scripts/version_update.py \
+{helix_python} "{plugin_root}/scripts/version_update.py" \
   --platform {canonical_host_id} --repo-root {repo_root} check
 ```
 
@@ -210,10 +210,10 @@ Codex: ${CODEX_HOME:-$HOME/.codex}/helixharness/version-check-cache.json
 缓存只能由 plugin 捆绑的 `scripts/version_update.py` 读写，禁止命令或 Agent 自行构造、修改 JSON。调用方式：
 
 ```text
-python3 {plugin_root}/scripts/version_update.py --platform claude-code --repo-root {repo_root} check
-python3 {plugin_root}/scripts/version_update.py --platform claude-code resolve
-python3 {plugin_root}/scripts/version_update.py --platform claude-code refresh --policy-file {path} --current-version {version} --scope {scope}
-python3 {plugin_root}/scripts/version_update.py --platform claude-code skip --target-version {version} --source interactive-user --user-confirmed
+{helix_python} "{plugin_root}/scripts/version_update.py" --platform claude-code --repo-root {repo_root} check
+{helix_python} "{plugin_root}/scripts/version_update.py" --platform claude-code resolve
+{helix_python} "{plugin_root}/scripts/version_update.py" --platform claude-code refresh --policy-file {path} --current-version {version} --scope {scope}
+{helix_python} "{plugin_root}/scripts/version_update.py" --platform claude-code skip --target-version {version} --source interactive-user --user-confirmed
 ```
 
 精确缓存结构：
@@ -281,9 +281,9 @@ python3 {plugin_root}/scripts/version_update.py --platform claude-code skip --ta
 
 真正执行升级必须按以下顺序：
 
-1. 按正式格式调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} prepare --scope {Claude: user|project|all；Codex: default}`，生成 10 分钟有效的 pending `challenge_id`，并返回正式 `prompt.title/message/allowed_actions`。
+1. 按正式格式调用 `{helix_python} "{plugin_root}/scripts/version_update.py" --platform {当前平台} prepare --scope {Claude: user|project|all；Codex: default}`，生成 10 分钟有效的 pending `challenge_id`，并返回正式 `prompt.title/message/allowed_actions`。
 2. 交互框原样使用 prompt，不得自行改写、缩减或重排按钮。
-3. 用户选择后按正式格式调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} decide --challenge-id {id} --action {upgrade_now|skip_update} --user-confirmed`。`upgrade_now` 将 challenge 标为 authorized；`skip_update` 取消 challenge，recommended 保存 skip，required 返回阻断结果。
-4. 仅 `upgrade_now` 可以继续调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} install --challenge-id {id}`。install 校验 platform、scope、目标版本、有效期、实时正式安装和 authorized 状态；随后写入 `installing` journal，逐步执行 adapter 命令。Claude 执行 `plugin update`；Codex 在授权后执行 `plugin marketplace upgrade`，再执行幂等 `plugin add`；每个完成步骤立即原子持久化，全部成功后才消费 authorization，中途失败保留 journal，重试只执行未完成步骤。
+3. 用户选择后按正式格式调用 `{helix_python} "{plugin_root}/scripts/version_update.py" --platform {当前平台} decide --challenge-id {id} --action {upgrade_now|skip_update} --user-confirmed`。`upgrade_now` 将 challenge 标为 authorized；`skip_update` 取消 challenge，recommended 保存 skip，required 返回阻断结果。
+4. 仅 `upgrade_now` 可以继续调用 `{helix_python} "{plugin_root}/scripts/version_update.py" --platform {当前平台} install --challenge-id {id}`。install 校验 platform、scope、目标版本、有效期、实时正式安装和 authorized 状态；随后写入 `installing` journal，逐步执行 adapter 命令。Claude 执行 `plugin update`；Codex 在授权后执行 `plugin marketplace upgrade`，再执行幂等 `plugin add`；每个完成步骤立即原子持久化，全部成功后才消费 authorization，中途失败保留 journal，重试只执行未完成步骤。
 
 禁止跳过任一步骤；禁止 Agent 直接执行平台 plugin 安装命令。pending、过期、目标版本变化、无交互环境或用户取消时均不得安装。`--check` 不得创建 authorization。所有宿主 CLI 都有有界输出和超时；普通状态锁等待上限 2 秒，marketplace 获取的每条 Git/宿主命令上限 20 秒，单个安装步骤上限 60 秒。

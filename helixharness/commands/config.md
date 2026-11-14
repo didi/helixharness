@@ -30,7 +30,7 @@ $ARGUMENTS
 ## 查看
 
 ```bash
-python3 "{plugin_root}/scripts/user_config.py" --repo-root "{repo_root}" --platform "{canonical_host_id}"
+{helix_python} "{plugin_root}/scripts/user_config.py" --repo-root "{repo_root}" --platform "{canonical_host_id}"
 ```
 
 `canonical_host_id` 来自预绑定 Host Context，不猜测平台或授权文件位置。脚本使用纯读取授权 API，默认查看不清理私有数据、不改提醒时间、不启动 Runtime。展示有效值、作用范围、配置来源与文件位置；无配置或损坏都如实说明，不伪造默认开启。不要打印完整配置 JSON、授权缓存、项目指纹或凭据。

@@ -14,6 +14,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/runtime_preflight.sh"
+HOOK = ROOT / "scripts/python_hook_bootstrap.sh"
 
 
 @unittest.skipIf(os.name == "nt", "POSIX launcher fixtures; native coverage in test_windows_runtime")
@@ -37,26 +38,76 @@ class RuntimePreflightTest(unittest.TestCase):
             executable.chmod(0o755)
         (self.bin_dir / "dirname").symlink_to("/usr/bin/dirname")
 
-    def check(self, version: str) -> dict:
+    def run_launcher(self, launcher: Path, *args: str, version: str, path: str, stdin: str = ""):
         environment = os.environ.copy()
-        environment["PATH"] = str(self.bin_dir)
+        environment["PATH"] = path
         environment["FAKE_PYTHON_VERSION"] = version
         completed = subprocess.run(
-            ["/bin/sh", str(SCRIPT), "check"],
+            ["/bin/sh", str(launcher), *args],
+            input=stdin,
             capture_output=True,
             text=True,
             check=False,
             env=environment,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        return json.loads(completed.stdout)
+        return completed.stdout
+
+    def check(self, version: str, path: str | None = None) -> dict:
+        return json.loads(self.run_launcher(SCRIPT, "check", version=version, path=path or str(self.bin_dir)))
 
     def test_python_39_is_rejected(self) -> None:
         payload = self.check("3.9.6")
         self.assertFalse(payload["ok"])
         self.assertEqual(payload["python"]["status"], "unsupported_version")
         self.assertEqual(payload["python"]["minimum_version"], "3.10")
+        self.assertEqual(payload["python"]["version"], "3.9.6")
+        self.assertEqual(payload["python"]["probed_executable"], str(self.bin_dir / "python3"))
+        self.assertIsNone(payload["python"]["executable"])
         self.assertEqual(payload["next_action"], "install_python_or_disable_telemetry")
+
+    def test_python_311_later_in_path_is_used_by_check_exec_and_hook(self) -> None:
+        later = self.bin_dir / 'Python 安装 "quoted" \\ directory'
+        later.mkdir()
+        interpreter = later / "python3"
+        interpreter.write_text(
+            "#!/bin/sh\n"
+            'if [ "$1" = "-c" ]; then printf "%s\\n" 3.11.15; exit 0; fi\n'
+            "exec " + shlex.quote(sys.executable) + ' "$@"\n',
+            encoding="utf-8",
+        )
+        interpreter.chmod(0o755)
+        script = self.bin_dir / "read_stdin.py"
+        script.write_text("import sys\nprint(sys.stdin.read(), end='')\n", encoding="utf-8")
+        path = os.pathsep.join(map(str, (self.bin_dir, later)))
+
+        payload = self.check("3.9.6", path)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["python"]["version"], "3.11.15")
+        self.assertEqual(payload["python"]["executable"], str(interpreter))
+        self.assertEqual(payload["python"]["arguments"], ["-X", "utf8"])
+        for launcher, action in ((SCRIPT, "exec"), (HOOK, "SessionStart")):
+            with self.subTest(launcher=launcher):
+                output = self.run_launcher(
+                    launcher, action, str(script), version="3.9.6", path=path, stdin="hook input\n"
+                )
+                self.assertEqual(output, "hook input\n")
+
+    def test_versioned_python_without_alias_is_discovered(self) -> None:
+        versioned = self.bin_dir / "python3.11"
+        (self.bin_dir / "python3").rename(versioned)
+        self.assertEqual(self.check("3.11.15")["python"]["executable"], str(versioned))
+
+    def test_missing_and_unusable_candidates_are_distinct(self) -> None:
+        for name in ("python3", "python", "py"):
+            (self.bin_dir / name).unlink()
+        self.assertEqual(self.check("unused")["python"]["status"], "missing")
+        broken = self.bin_dir / "python3"
+        broken.write_text("#!/bin/sh\nexit 1\n")
+        broken.chmod(0o755)
+        payload = self.check("unused")
+        self.assertEqual(payload["python"]["status"], "unusable")
+        self.assertEqual(payload["python"]["probed_executable"], str(broken))
 
     def test_python_310_is_ready(self) -> None:
         payload = self.check("3.10.0")

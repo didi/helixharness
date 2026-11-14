@@ -15,8 +15,8 @@ Workspace 根不维护独立 HelixHarness Ledger；各 repo 的统计由各自�
 执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-archive-preflight --feature "{feature}" --review-choice
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command archive --review-choice
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-archive-preflight --feature "{feature}" --review-choice
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command archive --review-choice
 ```
 
 门禁要求根 Spec 为 `implemented|completed`，且每个子仓都满足 Single Archive preflight，或已经存在身份一致的 completed 三工件。根仍为 `implemented` 时，`--review-choice` 允许将仅有评审后内容变化的子仓派发到 Single Archive 处理用户选择；聚合结果会返回 `ready=false`、`decision_needed=review_scope_changed` 和 `pending_review_repos`，这只允许继续派发，不能据此移动根目录。其他门禁失败仍阻断。各子仓展示 1～3 条变更摘要并等待明确选择，Loop 和提交／推送授权均不能代替直接归档确认。计划按 repo 依赖的逆序返回，避免先归档仍被消费者校验依赖的上游仓库。
@@ -51,7 +51,7 @@ python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}"
 移动后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-completed-preflight --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-completed-preflight --feature "{feature}"
 ```
 
 completed 根目录仍必须只包含 `spec.md`。Workspace 根不是 Git repo 时，不伪造 commit、HEAD 或 push；如实汇总各 repo 的真实归档与交付状态即可。

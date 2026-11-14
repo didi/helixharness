@@ -27,7 +27,7 @@ Spec/Tasks 不绑定具体 Agent 入口，Apply 开始前可由任意兼容入�
 单仓前置检查通过后，读取 `reference/eval-protocol.md` 第 2 节的共享 consent 合同，并先执行：
 
 ```bash
-python3 "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
 ```
 
 支持宿主上用户直接执行 `/helix:propose`、直接执行 `/helix:propose --loop` 并进入 Stage A，或 `/helix:bug-fix` 因契约修订进入 Propose 时，在无缓存或提醒到期、即 `prompt_due=true` 时逐字展示该协议的固定数据说明，并按返回顺序原样展示 `allowed_actions[]`。本段结构化单选要求只适用于统计授权：支持结构化单选交互的宿主必须使用该能力，Claude Code 必须调用 `AskUserQuestion`；只有宿主确实没有该能力时才允许使用普通编号文本。不得把这一授权交互规则用于后续需求决策、推荐问题或共享理解确认。用户选择后调用 `choose --action "{selected_action_id}" --user-confirmed`。有效缓存直接复用，不重复询问。`invocation_trigger=agent_workflow` 的其他自动调用不弹出询问、不调用 `choose/set/install-python`，只使用当前 `effective_mode`；未注册宿主不询问并按 disabled 继续。resolver 或缓存异常只输出 `WARN:telemetry_consent_cache_unavailable` 并按 disabled 继续，不得阻塞业务或手写缓存。
@@ -39,7 +39,7 @@ HelixHarness 只复用统一的授权决策、提醒周期与缓存，只使用�
 统计授权处理完成后，完整读取 `reference/version-update-protocol.md`，按其中“主流程快速版本检查模式”执行。Propose --loop 或 Bug Fix 实际进入本正文时，本节就是本次编排唯一一次版本检查；从 Apply/Archive 续跑时不会重新进入本节：
 
 ```bash
-python3 "{plugin_root}/scripts/version_update.py" --platform "{current_platform}" --repo-root "{repo_root}" check
+{helix_python} "{plugin_root}/scripts/version_update.py" --platform "{current_platform}" --repo-root "{repo_root}" check
 ```
 
 只按本次返回的 `next_action` 继续、提示、阻断或原样输出 warning；不得继承历史版本结论、手工读取其他版本来源或自动安装更新。需要升级时严格使用该协议定义的受控确认链路。
@@ -63,7 +63,7 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 在确认 feature 名且进入业务步骤前，执行：
 
 ```bash
-python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage propose --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
+{helix_python} "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage propose --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
 ```
 
 `router_reason` 取公共 Router 本轮返回的受控 `reason`；Propose --loop 固定为 `loop_orchestrated`，Bug Fix repair mode 固定为 `bug_fix_active`。recorder 按上一步解析后的有效 consent 写 HelixHarness Ledger，并在私有 Workflow Trace 中记录本轮组件版本和路由；阶段结束后由独立 Runtime 异步补充宿主数据。公共入口已经完成 Python Runtime preflight；正文内的 disabled、unsupported 或 recorder/trace 失败不得阻塞 Propose 或改走其他流程。需要用户回答真实决策时只暂停业务交互，保持同一个 Stage Entry 与 `attempt`，不得 `finish` 或重新 `start`；用户回答和 Agent 回复由异步 Supplement 按顺序聚合。只有用户明确重新执行入口命令才创建新 Entry 并递增 `attempt`。硬前置失败使用 `blocked + prerequisite_missing`，其他真实失败使用对应受控 failure code。
@@ -79,7 +79,7 @@ python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform 
 在修改任何 Spec/Tasks 前，用 Router 返回的精确值执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_revision.workspace_root}" workspace-begin-revision --feature "{feature}" --repo "{workspace_revision.repo}" --expected-workspace-receipt "{workspace_revision.source_sha256}"
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_revision.workspace_root}" workspace-begin-revision --feature "{feature}" --repo "{workspace_revision.repo}" --expected-workspace-receipt "{workspace_revision.source_sha256}"
 ```
 
 该命令创建或恢复同一 `contract_amendment` Repair Revision。使用它返回的 `repair_key`、
@@ -107,8 +107,8 @@ pending 且未开始新执行/评审时返回 `binding_reopened=true, status=in_
 当前新 Spec/Tasks receipts，并调用：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-rebind --feature "{feature}" --repair-key "{repair_key}" --expected-spec-receipt "{new_spec_receipt_sha256}" --expected-tasks-receipt "{new_tasks_receipt_sha256}"
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage apply
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-rebind --feature "{feature}" --repair-key "{repair_key}" --expected-spec-receipt "{new_spec_receipt_sha256}" --expected-tasks-receipt "{new_tasks_receipt_sha256}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage apply
 ```
 
 `repair-rebind` 保留原始基线、使旧 Review seal 失效；未开始 Apply 的仓回到 ready，已有
@@ -266,7 +266,7 @@ Testing Decisions 优先选择仓库现有最高层公共 seam。测试 seam 必
 普通 Propose 生成或恢复 Tasks 后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage propose
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage propose
 ```
 
 普通 Propose 只有校验器确认 HelixHarness 身份、阶段状态、任务 ID、非空说明、状态和已有依赖可继续执行后，才把 Spec `status` 从 `planning` 更新为 `ready`，随后用同一命令复验。校验失败时先读取明确错误；若是本轮生成造成的 frontmatter、状态、任务 ID、空说明或依赖错误，Agent 可在不改变用户需求和任务范围的前提下最小修正，并立即重跑同一校验。涉及真实需求取舍、无法确定如何修复、或修正后仍失败时，才停止并输出 `BLOCKED:lite_artifact_invalid`。不得跳过校验、猜测通过、安装依赖或生成 `proposal.md`、`design.md`、`verification.md`、独立 `review.md`。
@@ -274,7 +274,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-t
 Repair mode 使用已锁定并保存在当前 Repair state 中的同一 `repair_key`，改用以下只读校验：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage propose --repair-key "{repair_key}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage propose --repair-key "{repair_key}"
 ```
 
 此路径校验未绑定的 Repair state、修订身份、旧任务完整保留、新增任务为当前 revision 的 `pending`、任务 ID 及依赖图。不得把旧 `completed` 任务改成 `pending` 来通过普通校验。Bug Fix 入口校验通过后返回其编排执行 `repair-preflight` 与 `repair-rebind`；Workspace 修订入口按上文在本 Propose job 内完成 rebind 和 apply 阶段校验后返回父 Coordinator。都不得手工把 Spec/Tasks 改成 `ready`。Repair key 缺失、不匹配或校验失败时停止，不回退普通 Propose 校验。

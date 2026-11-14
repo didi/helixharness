@@ -13,7 +13,7 @@ HelixHarness Apply 不读取或锁定宿主；它只依据 Spec、Tasks、仓库
 在启动 HelixHarness 统计或进入业务硬前置前，读取 `reference/eval-protocol.md` 第 2 节的共享 consent 合同，并执行：
 
 ```bash
-python3 "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{current_platform}" resolve
 ```
 
 Apply 只读取当前 `effective_mode`。即使无缓存或 `prompt_due=true`，也不得展示固定数据说明或 `allowed_actions[]`，不得调用 `choose/set/install-python`；当前没有有效开启记录时按 disabled 继续，把授权询问留给下一次用户直接执行 HelixHarness Propose。未注册宿主同样不询问并按 disabled 继续。resolver 或缓存异常只输出 `WARN:telemetry_consent_cache_unavailable` 并按 disabled 继续，不得阻塞业务或手写缓存。
@@ -39,7 +39,7 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 在定位 feature 后、进入硬前置前，执行：
 
 ```bash
-python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage apply --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
+{helix_python} "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" start --feature "{feature}" --stage apply --trigger "{metrics_trigger}" --route-reason "{router_reason|loop_orchestrated|bug_fix_active}"
 ```
 
 `router_reason` 取公共 Router 本轮返回的受控 `reason`；Propose --loop 固定为 `loop_orchestrated`，Bug Fix 固定为 `bug_fix_active`。同步 recorder 按上一步解析后的有效 consent 写 HelixHarness Ledger 和私有 Workflow Trace，不读取 session，也不得阻塞 Apply；阶段结束后由独立 Runtime 异步补充宿主数据。需要用户回答时只暂停业务交互，保持同一个 Stage Entry 与 `attempt`，不得 `finish` 或重新 `start`；这明确包括最终测试出现失败、正在核对是否属于已知基线并等待用户确认是否接受豁免的场景。用户回答和 Agent 回复由异步 Supplement 按顺序聚合。只有用户明确重新执行入口命令才创建新 Entry 并递增 `attempt`。前置缺失、验证失败、Review 未通过或 Agent 失败分别使用受控 `failure_code`；一旦以 `failed|blocked` 真正收口，本次 Apply 必须停止，后续显式重跑先 `start` 新 attempt，不得继续旧 attempt。
@@ -56,7 +56,7 @@ python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform 
 Spec 为 `ready` 的首次入口先调用统一门禁确认初始 Tasks，再记录 Apply 开始时的 Spec 收据与执行前工作区基线：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" bind-apply --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" bind-apply --feature "{feature}"
 ```
 
 `bind-apply` 是首次入口的第一项工作区动作。不得在 `bind-apply` 前要求用户归属、提交、删除、还原、暂存或迁移普通脏文件；普通 tracked、staged、unstaged 与非 ignored untracked 状态不阻断 Apply，也无需判断既有脏路径属于哪个 feature。不得为了把工作区清理干净而执行 `rm`、`git restore`、`git checkout --`、`git stash`，或另建 branch/worktree；这些动作既不是记录基线的前置，也不得由 Agent 以“隔离 Review”为由提出。只有 dirty submodule、nested Git repo、目录型条目等脚本明确拒绝的非普通状态才按错误停止。
@@ -64,7 +64,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" bind-apply
 执行前工作区基线是当前 `HEAD` 与 Apply 开始前已存在的 staged、unstaged、非 ignored untracked 文件内容摘要；它只记录状态，不会清理、暂存、提交或复制用户文件。`bind-apply` 把 `apply_spec_receipt_sha256`、`apply_baseline_head`、`apply_baseline_sha256` 与既有未提交路径清单原子写入当前 checkout 的私有状态 `.helixharness/workflow/{feature}/apply-state.json`；该目录被 Git 忽略且不属于业务工件，`tasks.md` 继续只记录任务和进度。中断、换 session 或在同一 checkout 换兼容宿主后仍以这些持久化事实区分本需求增量与未变化的用户改动。进入 Review 时，Apply 开始后内容未变化的既有未提交路径自动排除，不询问用户；只有某个路径在执行前已有未提交改动、Apply 又修改了同一路径，脚本才因无法证明两部分改动的边界而停止并返回一次精确的 `DECISION_NEEDED`。随后调用统一门禁，并把 JSON 返回的 `next_task` 作为续跑位置：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage apply
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage apply
 ```
 
 缺少业务前置或校验器不可用时停止并输出 `BLOCKED:lite_artifact_invalid`。校验返回明确错误时，Agent 可先修正不改变需求含义的 frontmatter、状态、任务 ID 或依赖错误并立即重跑；不得借修正重新定义需求、重排业务任务或伪造完成状态。Apply 已开始后，私有状态缺失、无效或无法可靠区分既有脏改动时返回 `DECISION_NEEDED`；这包括只带业务工件的 clean clone 或新 checkout，不得把当前工作区猜成空基线或现场重建旧基线。需要产品/技术取舍、应返回 Propose 重建任务，或修正后仍失败时才阻断。不得创建临时 Work Brief、补建非当前合同工件、跳过校验或猜测通过。
@@ -173,7 +173,7 @@ Spec 已声明 `视觉还原验收: 是` 时，`## TDD Evidence` 与 `## AC → 
 所有 task 均为 `completed` 后，把 Tasks `status` 更新为 `completed`，再次执行 `validate-tasks --stage apply`；它必须返回 `next_task: null`。再把 Spec `status` 更新为 `implemented`，执行 `validate-tasks --stage archive` 并把返回的 `spec_receipt_sha256`、`tasks_receipt_sha256` 写入 evidence。Evidence 正文必须记录实际验证与 Review 结果且非空。随后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-preflight --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-preflight --feature "{feature}"
 ```
 
 只有 preflight 确认 Spec/Tasks 已完成、Evidence 非空、收据摘要匹配、`must_fix_rounds` 为任意非负整数、当前内容与 Review Scope 一致（允许原样暂存、commit、push，不要求 HEAD 相等）、双轴 verdict 通过且阶段轨迹可归档，Apply 才成功。Apply 调用不带 `--review-choice`，不接受 Archive 的直接归档确认替代本轮验证和 Review。Evidence 正文的表达和表格布局由 Agent 根据实际结果负责，脚本不判断标题或语义。失败时保留可续跑状态，不伪造 evidence 有效或提示归档。
@@ -183,7 +183,7 @@ preflight 成功后执行 `metrics.py ... trace-event --feature "{feature}" --st
 业务完成后调用：
 
 ```bash
-python3 "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" finish --feature "{feature}" --stage apply --status completed --metrics-json '{"verification":"passed","standards_verdict":"APPROVE","spec_verdict":"APPROVE","must_fix_rounds":{任意非负整数}}'
+{helix_python} "{plugin_root}/scripts/metrics.py" --repo-root "{repo_root}" --platform "{current_platform}" finish --feature "{feature}" --stage apply --status completed --metrics-json '{"verification":"passed","standards_verdict":"APPROVE","spec_verdict":"APPROVE","must_fix_rounds":{任意非负整数}}'
 ```
 
 统计写入失败只输出 warning，不得撤销 evidence 或把成功 Apply 改为失败。正常路径更新当前 active attempt；若同一 session、同一 consent epoch 的 Apply 曾被过早以 `failed|blocked` 收口但业务随后确实完成，completed finish 保留原终态并新增一个从旧 `ended_at` 续接的 completed successor attempt；若最近终态已经是 completed，则只返回幂等成功。不同 session、授权周期变化、存在更新的 in-progress entry 或私有状态不完整时禁止自动续接并返回真实 warning。不得把 failed entry 原地改成 completed。普通 Apply 完成后提示下一步 `/helix:archive {feature}`；`--loop` 入口返回循环编排，Bug Fix 入口返回修订编排，由调用方继续 Archive。当前阶段不自动 commit、push 或部署。

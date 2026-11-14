@@ -3,11 +3,12 @@
 ## 目标与边界
 
 HelixHarness 的版本检查、Usage Telemetry、Hook 生命周期和部分辅助能力依赖
-Python。任何命令在第一次调用 `python3` 前都必须执行本协议，不能把 shell 的
+Python。任何命令在第一次调用插件 Python 脚本前都必须执行本协议，不能把 shell 的
 `command not found` 暴露给用户。
 
 - 最低 Python 版本：3.10。
-- macOS/Linux/Git Bash 依次探测 `python3`、`python`、`py -3`；原生 Windows 依次探测 `python.exe`、`python3.exe`、`py.exe -3`，跳过 WindowsApps 占位别名。必须实际执行并验证 Python 3.10+。
+- macOS/Linux/Git Bash 按 PATH 中的绝对目录顺序探测 `python3`、`python`、版本化解释器（如 `python3.11`）和 `py -3`。旧版或无法执行时继续查找。macOS 还会检查 Apple Silicon 和 Intel 的标准 Homebrew 路径。
+- 原生 Windows 依次探测 `python.exe`、`python3.exe`、`py.exe -3`，跳过 WindowsApps 占位别名。所有宿主均实际执行并验证 Python 3.10+。
 - Git 是 HelixHarness repo 工作流的必需依赖，也在同一次 preflight 中检查。
 - Python 不可用时无法解析授权缓存和提醒周期，因此 Init 暂不展示统计说明或开启选项，不读取或手写授权缓存。恢复 Python 后重新调用 resolver，按授权缓存和提醒周期决定是否问询，不因缺少异步地址跳过。普通生命周期命令只修复运行依赖，不新增 consent 选择。
 - 用户选择保持关闭时，不因 Python 缺失自动修改系统；不依赖 Python 的业务部分
@@ -18,7 +19,7 @@ Python。任何命令在第一次调用 `python3` 前都必须执行本协议，
 命令入口、阶段续跑和 telemetry fallback 在任何 Python 脚本前执行：
 
 ```text
-sh {plugin_root}/scripts/runtime_preflight.sh check
+sh "{plugin_root}/scripts/runtime_preflight.sh" check
 ```
 
 原生 Windows（无需 WSL 或 PATH 中的 sh）：
@@ -27,10 +28,13 @@ sh {plugin_root}/scripts/runtime_preflight.sh check
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/runtime_preflight.ps1" check
 ```
 
-本轮后续所有文档中的 `python3 script.py ...` 都是 Python 调用语义，必须使用通过预检的解释器执行。
-macOS/Linux/Git Bash 可用 `sh "{plugin_root}/scripts/runtime_preflight.sh" exec "script.py" ...`；
-Windows 可用 `powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/runtime_preflight.ps1" exec "script.py" ...`，
-或用回执的 `python.executable` 与 `python.arguments` 构造参数数组，PowerShell 用 `&` 调用。路径一律加引号。
+共享命令和工作流中的 `{helix_python}` 表示以下启动器前缀。执行时展开为当前操作系统对应的命令：
+
+- macOS/Linux/Git Bash：`sh "{plugin_root}/scripts/runtime_preflight.sh" exec`
+- 原生 Windows：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/runtime_preflight.ps1" exec`
+
+保留示例中的脚本路径和参数，也可用回执的 `python.executable` 与 `python.arguments` 构造参数数组，PowerShell 用 `&` 调用。路径一律加引号。
+启动器与 Hook 使用同一套解释器查找规则，无需修改 PATH。
 Windows 安装恢复使用同一 `.ps1` 的 `install-python --user-confirmed`。
 命令中的 POSIX 环境变量赋值、路径和 Shell 工具必须转换为宿主原生写法；不得调用 WSL 的 bash 运行原生 Windows 工作区。
 
@@ -44,13 +48,14 @@ Windows 安装恢复使用同一 `.ps1` 的 `install-python --user-confirmed`。
 - Git 可用且 `python.status=missing|unsupported_version|unusable`：输出
   `WARN:helixharness_python_runtime_unavailable`，不得直接调用 Python 脚本，但仍须按
   下节处理运行依赖恢复，不展示统计开启选项。
+- POSIX 预检的 `python.probed_executable` 是选中的路径或失败时用于诊断的路径。`unsupported_version` 同时返回探测到的版本。
 
 ## 运行依赖可用后的来源校验
 
 Python/Git 检查通过后，在版本检查和业务读取/写入前执行：
 
 ```text
-python3 {plugin_root}/scripts/host_runtime_cli.py resolve --platform {canonical_host_id} --expected-plugin-root {session_bound_plugin_root}
+{helix_python} "{plugin_root}/scripts/host_runtime_cli.py" resolve --platform "{canonical_host_id}" --expected-plugin-root "{session_bound_plugin_root}"
 ```
 
 两个根目录均来自当前 Host Context，不能通过搜索另一安装补齐。只有 `status=resolved` 且

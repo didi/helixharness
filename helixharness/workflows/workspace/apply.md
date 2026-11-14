@@ -13,8 +13,8 @@ description: "Workspace Apply：按依赖调度各仓完整 Single Single Apply�
 先执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-validate --feature "{feature}" --stage apply
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command apply
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-validate --feature "{feature}" --stage apply
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-plan --feature "{feature}" --command apply
 ```
 
 门禁必须确认根目录只有 Workspace `spec.md`，Spec 为 `ready|applying`，registry/Repo 矩阵/依赖 DAG/契约引用有效，每个子仓是身份一致且绑定当前 Workspace Spec receipt 的 Single feature。随后把根 Spec 状态推进为 `applying`。
@@ -58,7 +58,7 @@ job 禁止写其他 repo 或 Workspace 根 feature 目录。
 聚合结论只更新 Workspace Spec 状态，不生成第二份证据文件。全部通过后把根 Spec 状态推进为 `implemented`，再执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-archive-preflight --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workspace.py" --workspace-root "{workspace_root}" workspace-archive-preflight --feature "{feature}"
 ```
 
 成功后提示下一步 `/helix:archive {feature}`；Propose --loop 则直接进入 Workspace Archive。Workspace 模式不支持 `/helix:bug-fix`。

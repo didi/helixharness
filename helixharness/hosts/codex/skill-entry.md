@@ -1,11 +1,11 @@
 # Codex Skill Entry Protocol
 
 Codex 薄入口的 plugin root 固定为当前 `hosts/codex/skills/{name}/SKILL.md` 向上四级。
-Windows 入口必须使用 `scripts/runtime_preflight.ps1`，后续 Python 调用使用预检选中的解释器或该脚本的 `exec`；下列 `sh`/`python3` 是 POSIX 示例，不能在 PowerShell 中原样执行。
+下列命令使用 POSIX 启动器。原生 Windows 按预检协议换用 `scripts/runtime_preflight.ps1` 的 `check` 和 `exec`。
 在任何 Python 调用前完整读取 `reference/runtime-preflight.md`，执行：
 
 ```text
-sh {plugin_root}/scripts/runtime_preflight.sh check
+sh "{plugin_root}/scripts/runtime_preflight.sh" check
 ```
 
 - `ok=true` 时，本轮只执行一次 `scripts/codex_entry_load.py` **prepare**。prepare 回执不包含正文，只返回
@@ -13,14 +13,14 @@ sh {plugin_root}/scripts/runtime_preflight.sh check
   page 回执都必须小于 16 KiB。把 key 记录在 invocation 内存态 `HELIXHARNESS_CODEX_ENTRY_LOAD`，同一业务
   invocation 禁止重复 prepare。
 - 严格按 `packets[].round`、每包从 `page_index=0` 到 `page_count-1` 顺序执行
-  `python3 {plugin_root}/scripts/codex_entry_load.py --plugin-root {plugin_root} --read-page --invocation-key {key} --packet-round {round} --page-index {index}`。
+  `sh "{plugin_root}/scripts/runtime_preflight.sh" exec "{plugin_root}/scripts/codex_entry_load.py" --plugin-root "{plugin_root}" --read-page --invocation-key {key} --packet-round {round} --page-index {index}`。
   page read 是同一已验证快照的有界 continuation，不计作资源发现轮次；允许在 TTL 内幂等重读同一页，
   禁止跳页、增加第三个逻辑 packet、按回执 path 直接读源文件或重新扫描 cache。
 - 每次宿主工具调用只读取一页，完整检查该页回执后再读下一页。不得用 shell 循环、批量脚本或
   同一工具调用合并多页输出；单页有界不代表合并输出仍能避免宿主截断。输出被截断时在 TTL 内
   单独重读该页，完成消费前不得调用 finish。
 - 每个资源必须按 `resource_page_index` 无损拼接，并以 prepare 的 `source_sha256` 复核；全部资源消费后立即执行
-  `python3 {plugin_root}/scripts/codex_entry_load.py --plugin-root {plugin_root} --finish --invocation-key {key}`。
+  `sh "{plugin_root}/scripts/runtime_preflight.sh" exec "{plugin_root}/scripts/codex_entry_load.py" --plugin-root "{plugin_root}" --finish --invocation-key {key}`。
   finish 必须使用独立工具调用；成功后快照会关闭，不能再补读遗漏或被截断的页。
   缺页、过期、hash 不符或 finish 失败时关闭失败，不得用第二次 prepare 恢复当前 invocation。
 - 原生 Windows 没有 Python 时，停止依赖 Python 的流程并按预检协议恢复依赖；只有已确认 Git Bash 可用时才可选择下述 Shell fallback，不得调用 WSL。
