@@ -7,10 +7,14 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
+
+import codex_entry_load
 
 from codex_entry_load import (
     MAX_RESPONSE_BYTES,
@@ -129,7 +133,9 @@ class CodexEntryLoadTest(unittest.TestCase):
                 command_path.read_text(encoding="utf-8") + large_suffix,
                 encoding="utf-8",
             )
-            expected = command_path.read_text(encoding="utf-8")
+            # Byte-exact: prepare hashes and serves raw file bytes, so the
+            # comparison must not normalize CRLF on Windows checkouts.
+            expected = command_path.read_bytes().decode("utf-8")
             self.assertGreater(len(expected.encode("utf-8")), 100 * 1024)
 
             prepared = prepare_entry(
@@ -167,8 +173,8 @@ class CodexEntryLoadTest(unittest.TestCase):
             for included in ENTRY_FIXTURE_ROOTS:
                 shutil.copytree(PLUGIN_ROOT / included, root / included)
             command_path = root / "commands/apply.md"
-            original = command_path.read_text(encoding="utf-8") + "\nfirst-revision\n"
-            command_path.write_text(original, encoding="utf-8")
+            original = command_path.read_bytes().decode("utf-8") + "\nfirst-revision\n"
+            command_path.write_bytes(original.encode("utf-8"))
 
             prepared = prepare_entry(root, command="apply", state_root=state_root)
             command_path.write_text("second-revision\n", encoding="utf-8")
@@ -240,7 +246,7 @@ class CodexEntryLoadTest(unittest.TestCase):
     def test_public_cli_prepare_page_finish_seam(self) -> None:
         loader = PLUGIN_ROOT / "scripts/codex_entry_load.py"
         base = [
-            "python3",
+            sys.executable,
             str(loader),
             "--plugin-root",
             str(PLUGIN_ROOT),
@@ -332,7 +338,7 @@ class CodexEntryLoadTest(unittest.TestCase):
         self.assertEqual(expected_paths, set(reconstructed))
         for relative, content in reconstructed.items():
             self.assertEqual(
-                (PLUGIN_ROOT / relative).read_text(encoding="utf-8"),
+                (PLUGIN_ROOT / relative).read_bytes().decode("utf-8"),
                 content,
             )
 
@@ -436,10 +442,67 @@ class CodexEntryLoadTest(unittest.TestCase):
             )
         )
 
+    def test_concurrent_owner_publication_accepts_the_valid_winner(self) -> None:
+        original_replace = Path.replace
+
+        def publish_elsewhere(source, target):
+            if target.name == codex_entry_load.STATE_OWNER_NAME:
+                target.write_text(codex_entry_load.STATE_OWNER_VALUE, encoding="utf-8")
+                raise PermissionError("Windows denies replacing an open owner marker")
+            return original_replace(source, target)
+
+        with patch.object(Path, "replace", publish_elsewhere):
+            prepared = self.prepare("update")
+        self.assertEqual("ready", prepared["status"])
+        self.assertEqual([], list(self.state_root.glob(".helixharness-owner.tmp-*")))
+
+    def test_concurrent_owner_publication_rejects_an_invalid_winner(self) -> None:
+        original_replace = Path.replace
+
+        def publish_elsewhere(source, target):
+            if target.name == codex_entry_load.STATE_OWNER_NAME:
+                target.write_text("foreign owner", encoding="utf-8")
+                raise PermissionError("Windows denies replacing an open owner marker")
+            return original_replace(source, target)
+
+        with patch.object(Path, "replace", publish_elsewhere):
+            with self.assertRaisesRegex(EntryLoadError, "not owned"):
+                self.prepare("update")
+        self.assertEqual("foreign owner", (self.state_root / codex_entry_load.STATE_OWNER_NAME).read_text())
+
+    def test_owner_publication_does_not_hide_unrelated_permission_errors(self) -> None:
+        with patch.object(Path, "replace", side_effect=PermissionError("directory is not writable")):
+            with self.assertRaises(PermissionError):
+                self.prepare("update")
+        self.assertEqual([], list(self.state_root.glob(".helixharness-owner.tmp-*")))
+
+    def test_owner_published_during_directory_scan_is_validated(self) -> None:
+        original_iterdir = Path.iterdir
+        for index, marker in enumerate((codex_entry_load.STATE_OWNER_VALUE, "foreign owner")):
+            with self.subTest(marker=marker):
+                root = Path(self.temporary.name) / f"state-{index}"
+
+                def publish_during_scan(path):
+                    if path == root:
+                        (root / codex_entry_load.STATE_OWNER_NAME).write_text(marker, encoding="utf-8")
+                        (root / "inflight-snapshot").mkdir()
+                    return original_iterdir(path)
+
+                with patch.object(Path, "iterdir", publish_during_scan):
+                    if marker == codex_entry_load.STATE_OWNER_VALUE:
+                        self.assertEqual(root.resolve(), codex_entry_load._secure_state_root(root))
+                    else:
+                        with self.assertRaisesRegex(EntryLoadError, "not owned"):
+                            codex_entry_load._secure_state_root(root)
+                self.assertEqual(marker, (root / codex_entry_load.STATE_OWNER_NAME).read_text(encoding="utf-8"))
+
     def test_tampered_page_fails_closed(self) -> None:
         prepared = self.prepare("apply")
         invocation = self.state_root / prepared["invocation_key"]
-        page_path = next(invocation.glob("page-*.txt"))
+        # Directory enumeration is unordered (notably on ext4). Tamper with the
+        # exact page read below, rather than an arbitrary snapshot page.
+        manifest = json.loads((invocation / "manifest.json").read_text(encoding="utf-8"))
+        page_path = invocation / manifest["pages"]["1"][0]["filename"]
         page_path.chmod(0o600)
         page_path.write_text("tampered", encoding="utf-8")
 

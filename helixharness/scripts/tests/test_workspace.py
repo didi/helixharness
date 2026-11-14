@@ -10,6 +10,7 @@ from pathlib import Path
 import workflow
 import workspace
 import workflow_router
+from symlink_support import symlink_or_skip
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
@@ -533,9 +534,10 @@ repos:
             workspace.load_registry(self.workspace)
 
     def test_registry_rejects_an_intermediate_symlink_component(self) -> None:
-        (self.workspace / "repo-links").symlink_to(
-            self.workspace, target_is_directory=True
-        )
+        with symlink_or_skip(self):
+            (self.workspace / "repo-links").symlink_to(
+                self.workspace, target_is_directory=True
+            )
         (self.workspace / "helixharness.workspace.yaml").write_text(
             """version: 1
 repos:
@@ -553,9 +555,10 @@ repos:
     def test_overview_rejects_an_intermediate_docs_symlink(self) -> None:
         self._write_overview()
         (self.workspace / "docs").rename(self.workspace / "real-docs")
-        (self.workspace / "docs").symlink_to(
-            self.workspace / "real-docs", target_is_directory=True
-        )
+        with symlink_or_skip(self):
+            (self.workspace / "docs").symlink_to(
+                self.workspace / "real-docs", target_is_directory=True
+            )
 
         with self.assertRaisesRegex(
             workspace.WorkspaceError, "traverses a symlink"
@@ -570,7 +573,8 @@ repos:
         completed.rmdir()
         external = self.workspace / "external-completed"
         external.mkdir()
-        completed.symlink_to(external, target_is_directory=True)
+        with symlink_or_skip(self):
+            completed.symlink_to(external, target_is_directory=True)
 
         with self.assertRaisesRegex(
             workspace.WorkspaceError, "traverses a symlink"

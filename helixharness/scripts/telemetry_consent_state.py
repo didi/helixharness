@@ -221,21 +221,29 @@ def _cache_lock(path: Path) -> Iterator[None]:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     read_existing = os.name != "nt"
     with lock_path.open("r" if read_existing else "a+") as handle:
+        locked = False
         try:
             if os.name == "nt":
-                handle.seek(0)
-                if not handle.read(1):
-                    handle.write("0")
-                    handle.flush()
+                try:
+                    handle.seek(0)
+                    if not handle.read(1):
+                        handle.write("0")
+                        handle.flush()
+                except PermissionError:
+                    # Another process holds the byte-range lock: the byte is
+                    # already initialized, and locking past EOF is allowed.
+                    pass
                 handle.seek(0)
                 msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+                locked = True
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
             yield
         finally:
             if os.name == "nt":
-                handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                if locked:
+                    handle.seek(0)
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 

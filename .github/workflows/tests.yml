@@ -1,0 +1,51 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  plugin-tests:
+    # helixharness/ plugin contract tests; no extra dependencies required.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Run plugin tests
+        run: python helixharness/scripts/run_tests.py
+
+  platform-tests:
+    # helixharness-platform/ pytest suite and ruff lint. The platform is a
+    # Linux server component: part of its suite pins POSIX-only behaviour
+    # (user isolation, symlink-escape protection, process groups), so it runs
+    # on ubuntu-latest. PYTHONUTF8 keeps subprocess decoding stable for
+    # contributors on non-UTF-8 locales who run the suite locally.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.10", "3.12"]
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install platform with dev extras
+        run: python -m pip install -e "helixharness-platform[server,dev]"
+      - name: Run platform tests
+        working-directory: helixharness-platform
+        run: python -m pytest
+      - name: Ruff
+        working-directory: helixharness-platform
+        run: python -m ruff check web_ui eval bench evolution tests

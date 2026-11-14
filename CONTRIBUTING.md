@@ -28,6 +28,12 @@ python -m pip install -e './helixharness-platform[server,dev]'
 
 Tests must use synthetic data and mock paid model calls, external workers and network dependencies. Live agent acceptance requires your own model configuration and a disposable application repository. Do not put runtime output or credentials in a PR.
 
+Test expectations:
+
+- Every bug fix ships a regression test in `helixharness/scripts/tests/`; every behavior change updates the tests that pin the old contract.
+- Tests must be hermetic: fake or shadow host-machine tools (`python3`, `git`, `$HOME`) instead of depending on what happens to be installed, so the suite behaves identically on every machine.
+- The plugin suite runs on Linux, macOS and Windows in CI (`.github/workflows/tests.yml`) and must pass before merge; run `python helixharness/scripts/run_tests.py` locally before opening a PR. Use `@unittest.skipIf` / the shared helpers in `scripts/tests/` (for example `symlink_support.symlink_or_skip`) for genuinely platform-specific behaviour rather than letting tests fail on one OS.
+
 ## Source boundaries
 
 - `helixharness/commands/`: nine public entrypoints: seven development commands plus `status` and `config`.

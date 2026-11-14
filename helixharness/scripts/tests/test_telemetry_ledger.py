@@ -610,6 +610,7 @@ class TelemetryLedgerTest(unittest.TestCase):
         self.assertNotEqual(first["entry_id"], second["entry_id"])
         self.assertEqual(["codex", "claude-code"], [entry["platform"] for entry in ledger["entries"]])
 
+    @unittest.skipIf(os.name == "nt", "fcntl.flock is POSIX-only")
     def test_lock_times_out_instead_of_waiting_forever(self) -> None:
         with mock.patch.object(telemetry_ledger, "LOCK_TIMEOUT_SECONDS", 0.02), mock.patch.object(
             telemetry_ledger.fcntl, "flock", side_effect=BlockingIOError()

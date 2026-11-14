@@ -5,11 +5,17 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from shell_support import bash_environment, find_bash
+
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = PLUGIN_ROOT / "templates/harness/spec-sync-check.sh.tpl"
 
 
 class SpecSyncLinterTemplateTest(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.bash = find_bash()
+
     def _check_feature(self, *, status: str, report: bool, workspace: bool = False) -> str:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -24,9 +30,12 @@ class SpecSyncLinterTemplateTest(unittest.TestCase):
                 (feature / "verify-report.md").write_text("# Verified\n")
             script = root / "docs/harness/linters/spec-sync-check.sh"
             script.parent.mkdir(parents=True)
-            script.write_text(TEMPLATE.read_text())
-            result = subprocess.run(["bash", str(script)], capture_output=True, text=True, check=False)
-            self.assertEqual(result.returncode, 0, result.stderr)
+            script.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
+            result = subprocess.run(
+                [self.bash, "--noprofile", "--norc", script.as_posix()],
+                capture_output=True, text=True, check=False, env=bash_environment(self.bash),
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return result.stdout
 
     def test_completed_three_artifacts_do_not_warn(self) -> None:
@@ -53,15 +62,16 @@ class SpecSyncLinterTemplateTest(unittest.TestCase):
             script.parent.mkdir(parents=True)
             feature.mkdir(parents=True)
             (feature / "tasks.md").write_text("# tasks\n", encoding="utf-8")
-            script.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
+            script.write_text(TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8", newline="\n")
 
             completed = subprocess.run(
-                ["bash", str(script)],
+                [self.bash, "--noprofile", "--norc", script.as_posix()],
                 cwd=Path(temporary),
                 text=True,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 check=False,
+                env=bash_environment(self.bash),
             )
 
             self.assertEqual(0, completed.returncode, completed.stdout)

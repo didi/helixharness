@@ -188,11 +188,12 @@ function testNuxtConfigCanInitializePreview() {
     'Child.vue',
     'Page.vue',
   ])
+  const posix = (value) => value.replace(/\\/g, '/')
   assert.ok(harness.files.some((entry) => (
-    entry.kind === 'created' && entry.path.endsWith('/static/d2c-preview-runtime/nuxt-sample')
+    entry.kind === 'created' && posix(entry.path).endsWith('/static/d2c-preview-runtime/nuxt-sample')
   )))
   assert.ok(harness.files.some((entry) => (
-    entry.kind === 'created' && entry.path.endsWith('/client/d2c-preview/nuxt-sample-webpack.config.cjs')
+    entry.kind === 'created' && posix(entry.path).endsWith('/client/d2c-preview/nuxt-sample-webpack.config.cjs')
   )))
   write(path.join(runtimeDir, 'runtime.js'), 'window.__previewRuntime = true\n')
 

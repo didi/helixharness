@@ -9,12 +9,26 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import selectors
 import signal
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
+
+
+def _shebang_interpreter(executable: Path) -> str | None:
+    """Windows has no shebang execution; honor a `#!interpreter` first line explicitly."""
+    try:
+        with executable.open("rb") as handle:
+            first = handle.readline(512)
+    except OSError:
+        return None
+    if not first.startswith(b"#!"):
+        return None
+    return first[2:].decode("utf-8", "replace").strip() or None
 
 
 class JsonLineDecoder:
@@ -111,8 +125,22 @@ def _stop_process_tree(process: subprocess.Popen) -> None:
     process.wait(timeout=2)
 
 
-def _drain_available_output(process: subprocess.Popen, log: Any) -> None:
+def _drain_available_output(process: subprocess.Popen, log: Any,
+                            pumped: queue.Queue[bytes] | None = None) -> None:
     """Retain available trailing bytes without waiting for another process's EOF."""
+    if pumped is not None:
+        # Windows: trailing bytes were already collected by the pump thread, and
+        # os.set_blocking does not support pipe handles there.
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            try:
+                chunk = pumped.get(timeout=max(0, deadline - time.monotonic()))
+            except queue.Empty:
+                break
+            if not chunk:
+                break
+            log.write(chunk)
+        return
     descriptor = process.stdout.fileno()
     os.set_blocking(descriptor, False)
     deadline = time.monotonic() + 0.5
@@ -133,7 +161,12 @@ def run(args: argparse.Namespace) -> int:
     output.mkdir(parents=True, exist_ok=True)
     if any((output / name).exists() for name in ("events.jsonl", "driver-result.json")):
         raise ValueError("use a new output directory; existing evidence is never overwritten")
-    cmd = [args.claude, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
+    launch = [args.claude]
+    if os.name == "nt":
+        interpreter = _shebang_interpreter(Path(args.claude))
+        if interpreter:
+            launch = [interpreter, args.claude]
+    cmd = [*launch, "-p", "--input-format", "stream-json", "--output-format", "stream-json",
            "--verbose", "--replay-user-messages", "--plugin-dir", str(root),
            "--permission-mode", args.permission_mode, "--strict-mcp-config", "--mcp-config",
            '{"mcpServers":{}}', "--setting-sources", "user,project,local"]
@@ -162,8 +195,37 @@ def run(args: argparse.Namespace) -> int:
             process.stdin.flush()
             notices.write(wire)
             notices.flush()
-        selector = selectors.DefaultSelector()
-        selector.register(process.stdout, selectors.EVENT_READ)
+        # Windows selectors do not support pipes; pump stdout from a thread there.
+        pumped: queue.Queue[bytes] | None = None
+        selector = None
+        if os.name == "posix":
+            selector = selectors.DefaultSelector()
+            selector.register(process.stdout, selectors.EVENT_READ)
+
+            def read_chunk(timeout: float) -> bytes | None:
+                if not selector.select(timeout=timeout):
+                    return None
+                return os.read(process.stdout.fileno(), 65536)
+        else:
+            pumped = queue.Queue()
+
+            def pump() -> None:
+                try:
+                    while True:
+                        chunk = os.read(process.stdout.fileno(), 65536)
+                        pumped.put(chunk)
+                        if not chunk:
+                            return
+                except OSError:
+                    pumped.put(b"")
+
+            threading.Thread(target=pump, daemon=True).start()
+
+            def read_chunk(timeout: float) -> bytes | None:
+                try:
+                    return pumped.get(timeout=timeout)
+                except queue.Empty:
+                    return None
         try:
             send({"type": "user", "message": {"role": "user", "content": prompt}})
             eof = False
@@ -171,31 +233,32 @@ def run(args: argparse.Namespace) -> int:
                 if time.monotonic() - start >= args.timeout:
                     timed_out = True
                     break
-                ready = selector.select(timeout=min(1, max(0, args.timeout - (time.monotonic() - start))))
-                if not ready and process.poll() is not None:
-                    break  # A descendant may hold the pipe after the native leader exits.
-                for key, _ in ready:
-                    chunk = os.read(key.fileobj.fileno(), 65536)
-                    if not chunk:
-                        eof = True
-                        break
-                    log.write(chunk)
-                    log.flush()
-                    for event in decoder.feed(chunk):
-                        message = relay.accept(event)
-                        if message is not None:
-                            send(message)
-                        if relay.finished and not process.stdin.closed:
-                            process.stdin.close()
+                chunk = read_chunk(min(1, max(0, args.timeout - (time.monotonic() - start))))
+                if chunk is None:
+                    if process.poll() is not None:
+                        break  # A descendant may hold the pipe after the native leader exits.
+                    continue
+                if not chunk:
+                    eof = True
+                    break
+                log.write(chunk)
+                log.flush()
+                for event in decoder.feed(chunk):
+                    message = relay.accept(event)
+                    if message is not None:
+                        send(message)
+                    if relay.finished and not process.stdin.closed:
+                        process.stdin.close()
             if not timed_out:
                 process.wait(timeout=2)
         except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
             driver_error = str(error)
         finally:
-            selector.close()
+            if selector is not None:
+                selector.close()
             try:
                 _stop_process_tree(process)
-                _drain_available_output(process, log)
+                _drain_available_output(process, log, pumped)
             except (OSError, subprocess.TimeoutExpired) as error:
                 driver_error = driver_error or str(error)
             code = process.returncode
