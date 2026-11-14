@@ -18,7 +18,6 @@ git_status() {
 }
 
 emit_check() {
-  python_status
   git_status
   if [ "$GIT_STATUS" != "ready" ]; then
     ok=false
@@ -30,9 +29,18 @@ emit_check() {
     ok=true
     next_action="continue"
   fi
-  printf '{"schema_version":"1.0","ok":%s,"python":{"status":"%s","minimum_version":"%s","version":%s},"git":{"status":"%s"},"next_action":"%s"}\n' \
+  launcher_arguments='["-X","utf8"]'
+  if [ -n "$PYTHON_LAUNCHER" ]; then
+    launcher_arguments='["-3","-X","utf8"]'
+  fi
+  if [ "$PYTHON_STATUS" != ready ]; then
+    launcher_arguments='[]'
+  fi
+  printf '{"schema_version":"1.0","ok":%s,"python":{"status":"%s","minimum_version":"%s","version":%s,"executable":%s,"arguments":%s,"probed_executable":%s},"git":{"status":"%s"},"next_action":"%s"}\n' \
     "$ok" "$PYTHON_STATUS" "$MINIMUM_PYTHON" \
     "$(if [ -n "$PYTHON_VERSION" ]; then printf '"%s"' "$PYTHON_VERSION"; else printf 'null'; fi)" \
+    "$(helix_python_json_path "$PYTHON_COMMAND")" "$launcher_arguments" \
+    "$(helix_python_json_path "$PYTHON_PROBE")" \
     "$GIT_STATUS" "$next_action"
 }
 
@@ -136,7 +144,7 @@ install_python() {
   if [ "$PYTHON_STATUS" != "ready" ]; then
     emit_install_error \
       "python_install_incomplete" \
-      "安装命令已完成，但当前 PATH 中仍没有 Python 3.10+；统计保持关闭。"
+      "安装命令已完成，但预检仍未找到可用的 Python 3.10+；统计保持关闭。"
     return 1
   fi
   printf '{"schema_version":"1.0","ok":true,"installed":true,"python":{"status":"ready","minimum_version":"%s","version":"%s"},"next_action":"continue"}\n' \
@@ -151,9 +159,10 @@ case "${1:-}" in
       emit_check
       exit 2
     fi
-    exec "$PYTHON_COMMAND" ${PYTHON_LAUNCHER:+"$PYTHON_LAUNCHER"} -X utf8 "$@"
+    exec_helix_python "$@"
     ;;
   check)
+    python_status
     emit_check
     ;;
   install-python)

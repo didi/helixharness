@@ -11,7 +11,7 @@ description: "Active Single Bug Fix：加载问题来源，追加 Repair Revisio
 在读取 description/path/URL、启动 telemetry 或业务写入前执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-preflight --feature "{feature}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-preflight --feature "{feature}"
 ```
 
 Git operation、正在执行的 task、不同修订的未完成 Repair state 或同 feature 修订锁冲突输出 `BLOCKED:bug_fix_stage_in_progress`。completed/finalizing 按 public command 的专用 reason 阻断；不得绕过 Router 重开归档工件。
@@ -58,7 +58,7 @@ repair_key = SHA-256(feature + "\n" + canonical content)
 以首次 preflight 返回的 Spec/Tasks receipts 调用 `begin-repair`；Tasks 尚不存在时传 `absent`：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" begin-repair --feature "{feature}" --repair-key "{repair_key}" --source-sha256 "{source_sha256}" --repair-kind "{implementation_regression|contract_amendment}" --expected-spec-receipt "{spec_receipt_sha256}" --expected-tasks-receipt "{tasks_receipt_sha256|absent}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" begin-repair --feature "{feature}" --repair-key "{repair_key}" --source-sha256 "{source_sha256}" --repair-kind "{implementation_regression|contract_amendment}" --expected-spec-receipt "{spec_receipt_sha256}" --expected-tasks-receipt "{tasks_receipt_sha256|absent}"
 ```
 
 只修改三个既有业务工件模型：
@@ -78,7 +78,7 @@ python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" begin-repa
 编辑完成后重新执行 `repair-preflight` 取得当前新 receipts；若并发事实或 Git 状态已变化则停止。再调用：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-rebind --feature "{feature}" --repair-key "{repair_key}" --expected-spec-receipt "{new_spec_receipt_sha256}" --expected-tasks-receipt "{new_tasks_receipt_sha256}"
+{helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" repair-rebind --feature "{feature}" --repair-key "{repair_key}" --expected-spec-receipt "{new_spec_receipt_sha256}" --expected-tasks-receipt "{new_tasks_receipt_sha256}"
 ```
 
 该命令执行 CAS、业务锁、revision 连续性和旧任务保护：planning/ready 回到 `ready`；applying/implemented 回到 `applying`，只更新 Apply Spec receipt，保留最初 `apply_baseline_head` 与 baseline manifest，并使旧 Review state 失效。drift、并发或 row 不匹配一律停止，不用 Agent 手工改私有状态。

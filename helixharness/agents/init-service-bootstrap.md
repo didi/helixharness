@@ -297,8 +297,9 @@ status_entities: []
 
 - 完整读取当前 `resources.project_hooks`，不得自行构造事件名、matcher、JSON 路径或 payload。
 - `settings_file=null` 或 `merge_strategy=unsupported`：跳过，不创建替代配置。
-- `owner=bootstrap`：按资源声明的 `settings_file`、`merge_strategy`、`dedupe_key` 和 payload 合并；
-  不覆盖已有其他字段或用户条目，重复执行必须幂等。
+- `owner=bootstrap`：按 `reference/runtime-preflight.md` 从父流程绑定的插件根使用当前系统的启动器执行
+  `{helix_python} "{plugin_root}/scripts/project_hooks_cli.py" --repo-root "{repo_root}" --platform "{canonical_host_id}" merge`。
+  使用原有宿主写入权限，按脚本结果确认合并。
 - `owner=parent`：不得写 settings；在 final 返回结构化 `PROJECT_HOOKS_MERGE_REQUEST`，包含资源路径、
   目标 settings 和已生成的两个 linter 路径，由父流程校验后串行合并。
 - 资源与 `resources.project_config.settings_file` 不一致时 `BLOCKED: project_hooks_contract_invalid`。

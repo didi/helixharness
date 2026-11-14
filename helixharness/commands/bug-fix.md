@@ -19,7 +19,7 @@ $ARGUMENTS
 把 `$ARGUMENTS` 原样按当前 shell 的单参数规则安全引用，然后执行：
 
 ```bash
-python3 "{plugin_root}/scripts/workflow_router.py" --repo-root "{repo_root}" route --command bug-fix --arguments={SHELL_QUOTED_ARGUMENTS} --arguments-mode auto
+{helix_python} "{plugin_root}/scripts/workflow_router.py" --repo-root "{repo_root}" route --command bug-fix --arguments={SHELL_QUOTED_ARGUMENTS} --arguments-mode auto
 ```
 
 `{plugin_root}` 必须来自当前 plugin command resource，`{repo_root}` 是当前仓库根。不得使用 `eval` 或拼接未经引用的用户文本。除上述 Runtime preflight 外，不得在路由前自行读取 Spec/Tasks、扫描 active/completed 目录或猜测阶段。

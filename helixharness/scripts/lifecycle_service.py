@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -27,11 +26,11 @@ def startup_context(manifest: HostManifest) -> dict:
                 + "\nFor HelixHarness commands and skills, use this plugin_root and read this host_manifest to bind its resources. "
                 "Resolve plugin resources against this root, not the project directory. "
                 "Do not search another checkout or cached version. Invoke the registered HelixHarness command/Skill; "
-                "do not discover command bodies in user plugin caches. Before workflow work, verify the source with: "
-                + "python3 " + shlex.quote(str(root / "scripts/host_runtime_cli.py"))
-                + " resolve --platform " + shlex.quote(manifest.host_id)
-                + " --expected-plugin-root " + shlex.quote(str(root))
-                + ". Consume plugin_root, host_manifest and resolved_resources from that verified response. "
+                "do not discover command bodies in user plugin caches. Before workflow work, use the native "
+                f"runtime_preflight launcher described in {root / 'reference/runtime-preflight.md'} "
+                f"(check, then exec) to run {root / 'scripts/host_runtime_cli.py'} resolve, "
+                f"with --platform {manifest.host_id} and --expected-plugin-root set to "
+                "that exact plugin root. Consume plugin_root, host_manifest and resolved_resources from that verified response. "
                 "Pass the same bound root and exact resource paths to every child; a different version is not a fallback. "
                 "If a bound resource is missing or the source differs, report BLOCKED:helixharness_host_contract_invalid."
             ),

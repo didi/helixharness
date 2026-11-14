@@ -127,7 +127,7 @@ $ARGUMENTS
 
 进入业务流程前，读取此 plugin 捆绑的 `reference/version-update-protocol.md`，按“主流程快速版本检查模式”执行：
 
-- 每次命令执行和阶段续跑都调用 `python3 {plugin_root}/scripts/version_update.py --platform {canonical_host_id} --repo-root {repo_root} check`；`canonical_host_id` 必须取自预绑定 Host Context，禁止传操作系统名；不得继承任何前序版本结论
+- 每次命令执行和阶段续跑都调用 `{helix_python} "{plugin_root}/scripts/version_update.py" --platform {canonical_host_id} --repo-root {repo_root} check`；`canonical_host_id` 必须取自预绑定 Host Context，禁止传操作系统名；不得继承任何前序版本结论
 - `check` 只认 `helix@helixharness-marketplace`，自动识别正式安装、处理缓存、刷新同一 marketplace 并动态解析其 plugin source；禁止手工调用 plugin list、读取 CHANGELOG 或猜测版本
 - 严格按脚本最终 `next_action` 执行：`continue_silently` 静默；`prompt_update` 弹框；`block_for_update` 阻断；`continue_with_warning` 只原样输出脚本 `warning` 后继续
 - `update_status=latest|current-newer` 或有效 `skip_effective=true` 时必须静默继续；用户刚选择跳过后也不输出 WARN
@@ -148,7 +148,7 @@ $ARGUMENTS
 <!-- helixharness-eval-data-notice-v1:end -->
 
 0. Python 不可用时不调用 resolver、不展示统计说明或开启选项，也不读写 consent 缓存；遵循 `reference/runtime-preflight.md` 恢复运行依赖。恢复并复检成功后从下述 resolve 重新开始。未恢复时，本次不启用统计，不影响无需 Python 的初始化步骤。Git 缺失优先 blocker。
-1. 调用 `python3 "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{canonical_host_id}" resolve`；
+1. 调用 `{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{canonical_host_id}" resolve`；
    - 若 `reason=endpoint_unconfigured`，静默继续，不展示“地址未配置”“未异步上报”等状态提示，也不主动要求配置；不能跳过下述统计问询。`endpoint_invalid` 仍展示返回的 warning。按 `prompt_due` 和 `allowed_actions` 处理授权，用户确认后正常调用 choose。
 2. 若 `prompt_due=true`，在创建 `docs/eval/**`、修改 `.gitignore` 或调用 bootstrap 前，先展示上述固定数据说明，再提示用户。Consent 子问题必须逐项使用 resolver 的有序 `allowed_actions[]`，保持 label 原文和顺序；可以与其他初始化问题合并展示，但不得压缩为通用“开启/关闭”或丢失 project/user scope。
 3. 若当前有效状态为 `enabled` 且 `prompt_due=true`，询问：保持当前统计范围开启 / 关闭当前项目统计 / 关闭我本人统计。
@@ -456,8 +456,8 @@ bootstrap 达到真实终态后，父流程必须逐项检查上述初始化目�
 项目 hooks 是完成门禁的一部分，不能以 bootstrap 的 `parent-owned` 或合并请求代替实际文件：
 
 - `resources.project_hooks.owner=parent` 时，父流程在 bootstrap 返回后执行
-  `python3 {plugin_root}/scripts/project_hooks_cli.py --repo-root {repo_root} --platform {canonical_host_id} merge`。
-- `owner=bootstrap` 时由 bootstrap 按原有宿主写入权限合并；父流程不得绕过宿主配置权限。
+  `{helix_python} "{plugin_root}/scripts/project_hooks_cli.py" --repo-root {repo_root} --platform {canonical_host_id} merge`。
+- `owner=bootstrap` 时由 bootstrap 按原有宿主写入权限执行同一 `merge` 命令；父流程不得绕过宿主配置权限。
 - 两种 owner 均由父流程执行同一路径的 `check`，核对实际 settings 的必需 hook、去重与 JSON 结构；
   `settings_file=null` 时工具返回明确 skipped。任何缺失、冲突或检查失败均报告
   `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，不得报告 Init 完成。

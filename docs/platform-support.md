@@ -38,9 +38,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\runtime_prefli
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\runtime_preflight.ps1 exec .\scripts\host_runtime_cli.py resolve --platform codex
 ```
 
-The Windows launcher probes `python.exe`, `python3.exe`, then `py.exe -3`, skips WindowsApps aliases, and actually checks the version. Use its `exec` action or the returned executable/arguments for subsequent Python calls. POSIX launchers also accept `python` and `py -3`; they never install dependencies during a check or hook.
+On macOS, Linux and Git Bash, the launcher scans absolute PATH directories for Python 3.10+, including versioned binaries such as `python3.11`. macOS also checks standard Apple Silicon and Intel Homebrew paths. Native Windows probes `python.exe`, `python3.exe`, then `py.exe -3` and skips WindowsApps aliases. Use the matching launcher's `exec` action or the returned executable and arguments for subsequent plugin calls. Checks and hooks run without changing PATH or installing dependencies.
 
-Windows 预检会实际探测解释器，而不是只检查命令名是否存在。文档中的 `python3` 示例在 Windows 上应使用已选中的解释器或 `.ps1 exec` 执行；不要修改 WindowsApps 别名来绕过检查。环境变量使用 `$env:NAME = 'value'`，带空格的路径加引号。依赖安装仍需用户明确同意。
+macOS、Linux 和 Git Bash 的启动器按 PATH 中的绝对目录查找 Python 3.10+，支持 `python3.11` 等版本化命令。macOS 还检查 Apple Silicon 和 Intel 的标准 Homebrew 路径。原生 Windows 依次探测 `python.exe`、`python3.exe`、`py.exe -3`，跳过 WindowsApps 占位别名。后续插件调用使用对应启动器的 `exec`，或预检返回的解释器和参数。预检和 Hook 无需修改 PATH 或安装依赖。
 
 ## Verification / 验证
 

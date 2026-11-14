@@ -102,7 +102,7 @@ $ARGUMENTS
 先准备草稿，不发送。参数必须安全转义：
 
 ```bash
-python3 "{plugin_root}/scripts/feedback_submit.py" prepare --repo-root "{repo_root}" --platform "{current_platform}" --text "{反馈正文}" --category "{分类}"
+{helix_python} "{plugin_root}/scripts/feedback_submit.py" prepare --repo-root "{repo_root}" --platform "{current_platform}" --text "{反馈正文}" --category "{分类}"
 ```
 
 按用户选择追加 `--feature "{feature}"`。默认不附带会话；只有用户明确要求附带当前会话时追加 `--include-transcript`，不搜索历史会话替代。
@@ -110,7 +110,7 @@ python3 "{plugin_root}/scripts/feedback_submit.py" prepare --repo-root "{repo_ro
 展示返回的实际 `endpoint`、完整 `item.document` 和附带的 `item.transcript_md`（如有），取得对地址和内容的明确发送确认。已有对同一完整内容及地址的明确授权时不重复确认；内容修改后重新准备。
 
 ```bash
-python3 "{plugin_root}/scripts/feedback_submit.py" send --draft "{draft_path}" --digest "{digest}" --confirmed
+{helix_python} "{plugin_root}/scripts/feedback_submit.py" send --draft "{draft_path}" --digest "{digest}" --confirmed
 ```
 
 `--confirmed` 必须由真实用户授权支持。脚本失败（exit 1）时向用户原样展示 stderr 中的错误 JSON 并终止，不得重试改写内容。非交互/loop（autopilot）上下文不得自动上报。
