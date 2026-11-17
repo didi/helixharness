@@ -61,7 +61,7 @@ Spec 为 `ready` 的首次入口先调用统一门禁确认初始 Tasks，再记
 
 `bind-apply` 是首次入口的第一项工作区动作。不得在 `bind-apply` 前要求用户归属、提交、删除、还原、暂存或迁移普通脏文件；普通 tracked、staged、unstaged 与非 ignored untracked 状态不阻断 Apply，也无需判断既有脏路径属于哪个 feature。不得为了把工作区清理干净而执行 `rm`、`git restore`、`git checkout --`、`git stash`，或另建 branch/worktree；这些动作既不是记录基线的前置，也不得由 Agent 以“隔离 Review”为由提出。只有 dirty submodule、nested Git repo、目录型条目等脚本明确拒绝的非普通状态才按错误停止。
 
-执行前工作区基线是当前 `HEAD` 与 Apply 开始前已存在的 staged、unstaged、非 ignored untracked 文件内容摘要；它只记录状态，不会清理、暂存、提交或复制用户文件。`bind-apply` 把 `apply_spec_receipt_sha256`、`apply_baseline_head`、`apply_baseline_sha256` 与既有未提交路径清单原子写入当前 checkout 的私有状态 `.helixharness/workflow/{feature}/apply-state.json`；该目录被 Git 忽略且不属于业务工件，`tasks.md` 继续只记录任务和进度。中断、换 session 或在同一 checkout 换兼容宿主后仍以这些持久化事实区分本需求增量与未变化的用户改动。进入 Review 时，Apply 开始后内容未变化的既有未提交路径自动排除，不询问用户；只有某个路径在执行前已有未提交改动、Apply 又修改了同一路径，脚本才因无法证明两部分改动的边界而停止并返回一次精确的 `DECISION_NEEDED`。随后调用统一门禁，并把 JSON 返回的 `next_task` 作为续跑位置：
+执行前工作区基线是当前 `HEAD`（Git 分支尚无首次提交时使用其空树）与 Apply 开始前已存在的 staged、unstaged、非 ignored untracked 文件内容摘要；它只记录状态，不会清理、暂存、提交或复制用户文件。`bind-apply` 把 `apply_spec_receipt_sha256`、`apply_baseline_head`、`apply_baseline_sha256` 与既有未提交路径清单原子写入当前 checkout 的私有状态 `.helixharness/workflow/{feature}/apply-state.json`；该目录被 Git 忽略且不属于业务工件，`tasks.md` 继续只记录任务和进度。中断、换 session 或在同一 checkout 换兼容宿主后仍以这些持久化事实区分本需求增量与未变化的用户改动。进入 Review 时，Apply 开始后内容未变化的既有未提交路径自动排除，不询问用户；只有某个路径在执行前已有未提交改动、Apply 又修改了同一路径，脚本才因无法证明两部分改动的边界而停止并返回一次精确的 `DECISION_NEEDED`。随后调用统一门禁，并把 JSON 返回的 `next_task` 作为续跑位置：
 
 ```bash
 {helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" validate-tasks --feature "{feature}" --stage apply
@@ -78,7 +78,7 @@ Bug Fix 必须先完成 `begin-repair` 与 `repair-rebind`。`repair-rebind` 只
 1. 读取完整 spec，以当前内容作为实现依据；每个 task 前、进入 Review 前和写 Evidence 前都重跑门禁，比较私有 Apply state 中忽略 `status` 的 `apply_spec_receipt_sha256`。不匹配时输出 `BLOCKED:lite_spec_drift`，不得继续使用旧 Tasks 或旧 Review。
 2. 读取完整 tasks。校验器同时返回 `in_progress_tasks` 和建议 `next_task`：有多个执行中任务时不阻断，Agent 结合任务说明与当前代码判断继续顺序；没有执行中任务时，`next_task` 是依赖已完成的第一个待执行任务。不得仅因多个 `in_progress` 自动改写、重新派生或重排 Tasks。
 3. `bind-apply` 成功后才把 Spec 与 Tasks 的 `status` 更新为 `applying` 并复验；中断后由私有 Apply state 保留执行前工作区基线，业务工件只保留阶段状态和逐 task 进度。
-4. 修改前只读检查当前分支、`HEAD`、暂存区、工作区和非 ignored untracked 文件以避免覆盖用户已有改动；检查结果不得转化为普通脏文件的清理、归属确认或逐文件提问。Review 开始前按 `code-review` 确定 fixed point：仅审查当前未提交增量时自动使用当前 `HEAD` 作为 fixed point；只有需要包含已提交历史或范围不明时才询问用户，不得根据分支名、时间或语义猜测其他起点。
+4. 修改前只读检查当前分支、`HEAD`、暂存区、工作区和非 ignored untracked 文件以避免覆盖用户已有改动；检查结果不得转化为普通脏文件的清理、归属确认或逐文件提问。Review 开始前按 `code-review` 使用脚本回执确定 fixed point；初始基线为空树时继续使用空树，不为评审自动创建提交。
 5. 执行期间发现 Spec/Tasks 契约失配或与当前任务无关的外部修改时停止，不覆盖用户工作。
 
 ## 2. 按需加载约束与知识
@@ -143,8 +143,8 @@ Apply 只按该 Skill 的最终结果转移流程：
 feature: {feature}
 spec_receipt_sha256: {校验器返回的当前 Spec 收据摘要}
 tasks_receipt_sha256: {校验器返回的当前 Tasks 收据摘要}
-review_fixed_point: {git rev-parse 后的完整 fixed point commit ID}
-review_head: {Review Bundle 中的完整 HEAD commit ID}
+review_fixed_point: {Review Bundle 中完整的 fixed point，使用 commit ID 或未出生分支的空树 ID}
+review_head: {Review Bundle 中完整的 review_head，使用 commit ID 或未出生分支的空树 ID}
 review_scope_sha256: {review-scope 返回的可复算 sha256}
 review_mode: parallel_subagents
 standards_verdict: APPROVE

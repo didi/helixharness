@@ -60,6 +60,10 @@ Review and trust the plugin's hooks through the host's native interface. Confirm
 
 If an entrypoint reports `plugin_source_mismatch`, its executing copy differs from the source bound to the session. Check the active marketplace and installed plugin, keep the intended source selected, and start a new session. Use resources from that installation; do not mix another checkout or cached version into the workflow.
 
+### Start with an empty project
+
+Run `/helix:init` in a Git repository root. For a new directory, run `git init` yourself first; an initial commit is not required. An empty or documentation-only repository skips code scans and gets a minimal project context, harness, specs directories, and host hooks. Unconfirmed project details stay as TODOs. Use `/helix:propose` and `/helix:apply` to develop the first feature. Init and Apply do not create a commit.
+
 ## Updates
 
 Run `/helix:update` in the host conversation. The plugin checks the configured marketplace, shows an available update and uses the host adapter after authorization.
@@ -80,6 +84,8 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`. 
 正式发布后使用上面的 GitHub 安装命令，无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
 
 安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init` 并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。
+
+**从空项目开始：**在 Git 仓库根目录运行 `/helix:init`。新目录请先自行执行 `git init`，不需要首次提交。空仓库或纯文档仓库跳过代码扫描，生成最小项目上下文、约束、需求目录与宿主 hooks，未确认的信息标记 TODO。再用 `/helix:propose` 和 `/helix:apply` 开发第一个需求。Init 和 Apply 不创建提交。
 
 ## Windows local source / Windows 本地源码
 

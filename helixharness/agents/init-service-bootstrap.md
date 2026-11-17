@@ -1,5 +1,5 @@
 ---
-description: "服务仓库初始化总控 agent。运行于后端、未知或完整全栈代码仓库，消费后端扫描结果，生成 knowledge/、harness、hooks、宿主入口文件和 service-meta.yaml。"
+description: "服务仓库初始化总控 agent。适用于绿地、后端、未知或完整全栈代码仓库，生成 knowledge/、harness、hooks 和宿主入口文件。"
 ---
 
 > Telemetry 边界：只消费顶层 init 根据 `resources.telemetry_protocol` 解析的 effective mode；
@@ -15,14 +15,14 @@ description: "服务仓库初始化总控 agent。运行于后端、未知或完
 ## 任务：执行服务仓库初始化
 
 你负责在**单个服务仓库根目录**完成 HelixHarness 后端基础初始化。适用于后端/未知项目，也适用于
-完整全栈扫描的 `bootstrap_mode=fullstack-base`；纯前端项目由 init-frontend-bootstrap 处理。
+完整全栈扫描的 `bootstrap_mode=fullstack-base` 和免扫描的 `bootstrap_mode=greenfield`；纯前端项目由 init-frontend-bootstrap 处理。
 
 ## 输入
 
 - 当前仓库根目录
 - 原始参数：`$ARGUMENTS`
 - 当前平台：`$PLATFORM`
-- bootstrap mode：`service|fullstack-base`
+- bootstrap mode：`service|fullstack-base|greenfield`
 - 顶层 init 已解析的数据统计模式：`$EFFECTIVE_TELEMETRY_MODE`（只能是 `enabled|disabled`，不得在 bootstrap 内重新默认或再次询问）
 - 父流程明确传入的 `ownership_root`、`read_scope`、已验证扫描产物与当前 plugin root
 
@@ -56,7 +56,11 @@ Shell/Python、父目录搜索或符号链接间接读取这些文件。插件�
 
 ### Phase 1: 收集项目信息
 
-消费父流程已经验证的扫描结果，不重新扫描代码。无法确认的事实返回父流程按宿主协议询问
+`bootstrap_mode=greenfield` 时只使用父流程传入的 `project-mode: greenfield`、用户已确认的项目目标、
+技术栈、运行和测试入口，以及显式 `--knowledge`；不读取、等待或生成任何扫描产物。未确定的信息
+保留 `<!-- TODO: 待确认 -->`，不假定架构、数据库或接口。直接按 Phase 2 的绿地分支处理。
+
+其他模式消费父流程已经验证的扫描结果，不重新扫描代码。无法确认的事实返回父流程按宿主协议询问
 用户，不得捏造或借用相邻仓库的结论：
 
 1. **技术栈**：
@@ -77,12 +81,21 @@ Shell/Python、父目录搜索或符号链接间接读取这些文件。插件�
 
 ### Phase 2: 生成 knowledge/
 
-#### 有 `--knowledge` 参数
+#### Greenfield（无扫描产物）
+
+只生成 `docs/knowledge/project-context.md` 和链接它的 `index.md` 作为最小知识库；显式提供
+`--knowledge` 时先导入并索引用户指定的材料，保留既有文档。不要求下方扫描产物，也不创建
+没有事实支撑的 architecture、database、API、domain 或 service-meta 文档。完成本节共用的
+统计目录和索引规则后继续 Phase 3。下方导入/扫描两分支的额外文件要求仅适用于非 greenfield。
+索引使用 Markdown 链接 `[project-context.md](project-context.md)`，或在三列表格第一列明确列出
+相对路径 `project-context.md`；仅在说明文字中提及文件名不算索引。
+
+#### 非 greenfield 且有 `--knowledge` 参数
 
 - 读取指定路径/URL的文档，导入到 `docs/knowledge/`
 - 生成 `docs/knowledge/index.md` 作为入口索引
 
-#### 无 `--knowledge` 参数，通过扫描 Agent 生成
+#### 非 greenfield 且无 `--knowledge` 参数，通过扫描 Agent 生成
 
 这些扫描 agent 由顶层 `/helix:init` 命令显式编排与触发。你在这里**不得再重新分发同一批扫描 agent**，而是必须消费顶层已产出的扫描结果，并在缺失时报告 BLOCKED。
 
@@ -134,9 +147,15 @@ Shell/Python、父目录搜索或符号链接间接读取这些文件。插件�
 - 元数据单值无法确认时保留 `null`，列表保留空数组，说明使用 YAML `# TODO` 注释，不推断
 - `owners`、`repo` 默认保留给用户手动补充
 
+**知识附属目录（非 greenfield）**：
+
 **需求归档目录**：创建 `docs/knowledge/prd/`（空目录，仅保留用户提供的需求资料；Archive 不自动生成或复制 Proposal）
 
 **经验目录**：创建 `docs/knowledge/exp/`（空目录）
+
+#### 所有模式的目录和索引
+
+创建 `docs/specs/active/`、`docs/specs/completed/` 两个目录，不创建需求工件。
 
 **Usage Telemetry 目录**：仅当数据统计保持开启时创建 `docs/eval/`，包含：
 - `.gitkeep`（占位文件，确保初始化后目录可见）
@@ -154,23 +173,12 @@ bootstrap 阶段不写 usage telemetry；数据统计开启时，需求级数据
 先完整读取 `reference/harness-generation-protocol.md`，按规范性来源区分当前行为与已确认约束；
 该边界同时适用于后续宿主入口、harness 索引、CR checklist 和 linter。
 
-#### 绿地项目检测
+`bootstrap_mode=greenfield` 时生成非空 `docs/harness/index.md`，只记录已确认的约束和待确认项。
+不应用下方基于扫描证据的业务、架构、基础设施文档要求；仍按共用 Linters 规则生成两个可执行
+检查入口。没有已确认的不变量时，`invariant-check.py` 明确报告暂无检查规则并成功退出。
+不重新检测项目类型；其他模式延续其已确认的项目模式和扫描事实。
 
-在生成 harness/ 前，检测是否为绿地（0→1）项目：
-
-**绿地判断条件**：扫描源码目录（`src/main/java`、`src/`、`lib/` 等），若**不存在任何业务源文件**则进入绿地模式。
-
-**绿地模式**（无代码可扫描）：
-
-1. 消费顶层已完成的扫描或外部知识导入结果；无业务代码时，按当前交互模式补充缺失信息，不重新派发扫描：
-   - 询问技术栈选型（语言/框架/数据库/缓存/MQ）
-   - 询问业务领域（信贷/支付/电商/物流/其他）
-   - 询问架构风格（单体/多模块/微服务）
-2. 将项目模式显式标记为 `greenfield`
-3. 基于下方模板直接生成 harness/ 规约骨架
-4. 无法确认的内容统一标注 `<!-- TODO: 待确认 -->`，不推断
-
-基于收集的技术栈和业务领域，生成约束文件（**内容填充实际情况，非空模板**）：
+非 greenfield 按收集的技术栈和业务领域生成约束文件（**内容填充实际情况，非空模板**）：
 
 - 生成的 `docs/harness/` 只需一个根级 `docs/harness/index.md` 作为唯一索引，使用三列表格格式（`文件/目录 | 定位 | 加载时机`），直接索引所有叶子文件（含子目录下的）。子目录不生成 index.md。
 
@@ -247,12 +255,13 @@ bootstrap 阶段不写 usage telemetry；数据统计开启时，需求级数据
 
 要求：
 
+- `bootstrap_mode=greenfield` 时显式写 `project-mode: greenfield`，并记录项目目标、运行方式、测试入口及待确认项。
 - `greenfield` 项目必须明确写明"评审以基线架构合理性、可扩展性、运维可行性为主，不以历史兼容性为主"
 - `brownfield` 项目必须明确写明"评审以现有系统兼容性、影响范围、迁移成本为主"
 
 ### Phase 3.6: 补充服务元数据
 
-由 `scan-service-meta` 生成 `docs/knowledge/service-meta.yaml`，至少包含：
+`bootstrap_mode=greenfield` 时跳过本节，保留已有元数据。其他模式由 `scan-service-meta` 或显式导入生成 `docs/knowledge/service-meta.yaml`，至少包含：
 
 ```yaml
 service: {service-name}
@@ -328,7 +337,9 @@ status_entities: []
 
 ### Phase 5.5: 最终提交 state file
 
-只有 Phase 4 hooks 与 Phase 5 Host Kit 入口全部生成并通过逐项验证后，才使用公共
+`bootstrap_mode=greenfield` 时本 job 不写 state：由父流程通过所有产物和 hooks 门禁后统一收尾。
+
+其他模式只有 Phase 4 hooks 与 Phase 5 Host Kit 入口全部生成并通过逐项验证后，才使用公共
 `Read/Edit/Write` 工具语义原子更新 `docs/.helixharness-init-state.json`；其他宿主只按
 `resources.runtime` 映射，不依赖外部 JSON CLI：
 
@@ -346,6 +357,9 @@ status_entities: []
 > 不要删除 `docs/.helixharness-init-state.json`（供后续命令使用）。
 
 ### Phase 6: 输出初始化报告
+
+`bootstrap_mode=greenfield` 时在终态回执列出真实生成的文件、待确认信息及“跳过扫描”；
+不使用下方扫描产物清单。最终完成结论由父流程在验收与 state 收尾通过后发布。
 
 ```text
 ## HelixHarness 初始化完成
