@@ -134,21 +134,35 @@ def test_start_with_progress_callback_updates_progress() -> None:
     后台线程通过 update_progress 推进, 前端轮询 status 能读到推进。
     """
     mgr = _make_manager()
+    progress_ready = Event()
+    release_worker = Event()
 
     def fn_with_progress(*_args):
         # 模拟 3 个单元
         for i, label in enumerate(["f1", "f2", "team"], start=1):
             mgr.update_progress("ai_regenerate", i, 3, label)
-            time.sleep(0.05)
+            if i == 1:
+                progress_ready.set()
+                if not release_worker.wait(timeout=5):
+                    raise TimeoutError("test did not release the progress callback")
         return ("<div>ok</div>", "", "", "")
 
-    mgr.start("ai_regenerate", fn_with_progress)
-    # 等一下让线程跑起来, 读中间进度
-    time.sleep(0.08)
+    try:
+        assert mgr.start("ai_regenerate", fn_with_progress) is True
+        # 后台线程停在第一条进度，确保中间状态可稳定观察。
+        assert progress_ready.wait(timeout=5), "background task did not report progress"
+        st = mgr.status("ai_regenerate")
+        assert st["running"] is True
+        assert st["progress"] == {"done": 1, "total": 3, "current": "f1"}
+    finally:
+        release_worker.set()
+
+    # 等待 manager 发布完成状态，而不是假设固定 sleep 后任务必定结束。
+    deadline = time.monotonic() + 5
+    while mgr.status("ai_regenerate")["running"] and time.monotonic() < deadline:
+        time.sleep(0.01)
+
     st = mgr.status("ai_regenerate")
-    assert st["running"] is True
-    # 至少推进过一次 (done >= 1)
-    assert int(st["progress"]["done"]) >= 1
-    assert int(st["progress"]["total"]) == 3
-    time.sleep(0.3)
-    assert mgr.status("ai_regenerate")["running"] is False
+    assert st["running"] is False, "background task did not finish before timeout"
+    assert st["progress"] == {"done": 3, "total": 3, "current": "team"}
+    assert st["result_html"] == "<div>ok</div>"
