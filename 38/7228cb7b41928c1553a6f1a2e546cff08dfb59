@@ -1,0 +1,19 @@
+helixharness-platform/eval/tests/test_usage_sync_tasks.py
+  s_94259e1f90b572::t_b5e769e4de9fd3 137-138,144-147,150-164,166-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.7-261116.38",
+  "base_commit_sha": "387228cb7b41928c1553a6f1a2e546cff08dfb59",
+  "prompts": {},
+  "sessions": {
+    "s_94259e1f90b572": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1dab5-6476-75b2-ac38-a82f66727820",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "shengbowen <shengbowen@didiglobal.com>"
+    }
+  }
+}
