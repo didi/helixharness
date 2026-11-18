@@ -248,6 +248,82 @@ must_fix_rounds: {must_fix_rounds}
             check=check,
         )
 
+    def test_first_apply_reviews_and_archives_without_an_initial_commit(self) -> None:
+        self.repo = self.repo.parent / "first-project"
+        self.repo.mkdir()
+
+        def git(*args, check=True):
+            return subprocess.run(
+                ["git", "-c", "core.hooksPath=/dev/null", "-C", str(self.repo), *args],
+                check=check, capture_output=True, text=True,
+            )
+
+        git("init", "-q", "-b", "main")
+        write(self.repo / "README.md", "# Existing project notes\n")
+        git("add", "README.md")
+        self.write_spec(status="ready")
+        self.write_tasks(status="ready", rows="| T-01 | First code | AC-01 | — | pending |")
+        bound = self.run_cli("bind-apply", "--feature", self.feature, check=False)
+        self.assertEqual(0, bound.returncode, bound.stderr)
+        bindings = json.loads(bound.stdout)
+        self.assertEqual(1, git("rev-parse", "--verify", "--quiet", "HEAD", check=False).returncode)
+        self.assertEqual("README.md", git("diff", "--cached", "--name-only").stdout.strip())
+
+        self.write_spec(status="implemented")
+        tasks = self.feature_dir / "tasks.md"
+        tasks.write_text(tasks.read_text().replace("status: ready", "status: completed")
+                         .replace("| pending |", "| completed |"))
+        write(self.repo / "first.py", "def run():\n    return 1\n")
+        git("add", "first.py")
+        write(self.repo / "test_first.py", "from first import run\nassert run() == 1\n")
+        write(self.repo / "README.md", "# Concurrent edit\n")
+        overlap = self.run_cli("review-scope", "--feature", self.feature, check=False)
+        self.assertEqual(2, overlap.returncode)
+        self.assertIn("overlaps the dirty Apply baseline", overlap.stderr)
+        write(self.repo / "README.md", "# Existing project notes\n")
+        self.write_evidence()
+        scope = json.loads(self.run_cli("archive-code-scope", "--feature", self.feature).stdout)
+        self.assertEqual(bindings["apply_baseline_head"], scope["review_head"])
+        self.assertEqual(["first.py", "test_first.py"], scope["working_tree_paths"])
+        self.assertEqual(["README.md"], scope["excluded_preexisting_paths"])
+        self.assertEqual([], scope["committed_paths"])
+        self.assertIsNone(json.loads(self.run_cli("archive-git-state").stdout)["head"])
+
+        self.run_cli("authorize-knowledge", "--feature", self.feature, "--paths-json", "[]")
+        for name, before, after in (("spec.md", "status: implemented", "status: completed"),
+                                    ("verify-report.md", "archive: pending", "archive: completed")):
+            path = self.feature_dir / name
+            path.write_text(path.read_text().replace(before, after))
+        self.run_cli("finalize-preflight", "--feature", self.feature)
+        completed = self.repo / "docs/specs/completed" / self.feature
+        completed.parent.mkdir(parents=True)
+        self.feature_dir.rename(completed)
+        result = json.loads(self.run_cli("archive-code-scope", "--feature", self.feature, "--completed").stdout)
+        self.assertEqual(scope["working_tree_paths"], result["working_tree_paths"])
+
+        # Packaging the unchanged result in an explicit first commit keeps the exact scope.
+        git("add", "test_first.py")
+        git("-c", "user.email=test@example.com", "-c", "user.name=Test User",
+            "commit", "-qm", "First project commit")
+        packaged = json.loads(self.run_cli("archive-code-scope", "--feature", self.feature, "--completed").stdout)
+        self.assertEqual(["first.py", "test_first.py"], packaged["committed_paths"])
+        self.assertEqual([], packaged["working_tree_paths"])
+
+    def test_bind_apply_does_not_treat_a_broken_branch_ref_as_unborn(self) -> None:
+        branch = subprocess.check_output(
+            ["git", "-C", str(self.repo), "symbolic-ref", "HEAD"], text=True,
+        ).strip()
+        head = subprocess.check_output(
+            ["git", "-C", str(self.repo), "rev-parse", "HEAD"], text=True,
+        ).strip()
+        write(self.repo / ".git" / branch, "1" * len(head) + "\n")
+        self.write_spec(status="ready")
+        self.write_tasks(status="ready", rows="| T-01 | First code | AC-01 | — | pending |")
+        bound = self.run_cli("bind-apply", "--feature", self.feature, check=False)
+        self.assertEqual(2, bound.returncode)
+        self.assertIn("Git review scope is unavailable", bound.stderr)
+        self.assertFalse((self.repo / ".helixharness/workflow" / self.feature / "apply-state.json").exists())
+
     def test_archive_git_state_resolves_main_and_detached_head(self) -> None:
         subprocess.run(["git", "-C", str(self.repo), "branch", "-M", "main"], check=True)
         subprocess.run(["git", "-C", str(self.repo), "switch", "-qc", "feature/work"], check=True)

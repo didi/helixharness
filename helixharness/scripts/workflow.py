@@ -207,18 +207,46 @@ def implementation_contract_receipt(text: str) -> str:
     return artifact_receipt(canonical + "\n" + body.rstrip() + "\n")
 
 
-def _git_bytes(repo: Path, *args: str) -> bytes:
+def _git_result(repo: Path, *args: str, input_data: bytes | None = None) -> subprocess.CompletedProcess[bytes]:
+    environment = dict(os.environ)
+    environment["GIT_OPTIONAL_LOCKS"] = "0"
     try:
-        environment = dict(os.environ)
-        environment["GIT_OPTIONAL_LOCKS"] = "0"
         return subprocess.run(
             ["git", "-c", f"safe.directory={repo}", "-C", str(repo), *args],
-            check=True,
-            capture_output=True,
-            env=environment,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError) as exc:
+            capture_output=True, env=environment, input=input_data,
+        )
+    except OSError as exc:
         raise WorkflowError("Git review scope is unavailable") from exc
+
+
+def _git_bytes(repo: Path, *args: str, input_data: bytes | None = None) -> bytes:
+    result = _git_result(repo, *args, input_data=input_data)
+    if result.returncode:
+        raise WorkflowError("Git review scope is unavailable")
+    return result.stdout
+
+
+def _empty_review_tree(repo: Path) -> str:
+    # Git knows its empty tree without writing an object, including with SHA-256 repos.
+    return _git_bytes(repo, "hash-object", "-t", "tree", "--stdin", input_data=b"").decode("ascii").strip()
+
+
+def _current_review_ref(repo: Path) -> str:
+    result = _git_result(repo, "rev-parse", "--verify", "--quiet", "HEAD^{commit}")
+    if result.returncode == 0:
+        return result.stdout.decode("ascii").strip()
+    if result.returncode != 1 or result.stderr:
+        raise WorkflowError("Git review scope is unavailable")
+    # Only a symbolic HEAD targeting a branch which has not been created is unborn.
+    target = os.fsdecode(_git_bytes(repo, "symbolic-ref", "--quiet", "HEAD").rstrip(b"\r\n"))
+    if (not target.startswith("refs/heads/")
+            or _git_bytes(repo, "rev-parse", "--show-prefix").strip()):
+        raise WorkflowError("Git review scope is unavailable")
+    ref = _git_result(repo, "show-ref", "--verify", "--quiet", "--", target)
+    loose_ref = Path(os.fsdecode(_git_bytes(repo, "rev-parse", "--git-path", target).rstrip(b"\r\n")))
+    if ref.returncode != 1 or ref.stderr or os.path.lexists(repo / loose_ref):
+        raise WorkflowError("Git review scope is unavailable")
+    return _empty_review_tree(repo)
 
 
 def _review_scope_excluded(feature: str, relative: str) -> bool:
@@ -948,7 +976,7 @@ def _review_scope_details(
     authorized_knowledge_paths: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     feature = feature_name(feature)
-    review_head = review_head or _git_bytes(repo, "rev-parse", "HEAD").decode("ascii").strip()
+    review_head = review_head or _current_review_ref(repo)
     if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", review_head):
         raise WorkflowError("Git review HEAD is invalid")
     apply_state = _apply_state(repo, feature)
@@ -1003,6 +1031,8 @@ def _review_scope_details(
             for path in excluded
         ],
         "review_head": review_head,
+        "apply_baseline_head": apply_state["apply_baseline_head"],
+        "empty_tree": _empty_review_tree(repo),
         "review_scope_sha256": artifact_receipt(canonical),
     }
 
@@ -1053,8 +1083,8 @@ def _bind_apply_receipt(repo: Path, feature: str) -> dict[str, str]:
         baseline_head = state["apply_baseline_head"]
         baseline_sha = state["apply_baseline_sha256"]
     else:
-        baseline_head = _git_bytes(repo, "rev-parse", "HEAD").decode("ascii").strip()
-        baseline = _working_tree_entries(repo, feature)
+        baseline_head = _current_review_ref(repo)
+        baseline = _working_tree_entries(repo, feature, base_ref=baseline_head)
         baseline_sha = artifact_receipt(_canonical_manifest(baseline))
         _write_json_state(
             repo,
@@ -1514,6 +1544,13 @@ def _verify_review_scope(
         authorized_knowledge_paths=frozenset(authorized),
     )
 
+    empty_tree = current["empty_tree"]
+    tree_fixed_point = evidence.get("review_fixed_point") == empty_tree
+    if tree_fixed_point != (current["apply_baseline_head"] == empty_tree):
+        raise WorkflowError("verify-report.md empty tree fixed point must match the Apply baseline kind")
+    if reviewed_head == empty_tree and not tree_fixed_point:
+        raise WorkflowError("verify-report.md unborn Review HEAD requires an empty tree fixed point")
+
     def comparable(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [item for item in entries if str(item["path"]) not in authorized]
 
@@ -1725,44 +1762,35 @@ def command_archive_code_scope(repo: Path, args: argparse.Namespace) -> dict[str
         allow_knowledge_drift=evidence.get("stage_trace.archive") == "completed",
     )
     fixed_point = evidence["review_fixed_point"]
-    _git_bytes(repo, "merge-base", "--is-ancestor", fixed_point, str(sealed["review_head"]))
-    reviewed_commit_raw = _git_bytes(
-        repo,
-        "diff",
-        "--name-only",
-        "-z",
-        fixed_point,
-        str(sealed["review_head"]),
-        "--",
+    review_head = str(sealed["review_head"])
+    current_head = _current_review_ref(repo)
+    current = _review_scope_details(
+        repo, args.feature, review_head=review_head,
+        authorized_knowledge_paths=frozenset(
+            _authorized_knowledge_paths(repo, args.feature, evidence)
+            if evidence.get("stage_trace.archive") == "completed" else ()
+        ),
     )
-    packaged_commit_raw = _git_bytes(
-        repo,
-        "diff",
-        "--name-only",
-        "-z",
-        str(sealed["review_head"]),
-        "HEAD",
-        "--",
-    )
-    committed_paths = sorted(
-        {
-            os.fsdecode(item)
-            for raw in (reviewed_commit_raw, packaged_commit_raw)
-            for item in raw.split(b"\0")
-            if item and not _review_scope_excluded(args.feature, os.fsdecode(item))
+    empty_tree_review = fixed_point == current["empty_tree"]
+    if not empty_tree_review:
+        _git_bytes(repo, "merge-base", "--is-ancestor", fixed_point, review_head)
+    excluded = set(current["excluded_preexisting_paths"]) if empty_tree_review else set()
+
+    def diff_paths(before: str, after: str) -> set[str]:
+        return {
+            path for item in _git_bytes(repo, "diff", "--name-only", "-z", before, after, "--").split(b"\0")
+            if item and not _review_scope_excluded(args.feature, path := os.fsdecode(item))
+            and path not in excluded
         }
-    )
-    reviewed_paths = sorted({
-        os.fsdecode(item) for item in reviewed_commit_raw.split(b"\0")
-        if item and not _review_scope_excluded(args.feature, os.fsdecode(item))
-    } | {str(item["path"]) for item in sealed["entries"]})
-    sealed_delta_paths = {
-        str(item["path"]) for item in (accepted or sealed)["entries"]
-    }
+
+    reviewed_commits = diff_paths(fixed_point, review_head)
+    committed_paths = sorted(reviewed_commits | diff_paths(review_head, current_head))
+    reviewed_paths = sorted(reviewed_commits | {str(item["path"]) for item in sealed["entries"]})
+    sealed_delta_paths = {str(item["path"]) for item in (accepted or sealed)["entries"]}
     current_uncommitted = {
         os.fsdecode(item)
         for raw in (
-            _git_bytes(repo, "diff", "--name-only", "-z", "HEAD", "--"),
+            _git_bytes(repo, "diff", "--name-only", "-z", current_head, "--"),
             _git_bytes(repo, "ls-files", "--others", "--exclude-standard", "-z"),
         )
         for item in raw.split(b"\0")
@@ -1770,13 +1798,6 @@ def command_archive_code_scope(repo: Path, args: argparse.Namespace) -> dict[str
     }
     working_tree_paths = sorted(sealed_delta_paths & current_uncommitted)
     changed_paths = sorted(set(committed_paths) | set(working_tree_paths))
-    current = _review_scope_details(
-        repo, args.feature, review_head=str(sealed["review_head"]),
-        authorized_knowledge_paths=frozenset(
-            _authorized_knowledge_paths(repo, args.feature, evidence)
-            if evidence.get("stage_trace.archive") == "completed" else ()
-        ),
-    )
     archive_scope_sha256 = artifact_receipt(
         json.dumps(
             {
@@ -1797,6 +1818,7 @@ def command_archive_code_scope(repo: Path, args: argparse.Namespace) -> dict[str
         "changed_paths": changed_paths,
         "committed_paths": committed_paths,
         "excluded_preexisting_paths": current["excluded_preexisting_paths"],
+        "empty_tree_review": empty_tree_review,
         "feature": args.feature,
         "review_fixed_point": fixed_point,
         "review_head": sealed["review_head"],
@@ -1896,9 +1918,12 @@ def command_repair_rebind(repo: Path, args: argparse.Namespace) -> dict[str, Any
 
 def command_archive_git_state(repo: Path, args: argparse.Namespace) -> dict[str, Any]:
     target_branch, target_commit = resolve_target_branch(repo)
-    head = git_text(repo, "rev-parse", "HEAD") or None
+    head = git_text(repo, "rev-parse", "--verify", "HEAD^{commit}") or None
     source_branch = git_text(repo, "symbolic-ref", "--quiet", "--short", "HEAD") or None
     state = operation_state(repo)
+    unborn = False
+    if head is None and source_branch and not state["operations"]:
+        unborn = _current_review_ref(repo) == _empty_review_tree(repo)
     merge_base = (
         git_text(repo, "merge-base", str(head), str(target_commit))
         if head and target_commit
@@ -1906,6 +1931,7 @@ def command_archive_git_state(repo: Path, args: argparse.Namespace) -> dict[str,
     ) or None
     return {
         "head": head,
+        "unborn": unborn,
         "merge_base_commit": merge_base,
         "operations": state["operations"],
         "source_branch": source_branch,

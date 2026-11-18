@@ -17,22 +17,26 @@ description: 为 HelixHarness Apply 评审固定比较点之后的代码变化�
 
 ### 1. 固定比较点和评审范围
 
-仅评审当前未提交增量时，自动使用当前 `HEAD` 作为 `<fixed-point>`，不询问用户。只有需要纳入 `HEAD` 之前的已提交改动，或任务变化只存在于提交历史中时，才请用户指定 commit、branch 或 tag。将输入解析为完整 commit ID，不根据分支名称、时间或语义猜测其他起点。
+先执行 `workflow.py ... review-scope --feature "{feature}"`，取得 `review_head`、
+`apply_baseline_head`、`empty_tree`、`changed_paths`、`excluded_preexisting_paths` 和 `review_scope_sha256`。
+执行前工作区基线缺失、范围重叠或脚本拒绝当前状态时，直接返回脚本的 `DECISION_NEEDED` 或 blocker，
+不自行重建范围。只从 `changed_paths` 构造 staged、unstaged 和本任务新增 untracked 文件的 working-tree delta；
+`excluded_preexisting_paths` 只记录排除事实，不附带内容。
 
-执行并确认比较点有效、已提交差异非空或存在待评审的 working-tree delta：
-
-```bash
-git rev-parse <fixed-point>
-git diff <fixed-point>...HEAD
-git log <fixed-point>..HEAD --oneline
-```
-
-再执行 `workflow.py ... review-scope --feature "{feature}"`，取得 `changed_paths`、`excluded_preexisting_paths` 和 `review_scope_sha256`。只从 `changed_paths` 构造 staged、unstaged 与本任务新增 untracked 文件的 working-tree delta；`excluded_preexisting_paths` 只记录排除事实，不附带内容。执行前工作区基线缺失、范围重叠或脚本拒绝当前状态时，直接返回脚本给出的 `DECISION_NEEDED` 或 blocker，不自行重建范围。
+- `apply_baseline_head=empty_tree` 时，使用回执中的空树作为 `<fixed-point>`。若 `review_head=empty_tree`，
+  当前没有已提交差异或 commit list，不调用依赖 commit 的 `git log` / `git merge-base`。
+  若 Review 前已有首次提交，使用 `git diff <fixed-point> <review_head>`（两个参数），从差异中排除
+  `excluded_preexisting_paths`、本需求的 spec/tasks/evidence、私有状态和统计目录，
+  使用 `git log <review_head> --oneline` 记录当前历史。保留真实 `review_head`，不创建或猜测提交。
+- 其他情况仅评审当前未提交增量时，自动使用回执中的 `review_head` 作为 `<fixed-point>`。只有需要纳入
+  `HEAD` 之前的已提交改动，或任务变化只存在于提交历史中时，才请用户指定 commit、branch 或 tag。
+  解析为完整 commit ID，再用 `git diff <fixed-point>...<review_head>` 和
+  `git log <fixed-point>..<review_head> --oneline` 收集已提交证据。
 
 冻结同一份 Review Bundle，供两个 Reviewer 使用：
 
 - 当前预绑定 Host Context：准确的 `plugin_root`、`canonical_host_id` 与当前 Host Kit 路径；
-- 完整 fixed-point 和 Review 时的 `HEAD` commit ID；
+- 完整 fixed-point 和 `review_head`（有提交时是 commit ID，无首次提交时是空树 ID）；
 - committed diff、commit list 和 working-tree delta；
 - `review_scope_sha256`、`changed_paths` 与 `excluded_preexisting_paths`；
 - 当前 HelixHarness `spec.md`；

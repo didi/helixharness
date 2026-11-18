@@ -1,6 +1,7 @@
 # 项目类型检测协议
 
-init 命令的 Step 0 执行此脚本，使用 bash 检测项目类型（<100ms），写入状态文件供 Step 1 分支编排。
+仅单仓 Init 的 Git 预检返回 `empty=false` 且完成统计授权后执行现有类型检测脚本，写入状态供扫描编排。
+`empty=true` 由 `scripts/init_greenfield.py` 负责，保留 `scanPlan=[]` 和 `scanStatus=skipped`；不运行本节脚本。
 
 ## 状态文件
 

@@ -112,7 +112,9 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 {helix_python} "{plugin_root}/scripts/workflow.py" --repo-root "{repo_root}" archive-git-state
 ```
 
-若返回的 `operations` 或 `unmerged_paths` 非空，立即输出 `BLOCKED:git_operation_in_progress`；不得自动解决冲突或继续归档。无法确定当前分支、目标分支或 merge-base 时停止。Git 信息只用于记录代码获取方式，不得扩大已封存的需求范围。
+若返回的 `operations` 或 `unmerged_paths` 非空，立即输出 `BLOCKED:git_operation_in_progress`；不得自动解决冲突或继续归档。无法确定当前分支时停止。目标分支或 merge-base 缺失时，只有 `archive-code-scope` 返回
+`empty_tree_review=true` 的首次开发才可继续本地归档；此时不提供推送选择。有效 Git 状态可以是
+`unborn=true`，不要求预先创建提交。其他情况沿用原阻断规则。Git 信息不得扩大已封存的需求范围。
 
 初次 preflight 返回 `archive_state=ready` 后处理提交选择：
 
@@ -125,7 +127,7 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
   2. `暂不提交 Apply Scope，归档后与 eval-log 一起决定`
   3. `取消归档`
 
-选择提交时，重新执行 `archive-code-scope`；范围发生变化则停止。当前必须位于非目标、非 detached 的功能分支。禁止 `git add -A`，只对 `working_tree_paths` 执行 `git add -- {working_tree_paths...}` 和 `git commit --only -m "feat: complete {feature}" -- {working_tree_paths...}`，并验证新 commit 只包含这些路径。提交失败不得扩大范围或假装成功；只有单个 commit 准确覆盖完整需求时才记录 `implementation_commit_id`。
+选择提交时，重新执行 `archive-code-scope`；范围发生变化则停止。当前必须位于非目标、非 detached 的功能分支；获授权的首次开发本地归档无可比较的目标分支时，可在当前已确认分支提交一次精确范围。禁止 `git add -A`，只对 `working_tree_paths` 执行 `git add -- {working_tree_paths...}` 和 `git commit --only -m "feat: complete {feature}" -- {working_tree_paths...}`，并验证新 commit 只包含这些路径（首次提交使用 `git diff-tree --root --no-commit-id --name-only -r <commit>` 验证）。提交失败不得扩大范围或假装成功；只有单个 commit 准确覆盖完整需求时才记录 `implementation_commit_id`。
 
 选择暂不提交或传入 `--no-commit` 时保存 `apply_scope_commit_deferred=true` 并继续归档；第 4 节始终处理最终交付选择，把未提交的需求改动和本轮可提交的最终 eval-log 放在同一个选择中。没有可提交的 eval-log 时仍处理需求代码与推送选择。
 
@@ -168,7 +170,9 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 
 若第 2 节返回 `review_accepted_changes=true`，业务 move 校验成功后仍执行 `metrics.py ... finish --feature "{feature}" --stage archive --status completed`，但不传下段的 Review Scope 参数、`--reviewed-path` 或 `--implementation-commit`：现有统计协议不表达未复审的当前范围，由 recorder 使用已有代码定位回退，不把用户接受的变化上报为已评审范围。原 Review 及直接归档决定保留在 `verify-report.md`；回执说明本次当前范围未重新 Review。统计恢复时同样读取 `archive-code-scope --completed` 的标记处理。
 
-仅当 `review_accepted_changes=false` 时，业务 move 校验成功后，执行 `metrics.py ... finish --feature "{feature}" --stage archive --status completed`，并把第 2 节保存的封存范围作为重复参数传入：`--review-fixed-point "{review_fixed_point}" --review-head "{review_head}" --review-scope-sha256 "{review_scope_sha256}" --archive-scope-sha256 "{archive_scope_sha256}"`，每个 `changed_paths` 再各传一个 shell 安全引用的 `--reviewed-path "{path}"`；范围为空时不传 `--reviewed-path`。本轮已得到能准确覆盖完整需求的单一实现 commit 时再追加 `--implementation-commit "{implementation_commit_id}"`。recorder 会验证 commit 与封存 scope 收据，写入固定证据，并冻结该需求已登记的全部 Stage Entry 及各 Session 日志的当前字节读取上限后唤醒异步 Runtime；没有准确 commit 时自动写分支回退，但 `reviewed_paths` 仍是唯一需求范围。同步路径不读取 transcript/rollout、不复制原始日志、不调用语义分类或其他流程 Archive finalizer。统计失败只输出 warning，不得回滚、重复 move 或改变归档结论。
+当 `empty_tree_review=true` 时，同样使用不带 Review Scope、`--reviewed-path` 或 `--implementation-commit` 的 Archive finish（含恢复）。本地 Evidence 照常封存；现有统计协议的 Review ID 只接受 commit，不能把空树当成 commit。
+
+仅当 `review_accepted_changes=false` 且 `empty_tree_review=false` 时，业务 move 校验成功后，执行 `metrics.py ... finish --feature "{feature}" --stage archive --status completed`，并把第 2 节保存的封存范围作为重复参数传入：`--review-fixed-point "{review_fixed_point}" --review-head "{review_head}" --review-scope-sha256 "{review_scope_sha256}" --archive-scope-sha256 "{archive_scope_sha256}"`，每个 `changed_paths` 再各传一个 shell 安全引用的 `--reviewed-path "{path}"`；范围为空时不传 `--reviewed-path`。本轮已得到能准确覆盖完整需求的单一实现 commit 时再追加 `--implementation-commit "{implementation_commit_id}"`。recorder 会验证 commit 与封存 scope 收据，写入固定证据，并冻结该需求已登记的全部 Stage Entry 及各 Session 日志的当前字节读取上限后唤醒异步 Runtime；没有准确 commit 时自动写分支回退，但 `reviewed_paths` 仍是唯一需求范围。同步路径不读取 transcript/rollout、不复制原始日志、不调用语义分类或其他流程 Archive finalizer。统计失败只输出 warning，不得回滚、重复 move 或改变归档结论。
 
 统计已开启且上述 finish 返回 recorded 时，在最终交付选择前原样展示其 `notice`，标记固定为 `NOTICE:lite_telemetry_delivery_required`。该提示说明：HelixHarness 数据统计已开启；请务必将最终 `eval-log.json` 提交并随功能分支 push，否则平台无法完成关联统计。同一需求的本次交付只展示一次；前文已经展示时，恢复、继续执行或复用已有交付授权时不重复展示。它是交付提醒而非业务门禁；用户选择后按实际执行结果报告状态，不再重复通用 NOTICE。
 
@@ -189,7 +193,8 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 
 等待期间业务状态仍为归档完成，提交／推送决定仍待回答；不得重复业务归档、改写 completed 工件或重新 start/finish。此时不得输出表示循环已结束的完成摘要，也不得只说“提交选项已展示”。只有收到真实选择并完成相应操作、如实报告操作失败，或用户明确取消后，才输出最终回执。用户稍后回答时直接继续本节，重新校验封存范围和分支后执行获授权的操作，不重跑路由、preflight 或 move 来重做归档。
 
-按真实待提交项使用以下唯一一组选项，不展示与本轮状态不符的空提交选项：
+按真实待提交项使用以下唯一一组选项，不展示与本轮状态不符的空提交选项。首次开发本地归档无可比较目标分支时，
+仅展示表中适用的本地选项，禁止推送；没有待提交项时直接报告本地归档完成。
 
 | 待提交代码 | 待提交 Ledger | 选项 1 | 选项 2 | 选项 3 |
 |---|---|---|---|---|
@@ -214,7 +219,7 @@ Workspace RepoJob 沿用父 Coordinator 显式传入的 `metrics_trigger`（根�
 
 ### 执行已授权的推送
 
-获得最终选择后、任何提交前记录当前完整 `HEAD` 为 `delivery_head`；每次本次授权的精确提交成功后将它更新为已验证的新 commit。Ledger 本来已提交或返回 `ledger_already_committed` 时，只验证其 commit 属于当前 HEAD 历史且 Ledger 路径仍无未提交变化，不把它的历史 commit 当作 `delivery_head`。没有新提交时保留原 HEAD。
+仅在本轮有已授权的推送时记录和使用 `delivery_head`。获得最终选择后、任何提交前记录当前完整 `HEAD` 为 `delivery_head`；每次本次授权的精确提交成功后将它更新为已验证的新 commit。Ledger 本来已提交或返回 `ledger_already_committed` 时，只验证其 commit 属于当前 HEAD 历史且 Ledger 路径仍无未提交变化，不把它的历史 commit 当作 `delivery_head`。没有新提交时保留原 HEAD。
 
 若用户在同一个最终选择门选择了选项 1，不再追加第二次交互；在全部获授权提交成功或本来无需提交后，重新校验封存 Apply Scope 已无待提交代码，当前仍位于先前记录的非 `target_branch`、非 detached `source_branch`，`HEAD` 等于 `delivery_head`，没有进行中的 Git operation，且 `origin` 可解析。本轮参与交付的有效 Ledger 路径必须已提交且无新变化。任一条件不满足时输出 `WARN:lite_feature_branch_push_failed`，不得猜测其他分支或远端。全部满足后只执行普通非强制 push：
 

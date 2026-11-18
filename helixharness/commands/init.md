@@ -93,7 +93,7 @@ result_reencode_budget: 1
 | `init_scan_frontend_components` | `agents/scan-frontend-components.md` | 同上 | `docs/knowledge/components.md` | 共享索引、init state、timings | 文件存在且非空 |
 | `init_scan_frontend_tracking` | `agents/scan-frontend-tracking.md` | 同上 | `docs/knowledge/tracking.md`（检测到埋点时） | 共享索引、init state、timings | 文件存在且非空，或 final 明确“未检测到埋点” |
 | `init_frontend_bootstrap` | `agents/init-frontend-bootstrap.md` | 六个前端扫描 job 全部通过；全栈时还依赖 `init_service_bootstrap` | 下方初始化目标产物和当前宿主项目配置允许的入口/设置 | 已验证扫描产物之外的业务文件 | 初始化目标产物逐项通过 |
-| `init_service_bootstrap` | `agents/init-service-bootstrap.md` | 后端扫描 DAG 全部通过，或外部 knowledge 导入完成；全栈时先于 frontend bootstrap | 下方初始化目标产物和当前宿主项目配置允许的入口/设置 | 已验证扫描产物之外的业务文件 | 初始化目标产物逐项通过 |
+| `init_service_bootstrap` | `agents/init-service-bootstrap.md` | greenfield：预检、consent、免扫描状态写入均通过；其他模式：后端扫描 DAG 全部通过，或外部 knowledge 导入完成；全栈时先于 frontend bootstrap | 下方初始化目标产物和当前宿主项目配置允许的入口/设置 | 已验证扫描产物之外的业务文件 | 初始化目标产物逐项通过 |
 
 A 组 `init_scan_tech/init_scan_db/init_scan_api` 必须并行；B 组必须严格按
 `init_scan_service → init_scan_boundary → init_scan_service_meta` 串行。六个前端扫描 job 必须保持
@@ -108,14 +108,6 @@ A 组三个 final 的 evidence index 业务事实每个 job 最多 30 项；`sup
 的结果编码返回 evidence index，缺失即结果校验失败。
 父流程校验、去重后把可靠 evidence 与产物路径交给 `init_scan_service`；没有可靠 evidence 时只消费
 已验证产物，不得推断凑数，B 组仍只针对缺口或冲突补查。
-
-## 执行编排（前置：项目类型预检测）
-
-### Step 0: 项目类型快速检测
-
-读取此 plugin 捆绑的 reference 文档：`reference/project-type-detection.md`，执行其中的检测脚本，生成 `docs/.helixharness-init-state.json` 状态文件，供 Step 1 按项目类型分支编排。
-
----
 
 ## User Input
 
@@ -132,30 +124,6 @@ $ARGUMENTS
 - 严格按脚本最终 `next_action` 执行：`continue_silently` 静默；`prompt_update` 弹框；`block_for_update` 阻断；`continue_with_warning` 只原样输出脚本 `warning` 后继续
 - `update_status=latest|current-newer` 或有效 `skip_effective=true` 时必须静默继续；用户刚选择跳过后也不输出 WARN
 - 快速检查绝不自动安装；选择升级时进入 `/helix:update` 的弹框确认与一次性授权流程
-
-## Step 0.5：数据统计 consent（必须在 runtime preflight 后、任何业务 bootstrap 前完成）
-
-单仓服务/前端初始化按 `reference/eval-protocol.md` 的“数据统计开关与提醒缓存”解析当前平台缓存，并得到 `effective_telemetry_mode=enabled|disabled`。`--workspace` 只建立协调层、不创建 repo-local `docs/eval/**`，因此跳过本次 consent 交互，等待各 repo 单独 init 时处理。
-
-在已支持宿主上，只要本步骤需要展示 consent/开启选项，必须先逐字呈现 `reference/eval-protocol.md` 中标识为 `helixharness-eval-data-notice-v1` 的唯一数据说明；本命令内保留如下受静态校验约束的同步副本，不得改写：
-
-<!-- helixharness-eval-data-notice-v1:start -->
-```text
-数据统计说明：默认关闭。开启后，HelixHarness 在 docs/eval/{feature}/eval-log.json 中记录当前 Git user.name（可用时）、工作流阶段、时间、状态、工件、质量和代码范围等固定事实；该账本可随业务代码提交，不保存原始会话 ID、对话、Token 或工具原始输入输出。
-阶段记录本身不读取对话或调用模型。阶段结束后，异步 Runtime 按已授权的精确会话窗口采集 Token、工具及子任务统计和经过筛选脱敏的用户输入、助手回复；不上传 Thinking、原始源码、完整 Diff、附件或原始日志。Archive 冻结采集边界，后台仅处理冻结范围和待投数据，不同步调用会话 classifier。
-无论是否配置异步地址，都按授权缓存和提醒周期正常询问统计授权。开启后同步记录本地账本，由平台本地读取或 Git 同步获取；异步采集和投递另需先启动 helixharness-platform，并使用发布脚本 reporting_config.py 中的有效默认地址，或统计私有目录 config.json 的 endpoint 覆盖地址。未配置或地址无效时只跳过异步采集和投递；未授权或关闭时不新增同步账本，也不异步采集或投递。统计和网络异常不阻塞研发。授权允许本机私有采集及向配置地址上报，不等于授权 Git commit 或 push；提交和推送仍由当前命令单独取得授权。关闭后停止新增采集，并由后续命令、Hook 或 Worker 清理未发送私有证据；已提交的历史账本不改写。
-```
-<!-- helixharness-eval-data-notice-v1:end -->
-
-0. Python 不可用时不调用 resolver、不展示统计说明或开启选项，也不读写 consent 缓存；遵循 `reference/runtime-preflight.md` 恢复运行依赖。恢复并复检成功后从下述 resolve 重新开始。未恢复时，本次不启用统计，不影响无需 Python 的初始化步骤。Git 缺失优先 blocker。
-1. 调用 `{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{canonical_host_id}" resolve`；
-   - 若 `reason=endpoint_unconfigured`，静默继续，不展示“地址未配置”“未异步上报”等状态提示，也不主动要求配置；不能跳过下述统计问询。`endpoint_invalid` 仍展示返回的 warning。按 `prompt_due` 和 `allowed_actions` 处理授权，用户确认后正常调用 choose。
-2. 若 `prompt_due=true`，在创建 `docs/eval/**`、修改 `.gitignore` 或调用 bootstrap 前，先展示上述固定数据说明，再提示用户。Consent 子问题必须逐项使用 resolver 的有序 `allowed_actions[]`，保持 label 原文和顺序；可以与其他初始化问题合并展示，但不得压缩为通用“开启/关闭”或丢失 project/user scope。
-3. 若当前有效状态为 `enabled` 且 `prompt_due=true`，询问：保持当前统计范围开启 / 关闭当前项目统计 / 关闭我本人统计。
-4. 收到用户选择后调用 `choose --action {allowed_action.id} --user-confirmed`，由脚本完成 scope/mode 映射；推荐项、默认项和 Agent 自主判断都不构成确认。保持关闭后 30 天、保持开启后 180 天内不再提示。禁止直接写缓存 JSON。
-5. `choose` 后保存脚本返回的真实 `effective_mode` 并展示 notice/warning。Init 不创建统计 Entry 或追加 eval 跟踪规则；后续需求阶段由 recorder 按有效授权自行准备 Ledger 的 Git 跟踪。
-6. 后续 service/frontend bootstrap 都必须接收 `effective_telemetry_mode`，不得自行按默认 disabled 重新判断或再次询问。
-7. `disabled` 时，本次 init 从开始到结束都不得新建 `docs/eval/**` 或追加 eval `.gitignore` 例外；历史文件不删除。
 
 ## 参数说明
 
@@ -234,8 +202,8 @@ Workspace 初始化目标产物：
 - 当前 Host Kit 的 `entry_file`
 - `docs/harness/`
 - `docs/knowledge/`
-- `docs/knowledge/service-meta.yaml`
-- `docs/specs/`
+- `docs/knowledge/service-meta.yaml`（仅后端、未知或全量全栈模式）
+- `docs/specs/active/` 和 `docs/specs/completed/`
 - `docs/hooks/`
 
 `/helix:init --workspace` 只能读取这些 repo-local 产物作为输入，用于生成 workspace registry、service catalog 和 service graph。不得重新生成、覆盖、刷新或迁移任何 repo-local HelixHarness 初始化内容。
@@ -320,16 +288,70 @@ Workspace 初始化完成后立即输出报告并停止；不得继续执行下�
 
 ### 服务仓库初始化
 
-此模式下，**knowledge 扫描必须由顶层命令显式编排并实际触发 Agent tool/子代理调用**，不能只把“应当扫描”的要求下沉给 bootstrap agent 后就继续执行。
+需要扫描时，**knowledge 扫描必须由顶层命令显式编排并实际触发 Agent tool/子代理调用**，不能只把“应当扫描”的要求下沉给 bootstrap agent 后就继续执行。
+
+#### Step 0：单仓 Git 预检
+
+进入本节前必须完成 runtime/source 检查、版本检查和入口判断。Workspace 根流程不执行本节。
+确认 `{repo_root}` 是本次要初始化的目录；只读调用：
+
+```text
+{helix_python} "{plugin_root}/scripts/init_greenfield.py" --repo-root "{repo_root}" probe
+```
+
+- 预检需要已通过 runtime preflight 的 Python。无法恢复时停止本单仓步骤，不猜测仓库状态。
+- 脚本退出 2 并返回 `reason` 时，输出对应 `BLOCKED:{reason}` 和 `detail`，停止，不做仓库写入。
+  非 Git 目录请用户自行执行 `git init` 或切换到已有仓库；不要代为初始化或创建提交。
+- 退出 0 后保留 `empty` 判断并进入 Step 0.5。只有 `empty=true` 跳过 Step 1 的扫描。
+
+#### Step 0.5：数据统计 consent（必须在任何业务写入或 bootstrap 前完成）
+
+单仓服务/前端初始化按 `reference/eval-protocol.md` 的“数据统计开关与提醒缓存”解析当前平台缓存，并得到 `effective_telemetry_mode=enabled|disabled`。`--workspace` 只建立协调层、不创建 repo-local `docs/eval/**`，因此跳过本次 consent 交互，等待各 repo 单独 init 时处理。
+
+在已支持宿主上，只要本步骤需要展示 consent/开启选项，必须先逐字呈现 `reference/eval-protocol.md` 中标识为 `helixharness-eval-data-notice-v1` 的唯一数据说明；本命令内保留如下受静态校验约束的同步副本，不得改写：
+
+<!-- helixharness-eval-data-notice-v1:start -->
+```text
+数据统计说明：默认关闭。开启后，HelixHarness 在 docs/eval/{feature}/eval-log.json 中记录当前 Git user.name（可用时）、工作流阶段、时间、状态、工件、质量和代码范围等固定事实；该账本可随业务代码提交，不保存原始会话 ID、对话、Token 或工具原始输入输出。
+阶段记录本身不读取对话或调用模型。阶段结束后，异步 Runtime 按已授权的精确会话窗口采集 Token、工具及子任务统计和经过筛选脱敏的用户输入、助手回复；不上传 Thinking、原始源码、完整 Diff、附件或原始日志。Archive 冻结采集边界，后台仅处理冻结范围和待投数据，不同步调用会话 classifier。
+无论是否配置异步地址，都按授权缓存和提醒周期正常询问统计授权。开启后同步记录本地账本，由平台本地读取或 Git 同步获取；异步采集和投递另需先启动 helixharness-platform，并使用发布脚本 reporting_config.py 中的有效默认地址，或统计私有目录 config.json 的 endpoint 覆盖地址。未配置或地址无效时只跳过异步采集和投递；未授权或关闭时不新增同步账本，也不异步采集或投递。统计和网络异常不阻塞研发。授权允许本机私有采集及向配置地址上报，不等于授权 Git commit 或 push；提交和推送仍由当前命令单独取得授权。关闭后停止新增采集，并由后续命令、Hook 或 Worker 清理未发送私有证据；已提交的历史账本不改写。
+```
+<!-- helixharness-eval-data-notice-v1:end -->
+
+0. Python 不可用时不调用 resolver、不展示统计说明或开启选项，也不读写 consent 缓存；遵循 `reference/runtime-preflight.md` 恢复运行依赖。恢复并复检成功后从下述 resolve 重新开始。未恢复时，本次不启用统计，不影响无需 Python 的初始化步骤。Git 缺失优先 blocker。
+1. 调用 `{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root "{repo_root}" --platform "{canonical_host_id}" resolve`；
+   - 若 `reason=endpoint_unconfigured`，静默继续，不展示“地址未配置”“未异步上报”等状态提示，也不主动要求配置；不能跳过下述统计问询。`endpoint_invalid` 仍展示返回的 warning。按 `prompt_due` 和 `allowed_actions` 处理授权，用户确认后正常调用 choose。
+2. 若 `prompt_due=true`，在创建 `docs/eval/**`、修改 `.gitignore` 或调用 bootstrap 前，先展示上述固定数据说明，再提示用户。Consent 子问题必须逐项使用 resolver 的有序 `allowed_actions[]`，保持 label 原文和顺序；可以与其他初始化问题合并展示，但不得压缩为通用“开启/关闭”或丢失 project/user scope。
+3. 若当前有效状态为 `enabled` 且 `prompt_due=true`，询问：保持当前统计范围开启 / 关闭当前项目统计 / 关闭我本人统计。
+4. 收到用户选择后调用 `choose --action {allowed_action.id} --user-confirmed`，由脚本完成 scope/mode 映射；推荐项、默认项和 Agent 自主判断都不构成确认。保持关闭后 30 天、保持开启后 180 天内不再提示。禁止直接写缓存 JSON。
+5. `choose` 后保存脚本返回的真实 `effective_mode` 并展示 notice/warning。Init 不创建统计 Entry 或追加 eval 跟踪规则；后续需求阶段由 recorder 按有效授权自行准备 Ledger 的 Git 跟踪。
+6. 后续 service/frontend bootstrap 都必须接收 `effective_telemetry_mode`，不得自行按默认 disabled 重新判断或再次询问。
+7. `disabled` 时，本次 init 从开始到结束都不得新建 `docs/eval/**` 或追加 eval `.gitignore` 例外；历史文件不删除。
+
+#### Step 0.6：确定扫描模式
+
+统计模式已解析后，按 Step 0 的回执确定模式：
+
+- `empty=true`：调用下列命令记录状态。成功后进入 Step 1 的免扫描分支；不得派发后端或前端扫描任务。
+
+  ```text
+  {helix_python} "{plugin_root}/scripts/init_greenfield.py" --repo-root "{repo_root}" prepare
+  ```
+
+  退出非零时按回执阻断。若期间已出现项目文件，重新开始正常检测，不覆盖已有状态。
+- `empty=false`：执行 `reference/project-type-detection.md` 的原有类型检测，写入 state，再按原分支编排扫描。
+  检测结果仍可能为 `unknown`；`unknown` 不等于 `empty`。
 
 #### Step 1：knowledge 扫描编排
 
-读取 Step 0 生成的项目类型检测结果，按类型执行不同扫描 pipeline：
+读取 Step 0.6 生成的项目类型检测结果，按类型执行不同扫描 pipeline：
 
 ```bash
 STATE_FILE="docs/.helixharness-init-state.json"
 PROJECT_TYPE=$(grep -o '"projectType":[^,]*' "$STATE_FILE" 2>/dev/null | cut -d'"' -f4 || echo "unknown")
 ```
+
+**分支 0: 空仓库** — `projectType=empty` 时保留 `scanPlan=[]` 和 `scanStatus=skipped`，不调用扫描 agent；继续 Step 2。
 
 **分支 1: 后端 / 未知项目 — 执行原后端完整扫描流程**
 
@@ -390,11 +412,11 @@ fi
 `style.md`、`api-endpoints.md`、`routes.md`、`state.md` 和 `components.md`。tracking 未检测到埋点时
 允许不生成 `tracking.md`，但 Agent 必须明确报告结果。
 
-**分支 3: 全栈 / Monorepo 项目 — 执行 Step 0 已确认的完整全栈 scan plan**
+**分支 3: 全栈 / Monorepo 项目 — 执行 Step 0.6 已确认的完整全栈 scan plan**
 
 ```bash
 if [ "$PROJECT_TYPE" = "fullstack-node" ] || [ "$PROJECT_TYPE" = "fullstack-separated" ] || [ "$PROJECT_TYPE" = "monorepo" ]; then
-  # Step 0 的 project-type-detection 已完成唯一一次用户确认：
+  # Step 0.6 的 project-type-detection 已完成唯一一次用户确认：
   # 仅前端/仅后端会把 PROJECT_TYPE 归一化为 frontend/backend；仍保留全栈标签只表示用户选择了全量扫描。
   # 此处不得再次询问扫描模式，也不得改写已确认的 scanPlan。
 
@@ -408,7 +430,15 @@ fi
 
 #### Step 2：bootstrap 生成
 
-完成 knowledge 导入或扫描后，按项目类型选择 bootstrap agent：
+根据 Step 1 的结果选择 bootstrap agent：
+
+**空仓库（`$PROJECT_TYPE` = `empty`）**：
+
+调用 `init_service_bootstrap`，传入 `bootstrap_mode=greenfield`、`project-mode=greenfield`、
+已解析的 `effective_telemetry_mode`、空扫描产物列表、明确的读写范围和当前 Host Context。
+派发前由父流程通过宿主交互确认项目目标、技术栈与运行/测试入口；用户暂未确定的字段标记 TODO。
+显式传入 `--knowledge` 时仍由 bootstrap 按导入约定处理，只作为项目背景或已确认约束，不视为扫描证据。
+本模式的最小产物按 Step 3 校验，不要求既有架构、API、数据库或 `service-meta.yaml`。
 
 **纯前端项目（`$PROJECT_TYPE` = `frontend`）**：
 - 读取 agent prompt：`agents/init-frontend-bootstrap.md`
@@ -442,10 +472,11 @@ fi
 
 #### Step 3：统一初始化产物校验
 
-单仓（service/frontend/fullstack）的父流程不能只检查目录存在。除上方目标清单外，必须确认
+单仓（greenfield/service/frontend/fullstack）的父流程不能只检查目录存在。除上方目标清单外，必须确认
 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md`
 均为非空文件；`project-context.md` 内容按当前项目类型对应的 bootstrap 模板逐项核对，
-未知项明确标注待确认，不得补造事实或向前端套用服务端字段。知识根索引必须直接链接该文件，供 Propose/Apply 加载。
+未知项明确标注待确认，不得补造事实或向前端套用服务端字段。知识根索引必须以 Markdown 链接或
+三列表格第一列的相对路径直接索引该文件，供 Propose/Apply 加载。
 缺失时把准确路径回传给原 bootstrap agent 补齐，由父流程重新核验；未补齐前报告
 `BLOCKED: init_required_artifact_missing`，不得凭 bootstrap 的完成回执跳过检查。
 
@@ -461,6 +492,16 @@ bootstrap 达到真实终态后，父流程必须逐项检查上述初始化目�
 - 两种 owner 均由父流程执行同一路径的 `check`，核对实际 settings 的必需 hook、去重与 JSON 结构；
   `settings_file=null` 时工具返回明确 skipped。任何缺失、冲突或检查失败均报告
   `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，不得报告 Init 完成。
+
+绿地额外验收：`project-context.md` 必须明确 `project-mode: greenfield`，未知事实保留 TODO。
+只有目标产物、项目 hooks 和下方统计目录门禁均通过后，由父流程执行以下命令收尾；bootstrap 不写本模式的 state：
+
+```text
+{helix_python} "{plugin_root}/scripts/init_greenfield.py" --repo-root "{repo_root}" complete
+```
+
+收尾回执必须为 `projectType=empty`、`scanPlan=[]`、`scanStatus=skipped` 和 `bootstrapStatus=completed`；
+失败按脚本 `reason` 阻断。不得把跳过的扫描记为完成。
 
 ### Usage Telemetry
 

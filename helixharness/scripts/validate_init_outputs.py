@@ -10,6 +10,7 @@ from typing import Any
 
 from host_runtime import HostContractError, HostRegistry
 from host_runtime.project_config import load_project_config
+from init_greenfield import STATE_PATH
 from project_hooks_cli import project_hooks
 from workflow import WorkflowError
 from workspace import WorkspaceError, load_registry
@@ -68,6 +69,19 @@ def _check_dir(root: Path, relative_path: str) -> dict[str, str]:
     if not target.is_dir():
         return _result("directory", relative_path, "fail", "目录缺失或路径不是目录")
     return _result("directory", relative_path, "pass", "目录存在")
+
+
+def _check_greenfield_state(root: Path) -> dict[str, str]:
+    target = root / STATE_PATH
+    try:
+        state = json.loads(target.read_text(encoding="utf-8")) if target.resolve() == target else None
+    except (OSError, ValueError, RuntimeError):
+        state = None
+    if (not isinstance(state, dict) or state.get("projectType") != "empty"
+            or state.get("scanPlan") != [] or state.get("scanStatus") != "skipped"
+            or state.get("bootstrapStatus") != "completed" or type(state.get("completedAt")) is not int):
+        return _result("greenfield_state", STATE_PATH, "fail", "未记录绿地初始化成功并跳过扫描")
+    return _result("greenfield_state", STATE_PATH, "pass", "已记录绿地初始化成功并跳过扫描")
 
 
 def _check_eval_gitignore(root: Path) -> dict[str, str]:
@@ -161,6 +175,8 @@ def validate(
                 checks.append(_result("project_hooks", project_config.settings_file or "", "fail", str(exc)))
             if mode == "service":
                 checks.append(_check_file(root, "docs/knowledge/service-meta.yaml"))
+            elif mode == "greenfield":
+                checks.append(_check_greenfield_state(root))
             if telemetry_mode == "enabled":
                 checks.append(_check_dir(root, "docs/eval"))
                 checks.append(_check_eval_gitignore(root))
@@ -183,7 +199,7 @@ def validate(
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", required=True, type=Path)
-    parser.add_argument("--mode", required=True, choices=("service", "frontend", "workspace"))
+    parser.add_argument("--mode", required=True, choices=("service", "frontend", "workspace", "greenfield"))
     parser.add_argument("--platform", required=True)
     parser.add_argument("--telemetry-mode", required=True, choices=("enabled", "disabled"))
     return parser.parse_args()
