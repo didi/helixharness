@@ -20,6 +20,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import zlib
 import xml.etree.ElementTree as element_tree
 from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import datetime, timezone
@@ -56,6 +57,7 @@ RUNTIME_FILES = (
     "telemetry_protocol.py",
     "telemetry_trace.py",
     "telemetry_consent_state.py",
+    "telemetry_session.py",
 )
 RUNTIME_SCRIPT_DIRECTORIES = (
     "host_runtime",
@@ -64,6 +66,7 @@ RUNTIME_SCRIPT_DIRECTORIES = (
 RUNTIME_RESOURCE_DIRECTORIES = (
     ".claude-plugin",
     ".codex-plugin",
+    ".cursor-plugin",
     "commands",
     "hosts",
     "reference",
@@ -513,9 +516,28 @@ class Outbox:
                 removed += 1
         return removed
 
-    def purge_repo(self, repo: Path, *, platform: str | None = None) -> int:
+    def purge_repo(self, repo: Path, *, platform: str | None = None, strict_scope: bool = False) -> int:
+        if strict_scope and not platform:
+            raise ValueError("strict cleanup requires an explicit platform")
         target = str(Path(repo).expanduser().resolve())
         removed = 0
+        if strict_scope:
+            # Do not call records(): its corruption quarantine mutates records
+            # from every host before ownership can be established.
+            for directory in (self.outbox, self.quarantine):
+                if not directory.is_dir() or directory.is_symlink():
+                    continue
+                for path in directory.glob("*.json.gz"):
+                    if path.is_symlink():
+                        continue
+                    try:
+                        record = _load_gzip(path)
+                    except (OSError, ValueError, EOFError, zlib.error):
+                        continue
+                    if record.get("repo") == target and record.get("platform") == platform:
+                        path.unlink(missing_ok=True)
+                        removed += 1
+            return removed
         for path, record in self.records():
             if str(record.get("repo") or "") != target:
                 continue
@@ -1251,6 +1273,8 @@ def register_repository(repo: Path, platform: str, home: str | Path | None = Non
 
 
 def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
+    from telemetry_hosts import build_runtime_snapshot, RUNTIME_SNAPSHOT_NAME
+    host_snapshot = build_runtime_snapshot(Path(plugin_root))
     root = telemetry_home(home)
     plugin = Path(plugin_root).resolve()
     version = _runtime_version(plugin)
@@ -1283,6 +1307,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
                 target_directory,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
+    _atomic_bytes(target / RUNTIME_SNAPSHOT_NAME, (json.dumps(host_snapshot, sort_keys=True) + "\n").encode("utf-8"))
     wrapper = root / "bin" / "telemetryctl"
     command = f"#!{sys.executable}\nimport runpy\nrunpy.run_path({str(target / 'telemetryctl.py')!r}, run_name='__main__')\n"
     _atomic_bytes(wrapper, command.encode("utf-8"), 0o700)
@@ -1294,6 +1319,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
 
 
 def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) -> bool:
+    from telemetry_hosts import build_runtime_snapshot, RUNTIME_SNAPSHOT_NAME
     source = Path(plugin_root).resolve() / "scripts"
     root = telemetry_home(home)
     target = root / "runtime"
@@ -1317,6 +1343,9 @@ def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) ->
         )
 
     try:
+        snapshot_path = target / RUNTIME_SNAPSHOT_NAME
+        if snapshot_path.is_symlink() or json.loads(snapshot_path.read_text(encoding="utf-8")) != build_runtime_snapshot(Path(plugin_root)):
+            return False
         for filename in RUNTIME_FILES:
             candidate = source / filename
             if not candidate.is_file() or (target / filename).read_bytes() != candidate.read_bytes():
@@ -1329,7 +1358,7 @@ def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) ->
             trees_match(plugin / directory, root / directory)
             for directory in RUNTIME_RESOURCE_DIRECTORIES
         )
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 

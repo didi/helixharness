@@ -15,8 +15,8 @@ from typing import Any, Mapping
 import eval_json
 
 
-HOST_API_VERSION = "1.1"
-SUPPORTED_HOST_API_VERSIONS = frozenset({HOST_API_VERSION})
+HOST_API_VERSION = "1.2"
+SUPPORTED_HOST_API_VERSIONS = frozenset({"1.1", HOST_API_VERSION})
 HOST_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}$")
 CAPABILITY_LEVELS = frozenset({"native", "emulated", "unsupported"})
 SUPPORT_LEVELS = frozenset({"stable", "preview"})

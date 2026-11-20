@@ -71,12 +71,13 @@ MasterGo 设计页链接 -> 拉取 dsl_full.json -> filter-dsl.cjs -> Layer.md +
 
 ## 文本空白与水平锁宽（强制）
 
-> 背景：HTML 会把连续空格折叠为单空格（`white-space: normal/nowrap/pre-line` 均折叠）。DSL 文案含连续/前后/全角空格时，折叠会让文本渲染宽度小于 DSL bbox，**右端逐字累积横向漂移**（叠图表现为同一文本拖尾/双轮廓）。
+> 背景：Vue 模板编译可能先合并静态文本中的空白；浏览器还会按 CSS 折叠连续普通空格（`white-space: normal/nowrap/pre-line`）。这两层都要保真，否则固定宽度的文本框仍可能掩盖文案丢失。NBSP/全角空格本身不会被 CSS 折叠。
 
 写 `.vue` 前读取 **`text-whitespace.json`**：`hasWhitespaceRisk === true` 时，对 `items[].layoutMark` 命中的每个文本节点：
 
-1. **保留空白序列**：单行文本用 `white-space: pre`（**替代** `nowrap`；`pre` 同样不换行且保留空白），或将连续空格逐个转为 `&nbsp;`。**禁止**用 `nowrap`/默认 `normal` 直接承载该文案。`dom.md` 中对应节点带 `data-preserve-whitespace="true"` 且内联样式已给出 `white-space: pre`，照抄即可。
-2. **文案逐字保真**：包括空白字符在内逐字符来自 DSL（`items[].textVisible` 已将空白可视化，便于核对个数），禁止增删、合并空格。
+1. **编译后保留原文**：Vue 使用 `v-text="label"` 或 `{{ label }}`，其中 `label` 是逐字符来自 DSL 的字符串。不能仅把连续空格照抄进静态模板；`white-space: pre` 和 `v-pre` 都不能恢复编译时已丢失的空白。混排节点在各 `data-span-index` 元素中分别绑定对应原文，不得用 `v-text` 覆盖整个混排父节点。
+2. **CSS 保留空白序列**：单行文本用 `white-space: pre`（替代 `nowrap`，不自动换行且保留空白）；多行按 DSL 使用 `pre`/`pre-wrap`。也可把每个普通空格逐个转为 `&nbsp;`，此时 `nowrap`/`normal` 不会折叠 NBSP。`pre-line` 仅保留换行，仍会折叠普通空格/Tab。不得把 Tab、换行或全角空格转成普通空格。
+3. **运行时逐字核对**：对照 DSL 读取已挂载元素的原始 `textContent`，禁止通过 `trim()` 或合并空白后声称保真。普通空格和 NBSP 仅一对一等价；CRLF/CR 可规范为 LF，换行数量不变；其余字符及数量须一致。`items[].textVisible` 仅供人读，`items[].text` 才是原文。
 
 **水平锁宽**（与「垂直 bbox 锁高」对称）：`dom.md` 中 TEXT 有明确 `width` 时，文本**内容**渲染宽度须 ≈ 该值（允差 max(4 设计px, 2%)）。写前验算：字号 × 字符宽度估算 ≈ DSL width；明显小于时优先排查空白折叠、字体回退（目标字体未注册时回退 PingFang 视觉偏窄）、letter-spacing 丢失。物料阶段会用 `d2c-geometry-check.cjs` 实测校验（见 `d-d2c-materials.md`），写代码时即按本规则自检可避免返工。
 

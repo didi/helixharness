@@ -1,0 +1,53 @@
+{
+  "host_id": "cursor",
+  "host_api_version": "1.2",
+  "aliases": [],
+  "support": {
+    "level": "stable",
+    "display_name": "Cursor",
+    "evidence": null,
+    "limitations": [
+      "Desktop IDE support validated on macOS Cursor 3.30.14; local CLI requires separate native acceptance. Cloud Agents are outside this support scope.",
+      "Public Cursor commands use /helix-<command>. Native /helix:<command> aliases and colon-prefix completion are outside this release scope; arguments are bound by the Skill entry protocol.",
+      "Telemetry requires explicit consent and a real current-session identity visible to the model. If host context injection is unavailable, statistics skip without blocking workflows. Missing or cross-stage tokens remain unavailable.",
+      "Automatic plugin updates require a Helix-managed local installation on macOS/Linux. Marketplace-managed or unregistered copies are not modified.",
+      "D2C uses an explicit checkpoint gate; no native skill-scoped Stop or user-question hook is claimed. An owner-bound completion requires the real current session identity; missing identity cannot be bypassed.",
+      "sessionEnd delivery/execution is best effort. Explicit consent revocation cleans this repository; a later sessionStart retries scoped cleanup while consent remains disabled. Closing a window does not guarantee cleanup.",
+      "Pinned native project installation is supported on the tested desktop build. Native automatic updates are unsupported; check provides current-installation facts and manual steps without consuming managed-local authorization. Statistics may remain partial."
+    ]
+  },
+  "capabilities": {
+    "command_surface": "emulated",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "session_end": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "emulated",
+    "workflow_transition": "emulated",
+    "subagents": "native",
+    "unit_test_workflow": "emulated",
+    "task_tracking": "emulated",
+    "project_hooks": "native",
+    "session_events": "native",
+    "telemetry": "emulated",
+    "plugin_install": "native",
+    "plugin_update": "emulated"
+  },
+  "adapters": {
+    "distribution": "resource:.cursor-plugin/plugin.json",
+    "installer": "resource:hosts/cursor/installer.md",
+    "command_projection": "resource:hosts/cursor/command-projection.json",
+    "runtime": "resource:hosts/cursor/runtime.md",
+    "subagent_protocol": "resource:hosts/cursor/subagent.md",
+    "workflow_transition": "resource:hosts/cursor/workflow-transition.md",
+    "project_config": "resource:hosts/cursor/project.json",
+    "project_hooks": "resource:hosts/cursor/project-hooks.json",
+    "ut": "resource:hosts/cursor/ut.md",
+    "lifecycle": "resource:hosts/cursor/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md",
+    "telemetry": "python:telemetry_hosts.cursor:CursorAdapter",
+    "version": "python:update_hosts.cursor:plugin_version",
+    "update": "python:update_hosts.cursor:CursorUpdateAdapter"
+  }
+}

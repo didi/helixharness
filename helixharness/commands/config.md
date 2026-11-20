@@ -38,10 +38,15 @@ $ARGUMENTS
 ## 修改
 
 1. 用户已给出明确修改命令或明确自然语言目标、值和范围时，这就是该项修改的授权，不再重复要求确认。参数不完整时，先查看当前值，只询问缺失的必要信息。默认查看、推荐项和未提交的选择不构成授权。
-2. 开启统计之前逐字展示 `reference/eval-protocol.md` 中 `helixharness-eval-data-notice-v1` 的数据说明。用户已明确要求开启时展示说明后执行；仅表达查看/配置意图时展示说明并由用户选择，不能自动开启。
-3. 使用同一个 `user_config.py`，追加一项实际修改参数及内部 `--user-confirmed` 标记。该标记仅在已有明确请求或选择后由 Agent 传入。授权缓存始终通过捆绑 `telemetry_consent.py` 的 API 写入，不手改 JSON。项目开启被用户级关闭覆盖时展示 warning 和实际有效范围，不自动扩大授权。
+2. 开启统计必须顺序执行以下两阶段，不能把固定说明放到修改成功后的总结中：
+   - 已有明确开启请求或用户选择后，先调用同一个 `user_config.py`，带原请求的 `--telemetry enabled --scope {scope} --user-confirmed`，不带 `--telemetry-notice-shown`。此调用只准备说明，不开启统计；返回 `read_only=true`、`change.updated=false`、`request_complete=false`、`notice_required=true`、`next_action=display_notice_before_enable`、`notice` 和 `continuation`。这是**未完成的中间态**，不是只读查看请求的终态。
+   - 读取成功后，在**单独一条用户可见的进度消息（非最终回复）**中逐字展示 `notice.text`（即 `reference/eval-protocol.md` 中 `helixharness-eval-data-notice-v1` 的固定说明），然后才进行下一次工具调用。不能只把说明留在工具输出中，也不能在同一 shell、并行调用或同一工具批次里连续准备和开启。展示说明不是 `AskUserQuestion` 决策门禁，不得展示后结束当前轮次或等待用户再说“继续”。
+   - 说明已经实际展示，且用户未撤销原开启请求时，按 `continuation` **在同一轮立即继续**：复用相同的脚本、仓库、宿主、作用范围和原开启参数，追加内部 `--telemetry-notice-shown "{notice.sha256}"`；仍必须带 `--user-confirmed`。原明确开启请求的授权持续有效，不需要第二次授权，也不能将续执行扩大到其他范围。仅表达查看/配置意图时，先取得缺失的明确选择，不能把准备说明或默认选项当作授权。
+   - 准备回执的 `telemetry` 是修改前的配置诊断；其中的 `prompt_due`、`allowed_actions` 不撤销本次明确授权，也不要求再打开授权选择。当前请求的后续动作以 `continuation` 为准。
+   - `notice.sha256` 仅校验当前说明版本，不证明用户已看见消息，也不代替开启授权。不得编造该值、从旧调用复用或在展示前传入。说明不可读取、digest 过期或准备返回异常时停止开启；修复原因后重新准备并展示，不绕过为直接 `telemetry_consent.py set/choose`。
+3. 关闭统计及地址修改仍使用同一个 `user_config.py`，追加一项实际修改参数及内部 `--user-confirmed` 标记，不传说明 digest；该标记仅在已有明确请求或选择后由 Agent 传入。授权缓存始终通过捆绑 `telemetry_consent.py` 的 API 写入，不手改 JSON。项目开启被用户级关闭覆盖时展示 warning 和实际有效范围，不自动扩大授权。
 4. 地址配置按当前 `HELIXHARNESS_TELEMETRY_HOME` / `HELIXHARNESS_FEEDBACK_HOME` 或默认本机目录定位，脚本只合并目标 `endpoint` 字段并原子写入，保留其他字段。非法地址或损坏 JSON 拒绝写入并保留原文件；不自行删除重建。URL 不允许凭据、查询参数和 fragment。
-5. 根据返回的 `change.updated`、warning 和重新读取的有效值报告。`updated=false` 不能称修改成功。操作后显示实际作用范围和配置来源。
+5. `request_complete=false` 时仍须消费中间态的后续动作；`request_complete=true` 仅说明本次脚本请求已经处理结束，不等于修改成功。最终根据 `change.updated`、warning 和重新读取的有效值报告。`updated=false` 不能称修改成功。操作后显示实际作用范围和配置来源。用户取消、真实工具错误或宿主确实无法先发可见进度再调用工具时如实报告本次请求未完成及当前实际有效状态，不隐藏说明、不伪造授权、不绕过保护。
 
 地址设置不代表统计授权；恢复默认地址不是关闭统计，发布默认值可能仍有接收方。停止统计必须显式关闭授权。开启本人范围仅影响当前 Host Kit 的授权缓存，不擅自改另一宿主。关闭后不删除历史账本或平台数据；未发送私有证据由既有授权协议清理。
 

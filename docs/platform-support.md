@@ -8,6 +8,7 @@ HelixHarness 面向 macOS、原生 Windows 与 Linux，要求 Python 3.10+、Git
 | --- | --- | --- |
 | Codex plugin / 插件 | POSIX preflight and hooks | PowerShell preflight; Codex `commandWindows` hooks |
 | Claude Code plugin / 插件 | Bash hooks | Git for Windows Bash; set `CLAUDE_CODE_GIT_BASH_PATH` if auto-discovery fails |
+| Cursor plugin / 插件 | POSIX entrypoints; native acceptance on macOS, managed Local updates on macOS/Linux / POSIX 入口；macOS 实机验收，macOS/Linux 托管 Local 更新 | Outside this release's verified scope / 不在本期已验证范围 |
 | Project linters / 项目检查 | Python scripts | Same Python scripts; legacy `.sh` scripts require Git Bash |
 | Platform Web, Demo, eval / 平台 | Python service | Same Python service, PowerShell environment syntax |
 | Scheduled usage sync / 定时同步 | crontab | Task Scheduler, current user logged in; cron matching in Python |
@@ -17,6 +18,10 @@ HelixHarness 面向 macOS、原生 Windows 与 Linux，要求 Python 3.10+、Git
 | D2C browser helpers / 浏览器工具 | Node and Chrome/Edge | Node and Chrome/Edge; native executable discovery |
 
 The host controls hook trust and execution. Codex must support `commandWindows`; Claude Code must support Bash hooks (`shell: "bash"`). Review changed hooks after updating and start a new session. Merely seeing commands in the menu does not verify hooks.
+
+Cursor follows the same Python 3.10+ requirement and uses `/helix-xxx` entries. Its desktop acceptance and update limits are recorded in the [Cursor support report](cursor-testing.md); the shared Windows runtime does not extend that host's native acceptance.
+
+Cursor 同样要求 Python 3.10+，使用 `/helix-xxx` 入口。桌面验收与更新边界见 [Cursor 支持报告](cursor-testing.md)；共享运行时的 Windows 支持不扩大该宿主的原生验收范围。
 
 宿主负责 Hook 信任与执行。Codex 需要支持 `commandWindows`，Claude Code 需要支持 Bash Hook。升级后审阅变更的 Hook 并新开会话；菜单中可见命令不等于 Hook 已执行。已有业务项目重新运行 `/helix:init`，由 `project_hooks_cli.py merge` 更新本插件的旧检查命令，保留用户的其他 Hook。生成的项目 Hook 绑定当前解释器和插件路径；移动 Python 或更新插件安装路径后重新 Init。
 

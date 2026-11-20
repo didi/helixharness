@@ -62,7 +62,21 @@ def _execution_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "tools": [],
         "tools_truncated": False,
     }
+    subagents: dict[str, dict[str, Any]] = {}
+    started_subagents: set[str] = set()
     for event in events:
+        if event.get("type") == "subagent":
+            identity = event.get("subagent_id")
+            if not isinstance(identity, str) or not identity:
+                continue
+            row = subagents.setdefault(identity, {"name": str(event.get("name") or "unknown"), "status": "unknown"})
+            if event.get("phase") == "start":
+                started_subagents.add(identity)
+            elif event.get("phase") == "stop":
+                row["status"] = str(event.get("status") or "unknown")
+                if type(event.get("duration_ms")) in {int, float} and event["duration_ms"] >= 0:
+                    row["duration_ms"] = event["duration_ms"]
+            continue
         if event.get("type") != "tool":
             continue
         summary["tool_call_count"] += 1
@@ -89,6 +103,14 @@ def _execution_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
             kind = _context_kind(arguments.get("file_path") or arguments.get("path") or arguments.get("uri"))
             if kind:
                 summary["context_reads"][kind] += 1
+    if subagents:
+        # Native child lifecycle is authoritative when present. A Task tool
+        # completion and its start/stop callbacks describe the same child.
+        summary["subagent_spawn_count"] = len(started_subagents)
+        summary["subagents"] = list(subagents.values())
+    if any(event.get("type") == "collection_gap" for event in events):
+        summary["collection_status"] = "partial" if summary["tool_call_count"] or subagents else "unavailable"
+        summary["unavailable_reason"] = "ambiguous_workspace"
     return summary
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,31 @@ from telemetry_hosts import get_host_adapter, normalize_host_id
 
 class ConfigError(ValueError):
     """A setting cannot be safely read or updated."""
+
+
+TELEMETRY_NOTICE_ID = 'helixharness-eval-data-notice-v1'
+EVAL_PROTOCOL = Path(__file__).resolve().parents[1] / 'reference' / 'eval-protocol.md'
+
+
+def telemetry_enable_notice() -> dict[str, str]:
+    """Read the canonical notice; its digest is a version check, not UI attestation."""
+    source = EVAL_PROTOCOL.read_text(encoding='utf-8')
+    start = f'<!-- {TELEMETRY_NOTICE_ID}:start -->'
+    end = f'<!-- {TELEMETRY_NOTICE_ID}:end -->'
+    if source.count(start) != 1 or source.count(end) != 1:
+        raise ConfigError('canonical telemetry data notice is missing or ambiguous')
+    before, _, remaining = source.partition(start)
+    section, _, _ = remaining.partition(end)
+    if end in before:
+        raise ConfigError('canonical telemetry data notice markers are out of order')
+    lines = section.strip().splitlines()
+    if len(lines) < 3 or lines[0] != '```text' or lines[-1] != '```':
+        raise ConfigError('canonical telemetry data notice has an invalid format')
+    text = '\n'.join(lines[1:-1])
+    if not text.strip():
+        raise ConfigError('canonical telemetry data notice is empty')
+    return {'id': TELEMETRY_NOTICE_ID, 'text': text,
+            'sha256': hashlib.sha256(text.encode('utf-8')).hexdigest()}
 
 
 def channel_home(channel: str) -> Path:
@@ -114,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--platform', required=True)
     parser.add_argument('--scope', choices=('project', 'user'))
     parser.add_argument('--user-confirmed', action='store_true')
+    parser.add_argument('--telemetry-notice-shown', metavar='SHA256',
+                        help='internal: current notice digest, only after displaying its text to the user')
     action = parser.add_mutually_exclusive_group()
     action.add_argument('--telemetry', choices=('enabled', 'disabled'))
     action.add_argument('--report-endpoint')
@@ -127,10 +155,24 @@ def main(argv: list[str] | None = None) -> int:
             raise ConfigError('repo root is not a directory')
         if bool(args.scope) != bool(args.telemetry):
             raise ConfigError('--telemetry and --scope must be specified together')
+        if args.telemetry_notice_shown is not None and args.telemetry != 'enabled':
+            raise ConfigError('--telemetry-notice-shown is only valid when enabling telemetry')
         mutation = None
+        notice_required = None
         if args.telemetry:
-            mutation = set_consent(repo, args.platform, args.scope, args.telemetry,
-                                   user_confirmed=args.user_confirmed)
+            if not args.user_confirmed:
+                raise ConfigError('configuration change requires an explicit user request or selection')
+            if args.telemetry == 'enabled':
+                if get_host_adapter(normalize_host_id(args.platform)) is None:
+                    raise ConfigError('telemetry host is not supported')
+                notice = telemetry_enable_notice()
+                if args.telemetry_notice_shown is None:
+                    notice_required = notice
+                elif args.telemetry_notice_shown != notice['sha256']:
+                    raise ConfigError('telemetry data notice acknowledgment is invalid or stale; display the current notice first')
+            if notice_required is None:
+                mutation = set_consent(repo, args.platform, args.scope, args.telemetry,
+                                       user_confirmed=args.user_confirmed)
         for channel, value, reset in (
             ('telemetry', args.report_endpoint, args.reset_report_endpoint),
             ('feedback', args.feedback_endpoint, args.reset_feedback_endpoint),
@@ -138,7 +180,20 @@ def main(argv: list[str] | None = None) -> int:
             if value is not None or reset:
                 mutation = set_endpoint(channel, None if reset else value,
                                         user_confirmed=args.user_confirmed)
-        result: dict[str, Any] = {'read_only': mutation is None}
+        # Completion describes this CLI request, not whether a setting changed.
+        result: dict[str, Any] = {'read_only': mutation is None, 'request_complete': notice_required is None}
+        if notice_required is not None:
+            result.update({'change': {'updated': False, 'reason': 'telemetry_notice_required'},
+                           'notice_required': True,
+                           'next_action': 'display_notice_before_enable',
+                           'notice': notice_required,
+                           'continuation': {
+                               'after': 'display_notice_to_user',
+                               'action': 'repeat_same_request',
+                               'same_turn': True,
+                               'new_user_confirmation_required': False,
+                               'append_arguments': ['--telemetry-notice-shown', notice_required['sha256']],
+                           }})
         if mutation is not None:
             result['change'] = mutation
         # Report channels independently: a corrupt consent cache must not hide

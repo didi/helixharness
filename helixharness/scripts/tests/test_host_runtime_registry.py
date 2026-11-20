@@ -105,6 +105,68 @@ class HostRuntimeRegistryTest(unittest.TestCase):
             registry.require("future-harness").capability("subagents"), "emulated"
         )
 
+    def test_invalid_hooks_version_types_return_contract_errors(self):
+        for value in ([], {}, None, 1.1, True):
+            with self.subTest(version=value):
+                self.write_flat_host(hooks_version=value)
+                with self.assertRaises(HostContractError):
+                    HostRegistry.discover(self.hosts_root)
+
+    def write_flat_host(self, api_version="1.2", hooks_version="1.1"):
+        write_host(self.hosts_root, "flat-host", manifest(
+            "flat-host", host_api_version=api_version, capabilities={"project_hooks": "native"}
+        ))
+        host_root = self.hosts_root / "flat-host"
+        project_path = host_root / "project.json"
+        project = json.loads(project_path.read_text())
+        project["settings_file"] = ".synthetic/hooks.json"
+        project_path.write_text(json.dumps(project))
+        contract = {
+            "project_hooks_version": hooks_version,
+            "owner": "parent",
+            "settings_file": ".synthetic/hooks.json",
+            "merge_strategy": "json_flat_append_dedup",
+            "dedupe_key": "hooks.*[].command+matcher",
+            "payload": {"version": 1, "hooks": {"afterFileEdit": [{"command": "echo synthetic"}]}},
+        }
+        hook_path = host_root / "project-hooks.json"
+        hook_path.write_text(json.dumps(contract))
+        return hook_path, contract
+
+    def test_api_12_flat_hooks_and_api_11_hosts_coexist(self):
+        write_host(self.hosts_root, "existing", manifest("existing"))
+        self.write_flat_host()
+        registry = HostRegistry.discover(self.hosts_root)
+        self.assertEqual(("existing", "flat-host"), registry.supported_ids())
+        self.assertEqual("1.1", registry.require("existing").host_api_version)
+        self.assertEqual("1.2", registry.require("flat-host").host_api_version)
+
+    def test_flat_hooks_require_versioned_contract(self):
+        for api_version, hooks_version in (("1.1", "1.1"), ("1.2", "1.0")):
+            with self.subTest(api_version=api_version, hooks_version=hooks_version):
+                self.write_flat_host(api_version, hooks_version)
+                with self.assertRaises(HostContractError):
+                    HostRegistry.discover(self.hosts_root)
+
+    def test_flat_hooks_reject_bad_dedupe_and_native_payload(self):
+        for field, value in (
+            ("dedupe_key", "ignored"),
+            ("payload", {"version": 2, "hooks": {}}),
+            ("payload", {"version": 1, "hooks": {"afterFileEdit": [{"hooks": []}]}}),
+            ("payload", {"version": 1, "hooks": {"afterFileEdit": [{"type": "prompt", "prompt": "synthetic"}]}}),
+        ):
+            with self.subTest(field=field, value=value):
+                hook_path, contract = self.write_flat_host()
+                contract[field] = value
+                hook_path.write_text(json.dumps(contract))
+                with self.assertRaises(HostContractError):
+                    HostRegistry.discover(self.hosts_root)
+
+    def test_unknown_api_version_still_fails_closed(self):
+        write_host(self.hosts_root, "future", manifest("future", host_api_version="1.3"))
+        with self.assertRaisesRegex(HostContractError, "版本不受支持"):
+            HostRegistry.discover(self.hosts_root)
+
 
     def test_rejects_unknown_capability_level(self) -> None:
         write_host(

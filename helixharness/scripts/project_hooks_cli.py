@@ -15,7 +15,7 @@ import tempfile
 from pathlib import Path
 
 from host_runtime import HostContractError, HostRegistry
-from host_runtime.project_hooks import load_project_hooks
+from host_runtime.project_hooks import load_project_hooks, validate_flat_payload
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 WINDOWS_COMMAND_PREFIX = "powershell.exe -NoProfile -NonInteractive -EncodedCommand "
@@ -127,6 +127,38 @@ def merge_payload(current: dict, required: dict, bound_linters: dict[str, tuple[
     return result
 
 
+def merge_flat_payload(current: dict, required: dict, bound_linters: dict[str, tuple[str, list[str]]] | None = None) -> dict:
+    """Append native handlers while retaining user options and refreshing owned linters."""
+
+    result = copy.deepcopy(current)
+    result.setdefault("version", 1)
+    events = result.setdefault("hooks", {})
+    validate_flat_payload(result)
+    validate_flat_payload(required)
+    for event, expected_handlers in required["hooks"].items():
+        handlers = events.setdefault(event, [])
+        for expected in expected_handlers:
+            command = expected.get("command")
+            legacy, linter_args = (bound_linters or {}).get(command, ("", []))
+            found = False
+            kept = []
+            for existing in handlers:
+                old_command = existing.get("command")
+                same_command = old_command == command or (
+                    linter_args and isinstance(old_command, str)
+                    and (old_command == legacy or is_bound_linter_command(old_command, linter_args))
+                )
+                if same_command and existing.get("matcher") == expected.get("matcher"):
+                    if found:
+                        continue
+                    found = True
+                    existing["command"] = command
+                kept.append(existing)
+            if not found:
+                kept.append(copy.deepcopy(expected))
+            handlers[:] = kept
+    return result
+
 def project_hooks(repo: Path, platform: str, action: str) -> dict:
     manifest = HostRegistry.discover(PLUGIN_ROOT / "hosts").get(platform)
     if manifest is None:
@@ -147,14 +179,16 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
     original = copy.deepcopy(current)
     if not isinstance(current.get("hooks", {}), dict):
         raise ValueError("settings.hooks must be an object")
-    validate_events(current.get("hooks", {}))
+    flat = contract.merge_strategy == "json_flat_append_dedup"
+    if not flat:
+        validate_events(current.get("hooks", {}))
     required = copy.deepcopy(contract.payload)
     bound_linters: dict[str, tuple[str, list[str]]] = {}
     # Bind the interpreter that actually passed preflight, including paths with
     # spaces. No dependency on python3 aliases, WSL or head in project hooks.
     for groups in required["hooks"].values():
         for group in groups:
-            for handler in group["hooks"]:
+            for handler in ([group] if flat else group["hooks"]):
                 template = handler.get("command", "")
                 for name in ("invariant-check", "spec-sync-check"):
                     expected = '"{python}" -X utf8 "{plugin_root}/scripts/project_linter.py" --repo-root "{repo_root}" --linter ' + name
@@ -166,13 +200,14 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
                         handler["command"] = command
                         if platform == "codex":
                             handler["commandWindows"] = windows_command(argv)
-                        elif os.name == "nt":
+                        elif platform == "claude-code" and os.name == "nt":
                             # Claude shell form is explicitly Git Bash; POSIX quote
                             # native paths rather than sending them through cmd.exe.
                             handler["command"] = shlex.join(argv)
                             handler["shell"] = "bash"
                         bound_linters[handler["command"]] = (legacy, argv[1:])
-    merged = merge_payload(current, required, bound_linters)
+    merged = (merge_flat_payload(current, required, bound_linters) if flat
+              else merge_payload(current, required, bound_linters))
     if action == "check":
         if not exists or original != merged:
             raise ValueError("project_hooks_missing_or_duplicated")

@@ -57,6 +57,24 @@ class GreenfieldInitTest(unittest.TestCase):
                 self.assertFalse(self.invoke('probe')['empty'])
                 (self.root / name).unlink()
 
+    def test_cursor_project_hooks_and_plugin_settings_preserve_scanless_reinit(self):
+        self.git('init', '-q')
+        self.write('.cursor/hooks.json', '{"version":1,"hooks":{}}\n')
+        settings = '{"plugins":{"synthetic/plugin":{"enabled":true}}}\n'
+        self.write('.cursor/settings.json', settings)
+        self.assertTrue(self.invoke('probe')['empty'])
+        self.invoke('prepare')
+        self.write_bootstrap()
+        self.invoke('complete')
+        state = self.invoke('prepare')
+        self.assertEqual('pending', state['bootstrapStatus'])
+        self.assertEqual('skipped', state['scanStatus'])
+        self.assertEqual([], state['scanPlan'])
+        self.assertNotIn('completedAt', state)
+        self.assertEqual(settings, (self.root / '.cursor/settings.json').read_text())
+        self.write('.cursor/application.py')
+        self.assertFalse(self.invoke('probe')['empty'])
+
     def test_consent_cleanup_does_not_make_empty_repository_nonempty(self):
         self.git('init', '-q')
         self.assertTrue(self.invoke('probe')['empty'])
@@ -128,22 +146,55 @@ class GreenfieldInitTest(unittest.TestCase):
             (self.root / directory).mkdir(parents=True, exist_ok=True)
 
     def test_verify_outputs_requires_finished_state_and_real_host_hooks(self):
+        from init_guidance import project_guidance
         from project_hooks_cli import project_hooks
         from validate_init_outputs import validate
 
         self.git('init', '-q')
         self.invoke('prepare')
         self.write_bootstrap()
-        for platform, entry in (('codex', 'AGENTS.md'), ('claude-code', 'CLAUDE.md')):
+        for platform, entry in (('codex', 'AGENTS.md'), ('claude-code', 'CLAUDE.md'), ('cursor', 'AGENTS.md')):
             with self.subTest(platform=platform):
                 self.write(entry)
+                project_guidance(self.root, platform, 'greenfield', 'merge')
                 project_hooks(self.root, platform, 'merge')
-                self.assertEqual('fail', validate(self.root, 'greenfield', platform, 'disabled')['status'])
+                result = validate(self.root, 'greenfield', platform, 'disabled')
+                self.assertEqual('fail', result['status'])
+                self.assertEqual({'greenfield_state'}, {check['check'] for check in result['errors']})
+                self.assertEqual('pending', json.loads((self.root / STATE).read_text())['bootstrapStatus'])
         self.invoke('complete')
-        for platform in ('codex', 'claude-code'):
+        for platform in ('codex', 'claude-code', 'cursor'):
             with self.subTest(platform=platform):
                 self.assertEqual('pass', validate(self.root, 'greenfield', platform, 'disabled')['status'])
         self.assertTrue(self.invoke('probe')['empty'])
+
+    def test_scan_checkpoint_writer_does_not_convert_greenfield_into_scanned_state(self):
+        from init_state import InitStateError, transition
+
+        self.git('init', '-q')
+        self.invoke('prepare')
+        before = (self.root / STATE).read_bytes()
+        for mode in ('service', 'frontend', 'fullstack'):
+            with self.subTest(mode=mode):
+                with self.assertRaisesRegex(InitStateError, 'init_state_project_type_mismatch'):
+                    transition(self.root, mode, 'scan-complete')
+                self.assertEqual(before, (self.root / STATE).read_bytes())
+
+    def test_parent_keeps_git_consent_and_completion_order_for_greenfield(self):
+        command = (PLUGIN / 'commands/init.md').read_text()
+        probe = command.index('#### Step 0：单仓 Git 预检')
+        consent = command.index('#### Step 0.5：数据统计 consent')
+        prepare = command.index('scripts/init_greenfield.py" --repo-root "{repo_root}" prepare')
+        finalize = command.index('#### Step 4：父流程提交最终状态')
+        complete = command.index('scripts/init_greenfield.py" --repo-root "{repo_root}" complete')
+        self.assertLess(probe, consent)
+        self.assertLess(consent, prepare)
+        self.assertLess(command.index('BLOCKED: project_hooks_incomplete'), finalize)
+        self.assertLess(command.index('WARN:usage_telemetry_gitignored'), finalize)
+        self.assertLess(finalize, complete)
+        self.assertIn('本模式不调用 `init_state.py`', command)
+        self.assertIn('init_mode=greenfield', command)
+        self.assertNotIn('### Step 0: 项目类型快速检测', command)
 
     def test_bad_scan_state_is_not_marked_complete(self):
         self.git('init', '-q')

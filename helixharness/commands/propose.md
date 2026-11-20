@@ -16,7 +16,8 @@ $ARGUMENTS
 
 ## 1. 只执行一次确定性路由
 
-把 `$ARGUMENTS` 原样按当前 shell 的单参数规则安全引用，然后执行：
+首次路由前绑定完整 `$ARGUMENTS`：包含本次用户消息中命令名之后的首行参数及全部换行需求正文。
+不要先用 `<name> --loop` 试探，再补正文调用第二次。将该完整文本原样按当前 shell 的单参数规则安全引用，然后执行：
 
 ```bash
 {helix_python} "{plugin_root}/scripts/workflow_router.py" --repo-root "{repo_root}" route --command propose --arguments={SHELL_QUOTED_ARGUMENTS} --arguments-mode auto
@@ -27,6 +28,9 @@ $ARGUMENTS
 `auto` 模式沿用原版名称识别：首个 ASCII 名称 token、引号包裹的名称、`feature=...` 或 `需求名：...` 明确指定 feature；没有明确名称的自然语言只作为需求。补名后必须保留需求正文，名称与已绑定上下文冲突时停止。无参数时由 Router 返回唯一已有需求或候选，不自行扫描。
 
 业务正文只接收 Router 返回的 shell-safe `workflow_arguments`，不重新解析原始 `$ARGUMENTS`。`--` 后全部视为字面需求；`--loop`、`--revise` 由 Router 消费并剥离。旧版本迁移及需求地址参数不属于当前合同。
+
+“只执行一次”指同一阶段的初次入口不得试探或改参重路由；只有下节明确要求的用户选择/补名，
+以及 `--loop` 中实际阶段成功后的续跑，才允许按对应规则再次路由。它们不是补救首次截断输入的捷径。
 
 ## 2. 只按 `action` 消费 JSON
 

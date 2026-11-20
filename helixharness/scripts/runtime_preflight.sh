@@ -165,12 +165,18 @@ case "${1:-}" in
     python_status
     emit_check
     ;;
+  require)
+    # Keep check's diagnostic-only exit contract; require also gates shell chains.
+    python_status
+    emit_check
+    [ "$ok" = true ] || exit 2
+    ;;
   install-python)
     shift
     install_python "${1:-}"
     ;;
   *)
-    printf '%s\n' 'usage: runtime_preflight.sh check | exec script.py [args...] | install-python --user-confirmed' >&2
+    printf '%s\n' 'usage: runtime_preflight.sh check | require | exec script.py [args...] | install-python --user-confirmed' >&2
     exit 2
     ;;
 esac

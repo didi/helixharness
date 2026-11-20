@@ -2,10 +2,16 @@
 
 仅单仓 Init 的 Git 预检返回 `empty=false` 且完成统计授权后执行现有类型检测脚本，写入状态供扫描编排。
 `empty=true` 由 `scripts/init_greenfield.py` 负责，保留 `scanPlan=[]` 和 `scanStatus=skipped`；不运行本节脚本。
+Workspace 只执行自己的 W0/W1/W2，不运行本检测或单仓状态提交器。
 
 ## 状态文件
 
 `docs/.helixharness-init-state.json`
+
+本检测每次开始新一轮单仓 Init，按既有规则替换上一轮检测状态；初始状态明确为 pending，
+不得沿用上一轮的 completed/completedAt。后续 checkpoint 和最终完成状态只有父流程可通过
+`scripts/init_state.py` 提交；扫描和 bootstrap 子任务不得写入该状态文件。缺失、损坏或非对象
+状态必须停止，不得跳过后声称完成；重新执行完整检测才可开始新一轮。
 
 ## 检测脚本
 
@@ -126,7 +132,9 @@ cat > "$STATE_FILE" << JSONEOF
     "hasFrontend": $HAS_FRONTEND
   },
   "scanPlan": $SCAN_PLAN,
-  "userConfirmed": $USER_CONFIRMED
+  "userConfirmed": $USER_CONFIRMED,
+  "scanStatus": "pending",
+  "bootstrapStatus": "pending"
 }
 JSONEOF
 

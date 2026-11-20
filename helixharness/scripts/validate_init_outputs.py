@@ -11,6 +11,7 @@ from typing import Any
 from host_runtime import HostContractError, HostRegistry
 from host_runtime.project_config import load_project_config
 from init_greenfield import STATE_PATH
+from init_guidance import project_guidance
 from project_hooks_cli import project_hooks
 from workflow import WorkflowError
 from workspace import WorkspaceError, load_registry
@@ -156,6 +157,11 @@ def validate(
         checks.append(_result("repo_root", str(root), "fail", "仓库根路径不是目录"))
     else:
         checks.append(_check_file(root, project_config.entry_file))
+        try:
+            project_guidance(root, manifest.host_id, mode, "check")
+            checks.append(_result("init_guidance", project_config.entry_file, "pass", "宿主命令管理区完整且与模板一致"))
+        except (OSError, UnicodeError, ValueError, HostContractError) as exc:
+            checks.append(_result("init_guidance", project_config.entry_file, "fail", str(exc)))
 
         if mode == "workspace":
             checks.extend(_check_dir(root, path) for path in WORKSPACE_DIRS)

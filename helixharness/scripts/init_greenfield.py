@@ -24,6 +24,7 @@ BUILD_TEXT_NAMES = {'cmakelists.txt', 'requirements.txt'}
 DEPENDENCY_DIRS = {'node_modules', '.venv', 'venv', '.tox', '.nox', '__pycache__'}
 INIT_FILES = {
     STATE_PATH, '.codex/hooks.json', '.claude/settings.json',
+    '.cursor/hooks.json', '.cursor/settings.json',
     'docs/harness/linters/invariant-check.py', 'docs/harness/linters/invariant-check.sh',
     'docs/harness/linters/spec-sync-check.py', 'docs/harness/linters/spec-sync-check.sh',
 }

@@ -6,6 +6,15 @@ description: "HelixHarness 初始化入口。默认初始化单服务仓库；�
 
 > Init Agent DAG 不变量：本文件中的 Agent tool 拼写按 `reference/tool-semantics.md` 执行。后端 A 组三路并行，B 组保持 `scan-service → scan-boundary → scan-service-meta` 依赖顺序；前端保持六路并行。当前 Host Kit 只能映射派发、等待和物理写入者，不得改变 Agent 数量、依赖、产物或 BLOCKED 传播。
 
+> Init 完成状态不变量：检测后 init state 的唯一写入者是父流程。所有扫描和 bootstrap 子任务
+> 只返回事实与产物，不得写最终完成字段、调用状态提交器或把子阶段结果称为整体 Init 完成。
+> 父流程必须在实际产物、命令指引、Hooks 和统计门禁全部通过后，最后提交 completed/completedAt。
+
+> 面向用户的命令指引：公共正文的 `/helix:xxx` 是逻辑标识；完成报告、错误重试、下一步建议及
+> 子仓初始化指引必须按当前 Host Context 映射入口：Cursor `/helix-xxx`，Claude Code/Codex
+> `/helix:xxx`。只映射公共命令入口，保持参数、路径、引号、`--loop`、`--workspace` 和 `bug-fix`
+> 名称原义。生成入口的受管常用命令块则同时保留两类宿主标签，不能由最后一次 Init 覆盖另一类写法。
+
 
 > Telemetry Host Kit 门禁：读取 `reference/telemetry-command-protocol.md` 和 `resources.telemetry_protocol`，只按 capability、生命周期模式和逻辑动作执行；不得根据宿主名称选择宿主私有缓存、stage 或 finish 流程。
 
@@ -80,7 +89,7 @@ result_reencode_budget: 1
 | job_id | prompt_source | depends_on | write_scope | forbidden_scope | expected_artifacts / validation |
 |---|---|---|---|---|---|
 | `init_workspace_bootstrap` | `agents/init-workspace-bootstrap.md` | W0 repo registry 已确定 | workspace 根入口文件（由 `resources.project_config.workspace_entry_template` 生成）、`helixharness.workspace.yaml`、workspace `docs/knowledge/**`、`docs/specs/active/`、`docs/specs/completed/` | 所有 repo-local 路径 | W1.5 的 8 项 workspace 产物全部存在并通过结构校验 |
-| `init_scan_tech` | `agents/scan-tech.md` | 项目类型为 backend/unknown，或全栈 scan plan 含后端扫描，且未传 `--knowledge` | `docs/knowledge/architecture.md` | `docs/knowledge/index.md`、init state、timings | 文件存在且非空 |
+| `init_scan_tech` | `agents/scan-tech.md` | backend/unknown 且未传 `--knowledge`；或完整全栈 scan plan 含后端扫描（仍按已确认计划执行，不因 `--knowledge` 跳过） | `docs/knowledge/architecture.md` | `docs/knowledge/index.md`、init state、timings | 文件存在且非空 |
 | `init_scan_db` | `agents/scan-db.md` | 同上 | `docs/knowledge/database/**` | `docs/knowledge/index.md`、init state、timings | `database/index.md`、`database/er.md` 存在且非空 |
 | `init_scan_api` | `agents/scan-api.md` | 同上 | `docs/knowledge/api/**` | `docs/knowledge/index.md`、init state、timings | `api/index.md` 存在且非空 |
 | `init_scan_service` | `agents/scan-service.md` | A 组三项全部通过 | `docs/knowledge/domain-model.md` | 其他扫描产物、共享索引、init state、timings | 文件存在且非空 |
@@ -248,6 +257,12 @@ BLOCKED: workspace_init_outputs_missing
 
 并列出缺失路径。不得把子 repo 下的 `.helixharness/`、`docs/` 或 telemetry 文件视为 workspace root 产物。
 
+父流程还须实际读取根入口的唯一 `<!-- helix:commands:start -->` 至
+`<!-- helix:commands:end -->` 管理区，核对 Cursor 与 Claude Code/Codex 两类标签及 workspace
+命令适用范围；执行
+`{helix_python} "{plugin_root}/scripts/init_guidance.py" --repo-root "{repo_root}" --platform {canonical_host_id} --mode workspace check`。
+缺项、错误前缀、自定义冲突或坏/重复边界均不得算作完成；不因此新增 workspace 根级 BugFix 支持。
+
 `/helix:init --workspace` 的成功判定只看 workspace root 上述产物；每个服务 repo 下的 `.helixharness/telemetry.json`、`.helixharness/upload-state.json` 不属于 workspace 初始化目标。
 
 ### Step W2：服务关系基线
@@ -341,6 +356,9 @@ Workspace 初始化完成后立即输出报告并停止；不得继续执行下�
   退出非零时按回执阻断。若期间已出现项目文件，重新开始正常检测，不覆盖已有状态。
 - `empty=false`：执行 `reference/project-type-detection.md` 的原有类型检测，写入 state，再按原分支编排扫描。
   检测结果仍可能为 `unknown`；`unknown` 不等于 `empty`。
+
+每次重新检测或绿地 prepare 均按对应规则替换上轮 state，不沿用旧 completed/completedAt。
+Workspace 跳过单仓检测和状态提交器。
 
 #### Step 1：knowledge 扫描编排
 
@@ -439,6 +457,16 @@ fi
 派发前由父流程通过宿主交互确认项目目标、技术栈与运行/测试入口；用户暂未确定的字段标记 TODO。
 显式传入 `--knowledge` 时仍由 bootstrap 按导入约定处理，只作为项目背景或已确认约束，不视为扫描证据。
 本模式的最小产物按 Step 3 校验，不要求既有架构、API、数据库或 `service-meta.yaml`。
+父流程使用 `init_mode=greenfield` 生成并检查命令指引；本模式不调用 `init_state.py`，
+不提交 scan-complete/backend-complete，始终保留免扫描事实，最终在 Step 4 由父流程收尾。
+
+**非空项目的扫描检查点**：父流程将 `backend|unknown` 映射为 `init_mode=service`，`frontend` 映射为 `frontend`，
+完整全栈/monorepo 映射为 `fullstack`。扫描 job 全部真实完成并通过逐项校验后，父流程调用
+`{helix_python} "{plugin_root}/scripts/init_state.py" --repo-root "{repo_root}" --mode {init_mode} scan-complete`。
+空 scanPlan 由提交器补充对应计划，非空计划和 timings 保留；失败立即 BLOCKED，不进入 bootstrap。
+仅 service 分支因 `--knowledge` 跳过扫描、导入实际发生在 bootstrap 内时，暂不提交此检查点，
+待 Step 3 独立核验导入产物后再调用；已经完成扫描的 frontend/fullstack 仍立即提交扫描检查点。
+调用使用 runtime preflight 已验证的 Python 和当前已验证 plugin root，不额外寻找解释器或工具。
 
 **纯前端项目（`$PROJECT_TYPE` = `frontend`）**：
 - 读取 agent prompt：`agents/init-frontend-bootstrap.md`
@@ -455,14 +483,20 @@ fi
 **完整全栈 bootstrap（`$PROJECT_TYPE` = `fullstack-node` / `fullstack-separated` / `monorepo`，且用户选择完整全栈扫描）**：
 
 1. 先执行 `agents/init-service-bootstrap.md`，传入 `bootstrap_mode=fullstack-base`，消费后端扫描 DAG，生成公共目录、后端 knowledge/harness、Host Kit 入口和可选设置。
-2. `init_scan_frontend_meta` 传入 `architecture_mode=fullstack-merge`；它必须等待 `init_scan_tech` 并只更新前端架构区块。后端 bootstrap 真实完成并通过产物校验后，再执行 `agents/init-frontend-bootstrap.md`，传入 `bootstrap_mode=fullstack-merge`，消费六路前端扫描结果；只增量补充前端 knowledge/harness/linters 和同一个 Host Kit 入口区块，不覆盖 service bootstrap 已生成内容，也不因公共目录已存在再次询问是否更新。
+2. `init_scan_frontend_meta` 传入 `architecture_mode=fullstack-merge`；它必须等待 `init_scan_tech` 并只更新前端架构区块。后端 bootstrap 真实完成后，由父流程校验后端实际生成物，并用下文 deliverables JSON 格式调用
+   `{helix_python} "{plugin_root}/scripts/init_state.py" --repo-root "{repo_root}" --mode fullstack backend-complete --artifacts-verified --deliverables-json '{backend_deliverables_json}'`。
+   这里只记录 backend_completed/backendCompletedAt 检查点；`owner=parent` 的待合并 settings 仍留给
+   最终 Hooks 门禁，不视为整体成功。然后执行 `agents/init-frontend-bootstrap.md`，传入
+   `bootstrap_mode=fullstack-merge` 及已核验的后端检查点，消费六路前端扫描结果；只增量补充前端
+   knowledge/harness/linters 和同一个 Host Kit 入口区块，不覆盖 service bootstrap 已生成内容，
+   也不因公共目录已存在再次询问是否更新。前端失败或取消保留后端检查点，不提交整体完成。
 3. 两个 bootstrap 绝对串行；最终同时校验后端必需产物、前端必需产物、唯一根索引、Host Kit 的 `entry_file` 和可选 settings 去重结果。任一侧失败都不能把全栈 init 声称为完成。
 
 初始化目标产物：
 
 - `docs/harness/`
 - `docs/knowledge/`
-- `docs/knowledge/service-meta.yaml`
+- `docs/knowledge/service-meta.yaml`（仅后端、未知或完整全栈模式；greenfield/frontend 不要求）
 - `docs/specs/`
 - `docs/hooks/`
 - `docs/eval/`（仅统计开启时）
@@ -484,6 +518,14 @@ bootstrap 达到真实终态后，父流程必须逐项检查上述初始化目�
 目录和可选 settings 合并结果符合当前模式。任一必需产物缺失或为空时沿用既有产物门禁收口；不得以
 额外 Python validator 替代逐项检查。
 
+父流程实际读取 Host Kit `entry_file` 的
+`<!-- helix:commands:start -->` 至 `<!-- helix:commands:end -->` 唯一管理区，核对 Cursor
+`/helix-xxx`、Claude Code/Codex `/helix:xxx` 标签及九个公共命令完整。再执行
+`{helix_python} "{plugin_root}/scripts/init_guidance.py" --repo-root "{repo_root}" --platform {canonical_host_id} --mode {init_mode} check`。
+该工具只检查命令管理区，不替代入口和产物的语义验收；冲突、坏边界、缺项或错误前缀均必须停止，
+不得提交完成。bootstrap 合并只允许修改合法管理区或精确旧默认区，用户正文不做全局替换。
+service 的 `--knowledge` 导入分支在此验证导入产物后，才补做 Step 2 的 scan-complete 检查点。
+
 项目 hooks 是完成门禁的一部分，不能以 bootstrap 的 `parent-owned` 或合并请求代替实际文件：
 
 - `resources.project_hooks.owner=parent` 时，父流程在 bootstrap 返回后执行
@@ -494,14 +536,7 @@ bootstrap 达到真实终态后，父流程必须逐项检查上述初始化目�
   `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，不得报告 Init 完成。
 
 绿地额外验收：`project-context.md` 必须明确 `project-mode: greenfield`，未知事实保留 TODO。
-只有目标产物、项目 hooks 和下方统计目录门禁均通过后，由父流程执行以下命令收尾；bootstrap 不写本模式的 state：
-
-```text
-{helix_python} "{plugin_root}/scripts/init_greenfield.py" --repo-root "{repo_root}" complete
-```
-
-收尾回执必须为 `projectType=empty`、`scanPlan=[]`、`scanStatus=skipped` 和 `bootstrapStatus=completed`；
-失败按脚本 `reason` 阻断。不得把跳过的扫描记为完成。
+此时仍保留 pending 状态，完成下方统计门禁后再进入 Step 4；bootstrap 不写本模式的 state。
 
 ### Usage Telemetry
 
@@ -515,6 +550,49 @@ Consent、repo 命名和扫描模式选择只服务初始化，不属于任何 f
 - 若统计保持开启，`/helix:init` 结束前必须确认 `docs/eval/` 目录存在
 - 若统计保持开启，`/helix:init` 结束前必须确认 `.gitignore` 允许提交 `docs/eval/**`；若仍被忽略，输出 `WARN:usage_telemetry_gitignored`
 - 若用户关闭统计，不创建新的 eval-log，不追加 eval `.gitignore` 例外块；已存在的历史 `docs/eval/**` 不删除
+
+#### Step 4：父流程提交最终状态
+
+本步骤适用于 greenfield/service/frontend/fullstack。Workspace 继续使用 W1.5 完成验收和既有 refresh
+规则，不得调用单仓状态提交器，不新增根级统计、Hooks 或子仓初始化。
+
+只有所有 bootstrap 已达到真实终态、父流程逐项产物及命令指引检查通过、实际 Hooks check
+通过（或 Host Kit 明确 skipped），并完成上方统计门禁后，才允许执行最终提交。统计
+`.gitignore` 的既有 WARN 仍保持告警，不升级为额外阻断。缺产物、Hooks 合并/check 失败、
+状态损坏、子任务失败/取消或中断时停止并保留工件与未完成状态，不写 completedAt。
+
+**绿地模式**（`init_mode=greenfield`）由父流程调用：
+
+```text
+{helix_python} "{plugin_root}/scripts/init_greenfield.py" --repo-root "{repo_root}" complete
+```
+
+收尾回执必须为 `projectType=empty`、`scanPlan=[]`、`scanStatus=skipped` 和 `bootstrapStatus=completed`，
+`completedAt` 为 UTC Unix epoch 秒的 JSON number；失败按脚本 `reason` 阻断。
+父流程重新读取状态核对后才输出最终完成报告，不得把跳过的扫描记为完成。
+绿地到此结束，不进入下方扫描模式的状态提交器。
+
+**扫描模式**（`init_mode=service|frontend|fullstack`）按以下清单和状态提交器收尾：
+
+从实际已核验的本仓文件构造 deliverables JSON：
+`{"knowledge":["docs/knowledge/index.md", "..."],"harness":["docs/harness/index.md", "..."],"hooks":["docs/hooks/index.md", "..."]}`。
+这里只列真实的完整相对文件路径，`...` 是说明占位符，不能传入。全栈必须合并两侧实际清单，
+不得用仅前端列表覆盖后端。以正确 shell quoting 或工具的结构化参数传递 JSON，不能拼入未经转义的路径。
+hooks 清单指 `docs/hooks/` 中的生成文档，不是 Host Kit settings；实际 settings 的合并与检查
+使用上方独立 Hooks 门禁，后端阶段检查点不会要求提前合并 parent-owned settings。
+
+父流程调用：
+`{helix_python} "{plugin_root}/scripts/init_state.py" --repo-root "{repo_root}" --mode {init_mode} complete --artifacts-verified --hooks-verified --telemetry-verified --deliverables-json '{deliverables_json}'`。
+
+三个 verified 参数是父流程在本轮已完成对应检查的声明，不是工具独立证明语义正确；不得提前传入，
+不得用提交器替代逐项检查或把开发期/CI validator 接到业务命令。提交器只校验状态对象、有限转换、
+清单路径/文件存在及原子写入；它不合并 Hooks、不判定知识内容，也不扫描业务代码。
+
+提交器保留检测字段、timings 和扩展键，清单排序去重且 count 对齐；所有时间为 UTC Unix epoch
+数值。fullstack 必须已有本轮后端检查点，最终写 frontendCompletedAt 并保留 backendCompletedAt。
+重复成功提交相同清单不重写完成时间。任何非零退出或非 updated/unchanged 回执都报告 BLOCKED；
+状态缺失、损坏或非对象时不得伪造新成功状态。写入后父流程重新读取，确认最终字段、类型和清单与
+本轮实际验收事实一致；只有此时输出整体 Init 完成报告和当前宿主写法的下一步命令。
 
 ## 约束
 

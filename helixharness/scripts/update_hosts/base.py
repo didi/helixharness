@@ -84,18 +84,21 @@ class BoundedCommandRunner:
         terminate_lock = threading.Lock()
 
         def drain(stream: Any, target: bytearray, limit: int, label: str) -> None:
-            while True:
-                chunk = stream.read(65536)
-                if not chunk:
-                    return
-                remaining = limit - len(target)
-                if remaining > 0:
-                    target.extend(chunk[:remaining])
-                if len(chunk) > remaining:
-                    overflow.append(label)
-                    with terminate_lock:
-                        self._terminate(process)
-                    return
+            try:
+                while True:
+                    chunk = stream.read(65536)
+                    if not chunk:
+                        return
+                    remaining = limit - len(target)
+                    if remaining > 0:
+                        target.extend(chunk[:remaining])
+                    if len(chunk) > remaining:
+                        overflow.append(label)
+                        with terminate_lock:
+                            self._terminate(process)
+                        return
+            finally:
+                stream.close()
 
         threads = [
             threading.Thread(
@@ -173,6 +176,11 @@ class UpdateHostAdapter(ABC):
     supported_scopes: frozenset[str]
     aggregate_scope_members: Mapping[str, frozenset[str]] = {}
     manifest_directory: str
+    marketplace_manifest_directory: str
+
+    def entry_policy(self, plugin_root: Path) -> dict[str, Any] | None:
+        """Optional execution-channel restriction; existing hosts remain unchanged."""
+        return None
 
     def validate_scope(self, scope: str) -> None:
         if scope not in self.supported_scopes:
@@ -238,6 +246,18 @@ class UpdateHostAdapter(ABC):
     def manifest_path(self, plugin_root: Path) -> Path:
         return plugin_root / self.manifest_directory / "plugin.json"
 
+    def marketplace_manifest_path(self, marketplace_root: Path) -> Path:
+        """Locate the host's marketplace metadata inside the selected source."""
+
+        root = marketplace_root.resolve()
+        directory = Path(self.marketplace_manifest_directory)
+        if directory.is_absolute() or ".." in directory.parts:
+            raise UpdateHostError("marketplace manifest directory escapes its root")
+        path = (root / directory / "marketplace.json").resolve()
+        if not path.is_relative_to(root):
+            raise UpdateHostError("marketplace manifest path escapes its root")
+        return path
+
     def declared_version(self, plugin_root: Path) -> Any:
         """The version the executing plugin declares for itself.
 
@@ -259,3 +279,40 @@ class UpdateHostAdapter(ABC):
 
         del plugin_root
         return None, None
+
+    def update_binding(self, snapshot_root: Path | None, installation: Mapping[str, Any], runner: BoundedCommandRunner) -> dict[str, Any] | None:
+        """Optionally bind an immutable deployment source to the checked policy."""
+        del snapshot_root, installation, runner
+        return None
+
+    def validate_update_binding(self, binding: Any) -> None:
+        if binding is not None:
+            raise UpdateHostError(f"{self.host_id} does not support an update binding")
+
+    def prepare_update_binding(self, binding: Any) -> str:
+        """Read-only pre-consent validation; return additional prompt context."""
+        self.validate_update_binding(binding)
+        return ""
+
+    def cache_binding_matches_installation(self, binding: Any, installation: Mapping[str, Any]) -> bool:
+        del binding, installation
+        return True
+
+    def validate_install_resume(self, authorization: Mapping[str, Any], *, plugin_root: Path) -> bool:
+        """Opt into cache-independent resume only with independent transaction evidence.
+
+        Native commands that may select the latest release keep strict cache
+        validation. An adapter must prove it can resume the approved target.
+        """
+        del authorization, plugin_root
+        return False
+
+    def execute_install_step(self, step: InstallStep, runner: BoundedCommandRunner, *, authorization: Mapping[str, Any], plugin_root: Path) -> None:
+        """Execute an authorized step. Legacy adapters keep their native command."""
+        del authorization, plugin_root
+        runner.run(step.command, timeout=INSTALL_TIMEOUT_SECONDS)
+
+    def verify_installation(self, authorization: Mapping[str, Any], runner: BoundedCommandRunner, *, plugin_root: Path) -> dict[str, Any]:
+        """Optional host verification before consuming the one-time authorization."""
+        del authorization, runner, plugin_root
+        return {}

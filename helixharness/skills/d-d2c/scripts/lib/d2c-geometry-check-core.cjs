@@ -1,5 +1,7 @@
 'use strict'
 
+const { detectWhitespaceRisk } = require('./dsl-layout-core.cjs')
+
 /**
  * d2c-geometry-check 的判定核心（纯函数，不依赖浏览器）。
  *
@@ -30,6 +32,23 @@ function round1(value) {
 
 function round2(value) {
   return Math.round(Number(value || 0) * 100) / 100
+}
+
+// HTML normalizes line endings; generated pages may replace each ASCII space
+// with one NBSP. Neither allowance permits changing counts, tabs or U+3000.
+function comparableWhitespace(text) {
+  return text.replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ')
+}
+
+function collapsesWhitespace(text, whiteSpace) {
+  const normalized = text.replace(/\r\n?/g, '\n')
+  if (whiteSpace === 'pre-line') {
+    return /[ \t]{2,}|^[ \t]|[ \t]$|\t|[ \t]\n|\n[ \t]/.test(normalized)
+  }
+  if (whiteSpace === 'normal' || whiteSpace === 'nowrap') {
+    return / {2,}|^ | $|[\t\n]/.test(normalized)
+  }
+  return false
 }
 
 /**
@@ -113,19 +132,37 @@ function evaluateGeometryTargets(textNodes, measured, options) {
 
     const tol = Math.max(tolPx, (t.w * tolPct) / 100)
 
-    // 1) 空白折叠（最高优先：根因类）
-    const hasConsecutiveWs = /[  　]{2,}|\t/.test(t.text)
-    const collapsingWs = ['normal', 'nowrap', 'pre-line'].includes(m.whiteSpace)
-    if (hasConsecutiveWs && collapsingWs) {
-      violations.push({
-        layoutMark: t.layoutMark,
-        text: t.text,
-        kind: 'whitespace-collapsed',
-        expected: `保留 DSL 空白序列（white-space: pre 或 &nbsp;），文案「${t.text.replace(/ /g, '␣')}」`,
-        actual: `computed white-space=${m.whiteSpace}，连续空白被折叠 → 渲染宽度小于 DSL bbox，右端累积漂移`,
-        diffPx: round1(t.w - wDesign),
-        severityHint: 'major',
-      })
+    // 1) Text matching normalizes whitespace, and a fixed element width cannot
+    // prove its contents survived template compilation. Check raw DOM evidence
+    // first, then CSS rendering semantics. NBSP and U+3000 do not collapse.
+    if (detectWhitespaceRisk(t.text).length) {
+      let whitespaceIssue = null
+      if (typeof m.domText !== 'string') {
+        whitespaceIssue = {
+          kind: 'whitespace-content-unavailable',
+          actual: '缺少原始 DOM textContent，无法验证 DSL 空白序列',
+        }
+      } else if (comparableWhitespace(t.text) !== comparableWhitespace(m.domText)) {
+        whitespaceIssue = {
+          kind: 'whitespace-content-mismatch',
+          actual: `DOM textContent=${JSON.stringify(m.domText)}；空白序列或文案与 DSL 不符`,
+        }
+      } else if (collapsesWhitespace(m.domText, m.whiteSpace)) {
+        whitespaceIssue = {
+          kind: 'whitespace-collapsed',
+          actual: `computed white-space=${m.whiteSpace}，原始 DOM 中的空白序列会被 CSS 折叠`,
+        }
+      }
+      if (whitespaceIssue) {
+        violations.push({
+          layoutMark: t.layoutMark,
+          text: t.text,
+          ...whitespaceIssue,
+          expected: `逐字符保留 DSL 文案 ${JSON.stringify(t.text)}（普通空格可逐个替换为 NBSP；换行仅允许 CRLF/CR → LF）并使用保留所需空白的 CSS`,
+          diffPx: null,
+          severityHint: 'major',
+        })
+      }
     }
 
     // 2) 宽度（文本左对齐时宽度差≈右端漂移）

@@ -20,6 +20,7 @@ import telemetry_ledger as telemetry_ledger
 import telemetry_trace as telemetry_trace
 from git_target import operation_state
 from telemetry_hosts import get_host_adapter, normalize_host_id
+from telemetry_session import SessionContextUnavailable
 
 
 STAGES = ("propose", "apply", "archive")
@@ -45,12 +46,41 @@ class MetricsError(ValueError):
     """Compatibility error type retained for consent cleanup callers."""
 
 
-def purge_private_states(repo: Path, platform: str) -> int:
+def purge_private_states(repo: Path, platform: str, *, strict_scope: bool = False) -> int:
+    # Host API 1.2 opt-in. Older adapters retain their default cleanup contract.
+    # Resolve the policy before mutating anything; an unavailable adapter must
+    # never silently fall back to a less restrictive cleanup.
+    adapter = get_host_adapter(platform)
+    strict_scope = strict_scope or getattr(adapter, "strict_private_cleanup", False) is True
+    if strict_scope:
+        repo = Path(repo).resolve()
     root = Path(repo) / ".helixharness" / "telemetry-v2" / "lite-active"
+    if strict_scope:
+        root = telemetry_ledger._managed(Path(repo), Path(".helixharness/telemetry-v2/lite-active"))
     removed = 0
     with _active_lock(Path(repo)):
         if root.is_dir():
             for path in root.rglob("*.json"):
+                if strict_scope:
+                    try:
+                        telemetry_ledger._managed(Path(repo), path.relative_to(repo))
+                        value = json.loads(path.read_text(encoding="utf-8"))
+                    except (OSError, ValueError):
+                        continue
+                    active = value.get("active") if isinstance(value, dict) else None
+                    if not isinstance(active, dict):
+                        continue
+                    retained = {key: state for key, state in active.items()
+                                if not isinstance(state, dict) or state.get("platform") != platform}
+                    matched = len(active) - len(retained)
+                    if not matched:
+                        continue
+                    removed += matched
+                    if retained:
+                        _atomic(path, {**value, "active": retained})
+                    else:
+                        path.unlink(missing_ok=True)
+                    continue
                 active = _active_states(path)
                 retained = {
                     key: state
@@ -62,13 +92,17 @@ def purge_private_states(repo: Path, platform: str) -> int:
                     _write_active_states(path, retained)
                 else:
                     path.unlink(missing_ok=True)
-    telemetry_ledger.purge_private(Path(repo), platform=platform)
-    telemetry_async.Outbox().purge_repo(Path(repo), platform=platform)
+    options = {"strict_scope": True} if strict_scope else {}
+    telemetry_ledger.purge_private(Path(repo), platform=platform, **options)
+    telemetry_async.Outbox().purge_repo(Path(repo), platform=platform, **options)
+    purge_sources = getattr(adapter, "purge_private_sources", None)
+    if callable(purge_sources):
+        removed += purge_sources(Path(repo))
     return removed
 
 
 def _state_path(repo: Path, feature: str, stage: str) -> Path:
-    return repo / ".helixharness" / "telemetry-v2" / "lite-active" / feature / f"{stage}.json"
+    return telemetry_ledger._managed(repo, Path(".helixharness/telemetry-v2/lite-active") / feature / f"{stage}.json")
 
 
 def _atomic(path: Path, value: dict[str, Any]) -> None:
@@ -77,7 +111,7 @@ def _atomic(path: Path, value: dict[str, Any]) -> None:
 
 @contextmanager
 def _active_lock(repo: Path) -> Iterator[None]:
-    path = Path(repo) / ".helixharness" / "telemetry-v2" / "lite-active.lock"
+    path = telemetry_ledger._managed(Path(repo), Path(".helixharness/telemetry-v2/lite-active.lock"))
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+b") as handle:
         deadline = time.monotonic() + ACTIVE_LOCK_TIMEOUT_SECONDS
@@ -182,7 +216,10 @@ def start(
         if consent.get("effective_mode") != "enabled":
             purge_private_states(repo, platform)
             return _skip("telemetry_disabled")
-        context, raw_session_id = _session_context(repo, platform)
+        try:
+            context, raw_session_id = _session_context(repo, platform)
+        except SessionContextUnavailable as exc:
+            return _skip(str(exc))
         state_path = _state_path(repo, feature, stage)
         with _active_lock(repo):
             active = _active_states(state_path)
@@ -272,7 +309,10 @@ def record_trace_event(
             purge_private_states(repo, platform)
             return _skip("telemetry_disabled")
         state_path = _state_path(repo, feature, stage)
-        _, raw_session_id = _session_context(repo, platform)
+        try:
+            _, raw_session_id = _session_context(repo, platform)
+        except SessionContextUnavailable as exc:
+            return _skip(str(exc))
         with _active_lock(repo):
             active = _active_states(state_path)
             state = active.get(_session_key(platform, raw_session_id))
@@ -331,7 +371,10 @@ def finish(
             purge_private_states(repo, platform)
             return _skip("telemetry_disabled")
         state_path = _state_path(repo, feature, stage)
-        context, raw_session_id = _session_context(repo, platform)
+        try:
+            context, raw_session_id = _session_context(repo, platform)
+        except SessionContextUnavailable as exc:
+            return _skip(str(exc))
         recovery: dict[str, str] | None = None
         with _active_lock(repo):
             active = _active_states(state_path)

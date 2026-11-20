@@ -6,11 +6,12 @@
 
 ## 1. Host Context 绑定
 
-Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主启动适配器绑定，不在每条命令中
-启动 Python 进程重新识别：
+Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主启动适配器绑定，不通过 Python
+进程、环境或 CLI 探测重新识别：
 
 1. Claude Code 的 `commands/{entry}.md` plugin command 表面绑定 `hosts/claude-code/host.json`；
-2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`。
+2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`；
+3. Cursor 的 `hosts/cursor/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/cursor/host.json`。
 
 “分发表面绑定”是一种确定性入口绑定，不要求宿主额外设置环境变量或在目标项目
 生成 settings：当前产品加载 `resources.command_projection` 已声明的原生命令或宿主 Skill
@@ -25,16 +26,18 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 环境变量或 plugin cache。
 
 绑定后读取精确路径 `hosts/{current_host_id}/host.json`，确认 `host_id` 与目录名一致、
-`host_api_version` 为当前支持的 1.1，且引用的资源位于插件根内，再读取
+`host_api_version` 为当前支持的 1.1 或 1.2，且引用的资源位于插件根内，再读取
 `resources.runtime`，并绑定不可变规范身份 `canonical_host_id = host.json.host_id`。`current_host_id`
 只用于选择 manifest 路径；后续版本检查、遥测 `--platform` 和宿主回执统一使用
 `canonical_host_id`，不得从操作系统、CLI 名称、环境变量或自然语言别名重新猜测。
 恢复同一命令时使用
 当前分发表面重新绑定，不复用其他会话或宿主的 Host Context。
 
-`scripts/host_runtime_cli.py resolve` 保留为安装器、开发诊断和契约测试工具；正常业务命令不得为了
-识别宿主调用它。这样 Python 不可用且 telemetry 关闭时，原本不依赖 Python 的 Claude Code/Codex
-业务动作不会因 Host Registry 新增阻断或工具调用。
+`scripts/host_runtime_cli.py resolve` 可用于安装器、开发诊断和契约测试；正常业务命令不得为了
+猜测或识别宿主调用它。Host Kit 或 `runtime-preflight.md` 已要求的来源校验可以在确定性绑定后
+显式传入 `--platform {canonical_host_id} --expected-plugin-root {plugin_root}`，检查当前执行副本
+与绑定来源一致。这是验证既定身份，不是重新发现宿主；校验失败不得搜索其他安装来补齐。
+本协议不额外要求原本不依赖 Python 的动作启动进程，宿主入口已有的 runtime preflight 仍须执行。
 
 当前产品与插件分发表面无法共同确定唯一宿主、规范 ID 含路径分隔符或 `..`、清单不匹配、版本
 不支持、资源越过插件根目录时，立即返回 `BLOCKED: helixharness_host_unavailable`。不得从 PATH 中
@@ -47,7 +50,7 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 ## 2. 逻辑动作
 
 公共 command 的工具拼写和不可降低语义先读取
-`reference/tool-semantics.md`。Claude Code 对这些拼写使用原生工具语义；Codex 按 Host Kit 映射。
+`reference/tool-semantics.md`。Claude Code 对这些拼写使用原生工具语义；其他宿主按各自 Host Kit 映射。
 
 共享工作流使用下列逻辑动作，实际工具名以 `resources.runtime` 为准：
 
@@ -65,7 +68,7 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 
 command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWrite`、
 `Skill`、`Agent` 和 `Task` 属于 HelixHarness Tool Semantics 的 Claude Code 兼容拼写。
-Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
+其他宿主不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
 
 ## 3. 能力选择规则
 
@@ -99,7 +102,7 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
 
 ## 5. 未来宿主扩展契约
 
-当前仓库不发布其他 Host Kit。未来重新接入新宿主时，正常改动范围应限制为：
+当前仓库提供 Claude Code、Codex、Cursor。未来接入新宿主时，正常改动范围应限制为：
 
 - `hosts/{host-id}/host.json`；
 - 该 Host Kit 引用的分发、安装、入口投影、启动、工具映射、生命周期、项目配置、遥测或更新适配器；

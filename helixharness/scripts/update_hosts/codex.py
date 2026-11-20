@@ -53,6 +53,7 @@ class CodexUpdateAdapter(UpdateHostAdapter):
     host_id = "codex"
     supported_scopes = frozenset({"default"})
     manifest_directory = ".codex-plugin"
+    marketplace_manifest_directory = ".claude-plugin"
 
     def __init__(
         self,

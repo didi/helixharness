@@ -41,6 +41,19 @@ class ConsentLeaseUnavailable(ConsentError):
     pass
 
 
+class ConsentDeadlineExceeded(ConsentError):
+    """Optional caller budget expired; this is never an authorization result."""
+
+
+def _remaining(deadline: float | None) -> float:
+    if deadline is None:
+        return 1.0
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise ConsentDeadlineExceeded("consent operation deadline exceeded")
+    return remaining
+
+
 def _timestamp(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -51,22 +64,32 @@ def _timestamp(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
-def _git(repo: Path, *args: str) -> str:
+def _git(repo: Path, *args: str, deadline: float | None = None) -> str:
     try:
         result = subprocess.run(
             ["git", "-C", str(repo), *args],
             check=True,
             capture_output=True,
-            timeout=1.0,
+            timeout=min(1.0, _remaining(deadline)),
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except subprocess.TimeoutExpired as exc:
+        if deadline is not None:
+            # A slow remote lookup is not evidence of a local-only repository.
+            raise ConsentDeadlineExceeded("consent Git lookup timed out") from exc
+        return ""
+    except OSError as exc:
+        if deadline is not None:
+            raise ConsentError("consent Git lookup unavailable") from exc
+        return ""
+    except subprocess.CalledProcessError:
         return ""
     return os.fsdecode(result.stdout).strip()
 
 
-def _repo_root(value: str | Path) -> Path:
+def _repo_root(value: str | Path, *, deadline: float | None = None) -> Path:
     candidate = Path(value).expanduser().resolve()
-    root = _git(candidate, "rev-parse", "--show-toplevel")
+    options = {"deadline": deadline} if deadline is not None else {}
+    root = _git(candidate, "rev-parse", "--show-toplevel", **options)
     if root:
         return Path(root).resolve()
     for current in (candidate, *candidate.parents):
@@ -95,8 +118,9 @@ def _normalized_remote(value: str) -> str:
     return f"remote:{host}/{normalized_path}"
 
 
-def project_fingerprint(repo: Path) -> str:
-    remote = _git(repo, "remote", "get-url", "origin")
+def project_fingerprint(repo: Path, *, deadline: float | None = None) -> str:
+    options = {"deadline": deadline} if deadline is not None else {}
+    remote = _git(repo, "remote", "get-url", "origin", **options)
     identity = _normalized_remote(remote) if remote else f"local:{repo.resolve()}"
     digest = hashlib.sha256(f"helixharness-project-v1\0{identity}".encode()).hexdigest()[:16]
     return f"prj_{digest}"
@@ -159,9 +183,12 @@ def _unsupported(platform: str) -> dict[str, Any]:
     }
 
 
-def _resolve(repo: Path, platform: str, path: Path) -> dict[str, Any]:
+def _resolve(repo: Path, platform: str, path: Path, *, deadline: float | None = None) -> dict[str, Any]:
+    _remaining(deadline)
     cache = _load_cache(path)
-    fingerprint = project_fingerprint(repo)
+    options = {"deadline": deadline} if deadline is not None else {}
+    fingerprint = project_fingerprint(repo, **options)
+    _remaining(deadline)
     user = cache["user"] or None
     project = cache["projects"].get(fingerprint)
     if user and user.get("mode") == "disabled":
@@ -198,8 +225,34 @@ def resolve_for_platform(
     return _resolve(root, canonical, cache_path or adapter.consent_cache_path())
 
 
+def _acquire_read_lock(fd: int, deadline: float | None) -> None:
+    # Windows has no shared lock; preserve the bounded wait for ordinary
+    # callers as well as the tighter budget supplied by optional Cursor hooks.
+    windows_deadline = time.monotonic() + CACHE_LOCK_TIMEOUT_SECONDS if os.name == "nt" else None
+    while True:
+        _remaining(deadline)
+        try:
+            if os.name == "nt":
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                fcntl.flock(fd, fcntl.LOCK_SH | (fcntl.LOCK_NB if deadline is not None else 0))
+            return
+        except OSError as exc:
+            if windows_deadline is not None:
+                wait = windows_deadline - time.monotonic()
+                if wait <= 0:
+                    raise ConsentError("consent cache lock timed out") from exc
+                if deadline is not None:
+                    wait = min(wait, _remaining(deadline))
+                time.sleep(min(0.01, wait))
+                continue
+            if deadline is None:
+                raise
+            time.sleep(min(0.01, _remaining(deadline)))
+
+
 @contextmanager
-def _cache_lock(path: Path) -> Iterator[None]:
+def _cache_lock(path: Path, *, deadline: float | None = None) -> Iterator[None]:
     lock_path = path.with_suffix(f"{path.suffix}.lock")
     if os.name != "nt" and not lock_path.is_file():
         # Coordinate the first reader/writer race without requiring a write
@@ -207,10 +260,10 @@ def _cache_lock(path: Path) -> Iterator[None]:
         anchor_path = path.parent.parent.parent
         anchor_fd = os.open(anchor_path, os.O_RDONLY)
         try:
-            fcntl.flock(anchor_fd, fcntl.LOCK_SH)
+            _acquire_read_lock(anchor_fd, deadline)
             try:
                 if lock_path.is_file():
-                    with _cache_lock(path):
+                    with _cache_lock(path, deadline=deadline):
                         yield
                 else:
                     yield
@@ -224,30 +277,17 @@ def _cache_lock(path: Path) -> Iterator[None]:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
     read_existing = os.name != "nt"
     with lock_path.open("r" if read_existing else "a+") as handle:
-        acquired = False
+        if os.name == "nt":
+            handle.seek(0, os.SEEK_END)
+            if handle.tell() == 0:
+                handle.write("0")
+                handle.flush()
+            handle.seek(0)
+        _acquire_read_lock(handle.fileno(), deadline)
         try:
-            if os.name == "nt":
-                handle.seek(0, os.SEEK_END)
-                if handle.tell() == 0:
-                    handle.write("0")
-                    handle.flush()
-                handle.seek(0)
-                deadline = time.monotonic() + CACHE_LOCK_TIMEOUT_SECONDS
-                while True:
-                    try:
-                        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-                        acquired = True
-                        break
-                    except OSError as exc:
-                        remaining = deadline - time.monotonic()
-                        if remaining <= 0:
-                            raise ConsentError("consent cache lock timed out") from exc
-                        time.sleep(min(0.05, remaining))
-            else:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
             yield
         finally:
-            if os.name == "nt" and acquired:
+            if os.name == "nt":
                 handle.seek(0)
                 msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
             else:
@@ -255,15 +295,16 @@ def _cache_lock(path: Path) -> Iterator[None]:
 
 
 @contextmanager
-def consent_snapshot(repo: Path, platform: str) -> Iterator[dict[str, Any]]:
+def consent_snapshot(repo: Path, platform: str, *, deadline: float | None = None) -> Iterator[dict[str, Any]]:
     canonical = normalize_host_id(platform)
     adapter = get_host_adapter(canonical)
     if adapter is None:
         raise ConsentError(f"Lite telemetry host unsupported: {canonical}")
-    root = _repo_root(repo)
+    options = {"deadline": deadline} if deadline is not None else {}
+    root = _repo_root(repo, **options)
     path = adapter.consent_cache_path()
-    with _cache_lock(path):
-        yield _resolve(root, canonical, path)
+    with _cache_lock(path, **options):
+        yield _resolve(root, canonical, path, **options)
 
 
 @contextmanager

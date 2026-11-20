@@ -23,17 +23,20 @@ Usage telemetry 只有 `enabled` 和 `disabled` 两档，默认 `disabled`。
 ```text
 Claude Code: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/helixharness/telemetry-consent-cache.json
 Codex: ${CODEX_HOME:-$HOME/.codex}/helixharness/telemetry-consent-cache.json
+Cursor: ${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/helixharness/telemetry-consent-cache.json
 ```
 
 用户主动查询和修改配置使用 `/helix:config`，通过 `scripts/user_config.py` 复用本协议 API；默认查看不触发 CLI resolve 的清理副作用，显式修改仍由既有授权 API 管理 scope、epoch 和清理。
 
+Config 开启统计使用两阶段 CLI：首次明确开启请求返回只读 `notice_required` 和本文件固定说明，不改授权；Agent 先在单独用户可见消息中逐字展示 `notice.text`，下一次调用才附加内部 `--telemetry-notice-shown {notice.sha256}` 与 `--user-confirmed` 执行。说明 digest 只核对内容版本，不能证明 UI 已展示，也不代替用户授权；旧 digest 不允许开启。不得并行或合并准备与修改调用，不通过直接 set/choose 绕过 Config 入口。关闭、地址设置与普通查询不需要此内部标记；Init/Propose 保持各自既有授权交互合同。
+
 缓存必须由 plugin 捆绑的 `scripts/telemetry_consent.py` 读写，命令或 Agent 不得自行构造、修改 JSON，也不得自行猜测项目指纹。调用方式：
 
 ```text
-{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {claude-code|codex} resolve
-{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {claude-code|codex} set --scope {project|user} --mode disabled
-{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {claude-code|codex} set --scope {project|user} --mode enabled --source {interactive-user|explicit-command} --user-confirmed
-{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {claude-code|codex} choose --action {allowed_action.id} --user-confirmed
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {canonical_host_id} resolve
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {canonical_host_id} set --scope {project|user} --mode disabled
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {canonical_host_id} set --scope {project|user} --mode enabled --source {interactive-user|explicit-command} --user-confirmed
+{helix_python} "{plugin_root}/scripts/telemetry_consent.py" --repo-root {repo_root} --platform {canonical_host_id} choose --action {allowed_action.id} --user-confirmed
 ```
 
 授权与异步地址分别判断：`telemetry_consent.py resolve` 正常按授权缓存和提醒周期返回 `prompt_due` 与 `allowed_actions`，没有地址或地址无效也不抑制开启/续期问询。地址诊断与 Runtime 共用 `telemetry_async.endpoint_status`：优先读取 `${HELIXHARNESS_TELEMETRY_HOME:-~/.helixharness/telemetry}/config.json` 的非空 `endpoint`，否则使用 `scripts/reporting_config.py` 的 `DEFAULT_REPORT_ENDPOINT` 发布默认值（当前为空）；地址环境变量不再参与解析，只校验配置，不探测服务在线状态。未配置时附带 `reason=endpoint_unconfigured`；地址或文件无效时附带 `reason=endpoint_invalid` 和 `WARN:telemetry_endpoint_invalid`。这些字段仅说明异步通路不可用，不能作为跳过授权交互的条件。`resolve` 不改写授权缓存和提醒时间，用户确认后由 `choose` 正常更新。 `endpoint_unconfigured` 仅供内部诊断，正常授权交互、选择结果和阶段摘要不显示地址缺失或未异步上报提示，也不主动提醒配置；仅在用户主动查询或排障时解释。地址无效的 warning 保留。

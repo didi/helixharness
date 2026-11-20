@@ -40,6 +40,7 @@ $ARGUMENTS
 `canonical_host_id` 必须取自预绑定 Host Context，禁止传 `darwin/linux/windows` 等操作系统名。
 
 - 脚本必须从 Host Registry 解析当前宿主，动态加载清单声明的适配器。
+- 如果返回 `pending_installation`，表示此前已确认、尚未收口且可验证恢复的安装事务。优先按 Step 3 的恢复分支处理；不能被 `latest` 或新版本检查失败的 warning/`--strict` 分支提前截断。
 - `unsupported_host + continue_silently` 时静默结束，不创建缓存、授权或提示。
 - `next_action=continue_with_warning` 时原样输出脚本 `warning`；`--strict` 额外将该状态作为阻断。
 - 不得绕过结构化结果，手工补造当前版本、最新版本、安装范围或升级路径。
@@ -54,13 +55,19 @@ $ARGUMENTS
 - 当前版本到目标版本之间的完整 release notes；
 - 跨版本路径是否包含 `update_type=required`。
 
-如果已是最新版本，输出：
+如果没有 `pending_installation` 且已是最新版本，输出：
 
 ```text
 HelixHarness 已是最新版本，无需升级。
 ```
 
 ### Step 3：执行统一授权状态机
+
+如果 `check` 返回 `pending_installation`：展示其中的 `target_version` 和已有事务尚未收口的事实。
+传入 `--check` 时到此仅展示，不执行任何安装；否则使用回执中的原 `challenge_id` 调用 `install`，
+恢复同一份仍有效的用户授权，不重新 `prepare/decide`，也不选择刚检查到的其他版本。
+脚本会复验授权有效期、独立事务凭据、安装来源和批准的目标；失败就停止本次恢复，不能绕过验证。
+成功后进入 Step 4。本次恢复不同时安装新发现的更高版本；更高版本须另走新的确认流程。
 
 如果传入 `--check`：
 
@@ -128,3 +135,8 @@ HelixHarness 已更新。请重启当前编程平台或新开会话，让新的 
 ```
 
 宿主资源声明：`resources.runtime`、`resources.subagent_protocol`、`resources.telemetry_protocol`。
+
+
+## Cursor native update boundary
+
+仅 Cursor 原生安装：`check` 返回 `reason=installation_update_not_supported`、`next_action=continue_with_warning` 时，展示当前安装及手动更新步骤后结束更新流程；业务继续。不得进入 prepare/decide/install，不得改用旧 Local 缓存或授权，不把 unknown 当作已是最新。显式后续更新操作退出码为 2。此限制不改变 managed-local、Claude Code 或 Codex 的原协议。

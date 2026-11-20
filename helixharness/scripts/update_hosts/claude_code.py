@@ -65,6 +65,7 @@ class ClaudeCodeUpdateAdapter(UpdateHostAdapter):
     supported_scopes = frozenset({"user", "project", "all"})
     aggregate_scope_members = {"all": frozenset({"user", "project"})}
     manifest_directory = ".claude-plugin"
+    marketplace_manifest_directory = ".claude-plugin"
 
     def __init__(self, normalize_version: Callable[[Any], str], read_json: Callable[[Path], dict[str, Any]]):
         self._normalize_version = normalize_version
