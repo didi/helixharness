@@ -7,6 +7,7 @@ Qoder CLI 的插件市场命令与 JSON 结构与 Claude Code 同构，仅命令
 from __future__ import annotations
 
 import os
+import shutil
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -34,9 +35,19 @@ LOCAL_SCOPES = frozenset({"project", "local"})
 
 
 def _cli() -> str:
-    """返回当前可用的 Qoder CLI 名称，不跨产品回退。"""
+    """返回当前可用的 Qoder CLI 名称，不跨产品回退。
 
-    return CLI_NAMES[0]
+    Qoder 分中文版（``qoderclicn``）与国际版（``qodercli``），两者命令结构一致
+    但可执行文件名不同。这里按固定顺序探测 PATH，避免在只有国际版的机器上
+    调用不存在的命令；两者都缺失时显式失败，不回退到其他产品。
+    """
+
+    for name in CLI_NAMES:
+        if shutil.which(name):
+            return name
+    raise UpdateHostError(
+        "Qoder CLI is not on PATH: expected one of " + ", ".join(CLI_NAMES)
+    )
 
 
 def detect_host(environment: Any) -> int | None:

@@ -76,6 +76,12 @@ codex plugin add helix@helixharness-marketplace
 ```
 
 ```bash
+# Claude Code
+claude plugin marketplace add https://github.com/didi/helixharness.git
+claude plugin install helix@helixharness-marketplace
+```
+
+```bash
 # Qoder（中文版 CLI 为 qoderclicn，国际版为 qodercli）
 qoderclicn plugins marketplace add https://github.com/didi/helixharness.git
 qoderclicn plugins install helix@helixharness-marketplace
@@ -198,7 +204,7 @@ python -m web_ui.demo --port 7860
 
 接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
 
-- **支持更多 Coding Agent**：在 Codex 和 Claude Code 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。Qoder 已作为预览宿主接入，详见 [Qoder Host Kit 说明](docs/host-kits/qoder/assessment.md)。
+- **支持更多 Coding Agent**：在 Codex 和 Claude Code 之外扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。Qoder 已作为稳定宿主接入，详见 [Qoder Host Kit 说明](docs/host-kits/qoder/assessment.md)。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
 以上为规划能力。当前版本支持 Codex、Claude Code 和 Qoder，采用 Propose → Apply → Archive 工作流。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。

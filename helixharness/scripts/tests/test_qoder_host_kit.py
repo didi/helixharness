@@ -13,8 +13,12 @@ from host_runtime import HostRegistry  # noqa: E402
 from host_runtime.command_projection import load_command_projection  # noqa: E402
 from host_runtime.project_config import load_project_config  # noqa: E402
 from host_runtime.project_hooks import load_project_hooks  # noqa: E402
+from unittest import mock  # noqa: E402
+
+from update_hosts.base import UpdateHostError  # noqa: E402
 from update_hosts.qoder import (  # noqa: E402
     QoderUpdateAdapter,
+    _cli,
     detect_host,
     plugin_version,
 )
@@ -25,7 +29,7 @@ class QoderHostKitTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.manifest = HostRegistry.discover(PLUGIN_ROOT / "hosts").get("qoder")
 
-    def test_host_is_registered_with_preview_support(self):
+    def test_host_is_registered_as_stable(self):
         self.assertIsNotNone(self.manifest)
         self.assertEqual("stable", self.manifest.support_level)
         self.assertIsNotNone(self.manifest.evidence)
@@ -58,6 +62,34 @@ class QoderHostKitTests(unittest.TestCase):
             (PLUGIN_ROOT / QoderUpdateAdapter.marketplace_manifest_relative).is_file()
         )
         self.assertEqual("1.0.0", plugin_version(PLUGIN_ROOT))
+
+    def test_cli_selection_covers_both_qoder_editions(self):
+        # Chinese edition first, then the international one.
+        with mock.patch(
+            "shutil.which", side_effect=lambda name: "/bin/" + name
+        ):
+            self.assertEqual("qoderclicn", _cli())
+        with mock.patch(
+            "shutil.which", side_effect=lambda name: "/bin/qodercli" if name == "qodercli" else None
+        ):
+            self.assertEqual("qodercli", _cli())
+
+    def test_missing_qoder_cli_fails_closed(self):
+        with mock.patch("shutil.which", return_value=None):
+            with self.assertRaises(UpdateHostError) as caught:
+                _cli()
+        self.assertIn("qoderclicn", str(caught.exception))
+        self.assertIn("qodercli", str(caught.exception))
+
+    def test_install_steps_use_the_detected_cli(self):
+        adapter = QoderUpdateAdapter(lambda value: str(value).strip(), lambda path: {})
+        with mock.patch(
+            "shutil.which", side_effect=lambda name: "/bin/qodercli" if name == "qodercli" else None
+        ):
+            steps = adapter.install_steps("user", None)
+        self.assertEqual(1, len(steps))
+        self.assertEqual("qodercli", steps[0].command[0])
+        self.assertIn("helix@helixharness-marketplace", steps[0].command)
 
     def test_detector_does_not_claim_other_hosts(self):
         self.assertEqual(100, detect_host({"QODER_PLUGIN_ROOT": "/x"}))

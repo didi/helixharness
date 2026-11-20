@@ -206,10 +206,10 @@ Report community bugs through [GitHub Issues](https://github.com/didi/helixharne
 
 Two planned directions will help more teams shape HelixHarness around their development practices:
 
-- **More coding agents.** Extend support beyond Codex and Claude Code so teams can use HelixHarness with more of their preferred tools. Qoder is available as a preview host; see the [Qoder host kit](docs/host-kits/qoder/assessment.md).
+- **More coding agents.** Extend support beyond Codex and Claude Code so teams can use HelixHarness with more of their preferred tools. Qoder is supported as a stable host; see the [Qoder host kit](docs/host-kits/qoder/assessment.md).
 - **Configurable workflows.** Let teams configure workflow stages and their order to fit their development process.
 
-These are planned capabilities. The current release supports Codex and Claude Code, plus Qoder as a preview host, with the Propose → Apply → Archive workflow. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
+These are planned capabilities. The current release supports Codex, Claude Code and Qoder, with the Propose → Apply → Archive workflow. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
 
 ## Documentation and contribution
 

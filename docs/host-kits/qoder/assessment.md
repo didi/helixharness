@@ -14,6 +14,15 @@
 | 风险点 | 集中在 `unit_test_workflow` 的权限托管、项目级 settings 路径、telemetry 会话格式差异 |
 | 建议首批能力 | 16 项中 **12 项 native / 1 项 emulated / 3 项 unsupported** |
 
+> **当前状态（以此为准）**：`support.level = stable`，`support.evidence` 指向
+> `helixharness/evidence/host-e2e/qoder/e2e-2026-11-03.json`。
+> 已验证客户端：**Qoder CN（中文版）CLI `qoderclicn` 1.1.75 / 1.1.81**；
+> 已验证范围：插件加载、命令面（薄 Skill）、init/propose/apply/archive 单仓闭环、
+> 项目级 hooks、权限准备与回滚、marketplace 注册/安装/更新（本地 directory 源与远程 git 源）、
+> telemetry 全链路（consent → 账本 → Supplement → 平台投递 → 看板投影 → 质量 Gate）。
+> 未验证：Qoder 国际版（`qodercli`）实机、远程版本升级、真实构建工程上的完整 `/helix:ut`、
+> IDE 插件市场界面。下文 §8/§9 中出现的 `preview` 字样是当时的历史状态，已被 §11 取代。
+
 ## 1. 关键发现：Qoder 的插件模型是 Claude Code 的超集
 
 `~/.qoder-cn/plugins/cache/local/ecc/2.2.3/.qoder-plugin/plugin.json`（第三方真实插件）：
@@ -252,7 +261,7 @@ helixharness/
 
 ### 已知未完成项
 
-1. 真实客户端 E2E 尚未执行，`support.level` 保持 `preview`、`evidence` 为 `null`。
+1. 真实客户端 E2E 尚未执行，`support.level` 保持 `preview`、`evidence` 为 `null`。（历史状态：§9–§11 已完成，现为 `stable`）
 2. `.qoder/settings.json` 作为项目级 hooks 目标路径待证实。
 3. `/helix:ut` 的权限精确回滚未验证（`ut.md` 中已标注 `_pending_verification` 并要求无法确认时改走宿主审批）。
 4. `telemetry` 为 `unsupported`：既不写 eval-log 同步账本，也不做异步上报，平台看不到 Qoder 用量；业务不受影响。（§10 已补齐为 emulated）
@@ -281,7 +290,7 @@ helixharness/
 - **telemetry 降级符合预期**：当时 consent resolver 返回 `unsupported_host`，
   `prompt_due=false`，未写 eval-log，业务门禁不受影响。（§10 已补齐为 emulated）
 
-### 仍保持 preview 的原因
+### 当时仍保持 preview 的原因（历史；§11 已改为 stable）
 
 E2E 走的是 `--plugin-dir` 本地加载，**未覆盖 marketplace 安装与 `plugins update` 流程**。
 因此 `support.level` 保持 `preview`，仅把 `support.evidence` 指向
@@ -343,8 +352,8 @@ marketplace = _read_json(root / adapter.marketplace_manifest_relative)  # 新
 
 ### 后续待办
 
-1. 在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`，
-   通过后可把 `support.level` 从 `preview` 提升为 `stable`。
+1. ~~在真实 marketplace 源上验证 `plugins marketplace add` / `install` / `update`，
+   通过后可把 `support.level` 从 `preview` 提升为 `stable`。~~ 已完成，见 §11。
 2. ~~补齐 `telemetry_hosts/qoder.py` 后把 `telemetry` 从 unsupported 升级为 emulated。~~ 已完成，见 §10。
 3. 在真实构建工程（Java/Maven 或 Gradle）上跑通完整 `/helix:ut`。
 
@@ -504,3 +513,54 @@ Qoder 的 `marketplace add` 只克隆**默认分支**，因此需先将 fork 的
 
 卸载插件、移除市场后，`installed_plugins.json` 与 `known_marketplaces.json` 均与测试前
 **byte-identical**；无 `~/.helixharness`、无 launchd 残留。
+
+## 12. 评审意见处理（2026-11-20）
+
+上游维护者对 PR 提出三条意见，逐条处理如下。
+
+### ① 国际版 CLI 只写在文档里，代码固定用中文版
+
+**确认成立。** 此前 `CLI_NAMES = ("qoderclicn", "qodercli")` 只是常量，`_cli()` 直接返回
+`CLI_NAMES[0]`，国际版机器上 `/helix:update` 会调用不存在的命令。
+
+现改为按固定顺序探测 `PATH`：
+
+```python
+for name in CLI_NAMES:
+    if shutil.which(name):
+        return name
+raise UpdateHostError("Qoder CLI is not on PATH: expected one of …")
+```
+
+两者都不存在时显式失败，不回退到其他产品。新增 3 项测试：两个版本各自被选中、
+都缺失时报错、`install_steps` 使用探测到的命令。
+
+**本轮未做**：国际版（`qodercli`）的实机验证。代码路径已覆盖，但只有中文版做过 E2E，
+因此 `support.limitations` 仍如实标注这一点。
+
+### ② stable / preview 表述冲突
+
+**确认成立。** 修复内容：
+
+- `README.md` 路线图两处 preview → stable；`README.zh-CN.md` 一处「预览宿主」→「稳定宿主」
+- 本文开头新增**权威状态块**，明确当前等级、已验证客户端与功能范围
+- §8/§9 中的 `preview` 字样加历史标注，并指向 §11
+
+### ③ 中文 README 丢失 Claude Code 安装步骤
+
+**确认成立**，是我方编辑时误替换。已在中文 README 恢复 Claude Code 安装块，
+现在中英 README 均为 Codex → Claude Code → Qoder 三段。
+
+### 上游 rebase 发现的两个集成缺陷
+
+基于 `origin/main` 重建分支时暴露：
+
+1. **`telemetry_async.RUNTIME_RESOURCE_DIRECTORIES` 缺少 `.qoder-plugin`**
+   telemetry Runtime 会把宿主资源目录复制到私有运行目录，而 Qoder 的 `distribution`
+   适配器指向 `.qoder-plugin/plugin.json`。未复制时 Runtime 内 `HostRegistry.discover`
+   直接报 `适配器资源不存在: qoder.distribution`。已将该目录加入清单。
+
+2. **`test_plugin_hooks.py` 与上游 Windows 改造冲突**
+   上游为 Windows 增加了 `git_bash()`、`commandWindows` 与环境变量透传；本分支需要
+   argv 形式的 hook 命令。合并后保留两端能力：Windows + Codex 走 `commandWindows`，
+   其余宿主走 `shell_command()`（同时支持字符串形式与 argv 形式）。
