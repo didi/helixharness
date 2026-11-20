@@ -53,6 +53,7 @@ PLATFORM_LABELS = {
     "claude": "Claude Code",
     "claude-code": "Claude Code",
     "codex": "Codex",
+    "cursor": "Cursor",
 }
 REVISION_REASON_LABELS = {
     "clarification": "澄清修正",
@@ -407,10 +408,20 @@ def _artifacts(entry: dict) -> dict:
 def _execution_stats(entry: dict) -> dict:
     stats = entry.get("execution_stats") if isinstance(entry.get("execution_stats"), dict) else {}
     reads = stats.get("context_reads") if isinstance(stats.get("context_reads"), dict) else {}
+    evidence = entry.get("async_evidence") if isinstance(entry.get("async_evidence"), dict) else {}
+    tools = evidence.get("tools") if isinstance(evidence.get("tools"), dict) else {}
+    status = stats.get("collection_status")
+    available = status not in {"unavailable", "pending"}
+    tool_errors = None
+    if available:
+        failures = [item for item in evidence.get("failed_tools", []) if isinstance(item, dict)]
+        tool_errors = len(failures) or _to_int_or_none(stats.get("tool_error_count"))
+        if tool_errors is None:
+            tool_errors = _to_int_or_none(tools.get("failed"))
     return {
-        "tool_call_count": int(stats.get("tool_call_count", 0) or 0),
-        "tool_error_count": int(stats.get("tool_error_count", 0) or 0),
-        "subagent_spawn_count": int(stats.get("subagent_spawn_count", 0) or 0),
+        "tool_call_count": _to_int_or_none(stats.get("tool_call_count")) if available else None,
+        "tool_error_count": tool_errors,
+        "subagent_spawn_count": _to_int_or_none(stats.get("subagent_spawn_count")) if available else None,
         "child_agent_scope": stats.get("child_agent_scope") or "unavailable",
         "context_reads": {
             key: int(reads.get(key, 0) or 0)
@@ -418,7 +429,8 @@ def _execution_stats(entry: dict) -> dict:
         },
         "persistence_latency_ms": stats.get("persistence_latency_ms"),
         "record_write_count": int(stats.get("record_write_count", 0) or 0),
-        "collection_status": stats.get("collection_status") or "unavailable",
+        "collection_status": status,
+        "unavailable_reason": stats.get("unavailable_reason"),
     }
 
 
@@ -535,20 +547,20 @@ def _resource_usage(entry: dict) -> dict:
     if not collection_status:
         collection_status = "unavailable"
         unavailable_reason = unavailable_reason or "missing_collection_status"
-    elif collection_status not in {"pending", "collected", "unavailable"}:
+    elif collection_status not in {"pending", "collected", "partial", "unavailable"}:
         unavailable_reason = unavailable_reason or f"unsupported_collection_status:{collection_status}"
         collection_status = "unavailable"
-    if collection_status == "collected" and result["total_tokens"] is None:
+    if collection_status in {"collected", "partial"} and result["total_tokens"] is None:
         collection_status = "unavailable"
         unavailable_reason = unavailable_reason or "missing_total_tokens"
-    if collection_status != "collected":
+    if collection_status not in {"collected", "partial"}:
         result = {key: None for key in RESOURCE_KEYS}
     model = ru.get("model") or "unknown"
     models = [item for item in ru.get("models", []) if isinstance(item, dict)]
     return {
         **result,
-        "scope": ru.get("usage_scope") or "unknown",
-        "usage_scope": ru.get("usage_scope") or "unknown",
+        "scope": ru.get("usage_scope") or ru.get("scope") or "unknown",
+        "usage_scope": ru.get("usage_scope") or ru.get("scope") or "unknown",
         "model": model,
         "models": models,
         "collection_status": collection_status,
@@ -557,6 +569,8 @@ def _resource_usage(entry: dict) -> dict:
         "attribution": ru.get("attribution") or "unknown",
         "contamination_risk": ru.get("contamination_risk") or "unknown",
         "confidence": ru.get("confidence") or "unknown",
+        "input_tokens_include_cache": ru.get("input_tokens_include_cache"),
+        "generations": ru.get("generations"),
     }
 
 
@@ -633,9 +647,15 @@ def _resource_unavailable_reason(usage: dict) -> str:
         return reason
     if usage.get("collection_status") == "pending":
         return "resource_usage_pending"
+    if usage.get("usage_scope") == "parent_only":
+        return "parent_only"
     if _to_int_or_none(usage.get("total_tokens")) is None:
         return "missing_total_tokens"
     return "resource_usage_unavailable"
+
+
+def _limited_resource_usage(usage: dict) -> bool:
+    return usage.get("collection_status") == "partial" or usage.get("usage_scope") == "parent_only"
 
 
 def _lowest_confidence(usages: list[dict]) -> str:
@@ -672,7 +692,10 @@ def _aggregate_resource_usages(usages: list[dict], scope: str = "aggregate") -> 
             )
             for key in RESOURCE_KEYS
         }
-        exact = bool(eligible_count) and collected_count == eligible_count
+        partial_count = sum(int(usage.get("partial_entries", 0) or 0) for usage in usages)
+        exact = bool(eligible_count) and collected_count == eligible_count and all(
+            usage.get("exact") for usage in usages if usage.get("eligible_entries")
+        )
         exact_totals = {key: observed[key] if exact else None for key in RESOURCE_KEYS}
         reasons = sorted({
             str(reason)
@@ -688,6 +711,8 @@ def _aggregate_resource_usages(usages: list[dict], scope: str = "aggregate") -> 
             "eligible_entries": eligible_count,
             "collected_entries": collected_count,
             "missing_entries": max(eligible_count - collected_count, 0),
+            "partial_entries": partial_count,
+            "limited_scopes": sorted({scope for usage in usages for scope in usage.get("limited_scopes", [])}),
             "missing_reasons": reasons,
             "exact": exact,
             "scope": scope,
@@ -709,12 +734,12 @@ def _aggregate_resource_usages(usages: list[dict], scope: str = "aggregate") -> 
     eligible = [
         usage
         for usage in usages
-        if usage.get("collection_status") in {"pending", "collected", "unavailable"}
+        if usage.get("collection_status") in {"pending", "collected", "partial", "unavailable"}
     ]
     collected = [
         usage
         for usage in eligible
-        if usage.get("collection_status") == "collected"
+        if usage.get("collection_status") in {"collected", "partial"}
         and _to_int_or_none(usage.get("total_tokens")) is not None
     ]
     observed = {
@@ -725,12 +750,13 @@ def _aggregate_resource_usages(usages: list[dict], scope: str = "aggregate") -> 
         )
         for key in RESOURCE_KEYS
     }
-    exact = bool(eligible) and len(collected) == len(eligible)
+    limited = [usage for usage in collected if _limited_resource_usage(usage)]
+    exact = bool(eligible) and len(collected) == len(eligible) and not limited
     exact_totals = {
         key: observed[key] if exact and all(_to_int_or_none(usage.get(key)) is not None for usage in collected) else None
         for key in RESOURCE_KEYS
     }
-    incomplete = [usage for usage in eligible if usage not in collected]
+    incomplete = [usage for usage in eligible if usage not in collected or _limited_resource_usage(usage)]
     reasons = sorted({_resource_unavailable_reason(usage) for usage in incomplete})
     unavailable_reason = reasons[0] if len(reasons) == 1 else ("multiple_resource_usage_failures" if reasons else None)
     if exact:
@@ -748,6 +774,8 @@ def _aggregate_resource_usages(usages: list[dict], scope: str = "aggregate") -> 
         "eligible_entries": len(eligible),
         "collected_entries": len(collected),
         "missing_entries": max(len(eligible) - len(collected), 0),
+        "partial_entries": len(limited),
+        "limited_scopes": sorted({u["usage_scope"] for u in eligible if u.get("usage_scope") == "parent_only"}),
         "missing_reasons": reasons,
         "exact": exact,
         "scope": scope if eligible else "unknown",
@@ -936,10 +964,29 @@ def _resource_summary_line(usage: dict) -> str:
     observed = _to_int_or_none(usage.get("total_tokens"))
     eligible = int(usage.get("eligible_entries", 0) or 0)
     collected = int(usage.get("collected_entries", 0) or 0)
+    note = _resource_scope_note(usage)
     if observed is None:
-        return "Token 未采集"
-    exact = "完整准确" if usage.get("exact") else f"准确覆盖 {collected}/{eligible}"
-    return f'已采集 {_fmt_tokens(observed)} · {exact}'
+        return "Token 未采集" + (f" · {note}" if note else "")
+    exact = "完整准确" if usage.get("exact") else f"记录覆盖 {collected}/{eligible}"
+    return f'已采集 {_fmt_tokens(observed)} · {exact}' + (f" · {note}" if note else "")
+
+
+def _resource_scope_note(usage: dict) -> str:
+    notes = []
+    if usage.get("usage_scope") == "parent_only" or "parent_only" in usage.get("limited_scopes", []):
+        notes.append("仅父代理，不含子代理用量")
+    reasons = set(usage.get("missing_reasons") or [])
+    if usage.get("unavailable_reason"):
+        reasons.add(str(usage["unavailable_reason"]))
+    labels = {
+        "some_generations_unattributable": "部分轮次跨越阶段边界，仅统计可归属轮次",
+        "no_complete_generation_in_stage_window": "阶段窗口内没有可完整归属的轮次",
+        "ambiguous_workspace": "多个仓库同时处于活跃阶段，无法确定用量归属",
+        "incomplete_token_fields": "Token 字段不完整，无法计算总量",
+        "async_usage_unavailable": "宿主未提供可用 Token 数据",
+    }
+    notes.extend(labels[reason] for reason in sorted(reasons) if reason in labels)
+    return "；".join(notes)
 
 
 def _code_summary_line(delta: dict) -> str:
@@ -2644,15 +2691,14 @@ def _stage_execution_summary_html(
     execution_lines = []
     for field, title in (("tool_call_count", "工具调用"), ("tool_error_count", "调用未成功"), ("subagent_spawn_count", "子 Agent 创建")):
         values = []
+        partial = False
         for entry, ready in zip(entries, available):
-            raw = entry.get("execution_stats") if isinstance(entry.get("execution_stats"), dict) else {}
-            value = _to_int_or_none(raw.get(field)) if ready else None
-            if field == "tool_error_count" and ready:
-                evidence = entry.get("async_evidence") or {}
-                failures = [item for item in evidence.get("failed_tools", []) if isinstance(item, dict)]
-                if failures:
-                    value = len(failures)
+            stats = _execution_stats(entry)
+            value = stats.get(field) if ready else None
+            partial = partial or (value is not None and stats.get("collection_status") == "partial")
             values.append(value)
+        if partial:
+            title += "（已记录小计）"
         execution_lines.append(_stage_total_html(title, values))
     user_messages = [_entry_user_turns(entry) for entry in entries]
     assistant_messages = []
@@ -2666,6 +2712,8 @@ def _stage_execution_summary_html(
     ))
     people = "、".join(dict.fromkeys(_actor(entry)["user_name"] for entry in entries))
     segments = f" · 共 {len(entries)} 段记录" if len(entries) > len(runs) else ""
+    resource_note = _resource_scope_note(usage)
+    resource_note_html = f'<br><small>{_esc(resource_note)}</small>' if resource_note else ""
     return (
         '<article class="helixharness-stage-card helixharness-stage-rollup">'
         f'<div class="helixharness-stage-card-head"><div><span class="helixharness-stage-index">{index}</span><b>{_esc(label)}</b>'
@@ -2678,7 +2726,8 @@ def _stage_execution_summary_html(
         '</div></section>'
         f'{artifact_block}'
         f'<section class="helixharness-stage-block"><h4>{token_label}</h4><div><b>{_fmt_tokens(usage.get("total_tokens"))}</b>'
-        f'<br><span>输入 {_fmt_tokens(usage.get("input_tokens"))} · 输出 {_fmt_tokens(usage.get("output_tokens"))}</span></div></section>'
+        f'<br><span>输入 {_fmt_tokens(usage.get("input_tokens"))} · 输出 {_fmt_tokens(usage.get("output_tokens"))}</span>'
+        f'{resource_note_html}</div></section>'
         f'<section class="helixharness-stage-block"><h4>执行情况</h4><div>{"<br>".join(execution_lines)}</div></section>'
         f'<section class="helixharness-stage-block"><h4>对话记录</h4><div>{interaction_html}</div></section></div>'
         f'{_archive_knowledge_html(archive_changes) if latest.get("stage_kind") == "archive" or latest.get("command") == "archive" else ""}'
@@ -2745,11 +2794,14 @@ def render_feature_timeline_html(eval_log: dict, *, archive_changes: dict | None
             f'<b>{_fmt_tokens(usage.get("total_tokens"))}</b>',
             f'<span>输入 {_fmt_tokens(usage.get("input_tokens"))} · 输出 {_fmt_tokens(usage.get("output_tokens"))}</span>',
         ]
-        tool_failure_count = len(failed_tools) or execution["tool_error_count"]
+        resource_note = _resource_scope_note(usage)
+        if resource_note:
+            resource_bits.append(f'<small>{_esc(resource_note)}</small>')
+        execution_suffix = "（已记录小计）" if execution["collection_status"] == "partial" else ""
         execution_bits = [
-            _stage_total_html("工具调用", [execution["tool_call_count"]]),
-            _stage_total_html("调用未成功", [tool_failure_count]),
-            _stage_total_html("子 Agent 创建", [execution["subagent_spawn_count"]]),
+            _stage_total_html("工具调用" + execution_suffix, [execution["tool_call_count"]]),
+            _stage_total_html("调用未成功" + execution_suffix, [execution["tool_error_count"]]),
+            _stage_total_html("子 Agent 创建" + execution_suffix, [execution["subagent_spawn_count"]]),
         ]
         interaction_bits = [
             _stage_total_html("用户交互轮次", [_entry_user_turns(e)], "轮"),
@@ -3335,7 +3387,7 @@ def _metric_guide_html() -> str:
             "接受 HelixHarness Ledger 1.0 与已关联异步 Supplement 的物化数据；缺少必填字段的日志拒绝进入聚合。",
         ),
         ("用户交互轮次", "按阶段记录累计已采集的用户消息轮次，包含“继续/OK”等确认；不等同于有效介入、澄清或返工。部分采集显示小计与覆盖数，未采集不计为 0。"),
-        ("Token 消耗", "统计模型输入、输出、缓存读写 Token 的总消耗，只看资源用量，不计算金额。"),
+        ("Token 消耗", "使用宿主报告的总量，或完整的输入加输出 Token；缓存读写作为明细，不重复加总。仅父代理或部分轮次的统计会标注覆盖范围，不计算金额。"),
         ("归因和污染风险", "Token 优先来自平台结构化 usage 或精确 session 窗口；代码变更来自需求 Git 区间并优先限制 produced_files。范围不足时会降低 confidence 或明确 unavailable。"),
         ("验收事实", "分别展示验收通过数、验收依据完整数和审查问题数；每项都能回到 eval-log 的结构化字段，不合成质量分。"),
         ("跨阶段修正", "HelixHarness 不回写旧阶段；后续阶段修改上一更新内容时，记录在当前阶段的 workflow.revises_previous_stage，并标明 revised_stage_kind 与 revision_reason。语义性修正同时计入返工。"),

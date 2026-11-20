@@ -21,6 +21,12 @@ Python。任何命令在第一次调用 `python3` 前都必须执行本协议，
 sh {plugin_root}/scripts/runtime_preflight.sh check
 ```
 
+`require` 执行同一检查并输出同一 JSON，但在 `ok=false` 时退出 2。SessionStart 的
+来源绑定使用 `sh "{plugin_root}/scripts/runtime_preflight.sh" require && python3 ... resolve ...`，
+由 shell 确保依赖未就绪时不执行 resolver；这已经执行了本次来源绑定的 preflight。
+不得把 `&&` 改为命令分隔符或在失败后单独重跑 Python。原 `check` 保留只读诊断的退出码 0，
+不能单凭 `check` 的退出码判断就绪；两种调用都按下列 JSON 字段及恢复规则处理。
+
 只使用脚本返回的结构化字段：
 
 - `ok=true`：Python 3.9+ 与 Git 均可用，继续版本检查和后续流程。

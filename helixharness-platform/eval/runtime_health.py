@@ -41,7 +41,7 @@ def validate_v2(payload: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("runtime scope_id must be runtime")
     if payload["scope_kind"] == "collection" and not {"repo_name", "platform"} <= payload.keys():
         raise ValueError("collection scope requires repo_name and platform")
-    if "platform" in payload and payload["platform"] not in {"codex", "claude-code"}:
+    if "platform" in payload and payload["platform"] not in {"codex", "claude-code", "cursor"}:
         raise ValueError("unsupported platform")
     if payload["event"] not in {"circuit_open", "circuit_closed", "heartbeat"}:
         raise ValueError("invalid health event")

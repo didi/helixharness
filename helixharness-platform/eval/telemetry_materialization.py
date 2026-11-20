@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from typing import Any
 
-from eval.stage_supplements import LEDGER_SCHEMA, LinkedStageSupplement
+from eval.stage_supplements import LEDGER_SCHEMA, LinkedStageSupplement, usage_metadata
 
 
 def index_linked_supplements(
@@ -33,7 +33,7 @@ def materialized_hash(raw: bytes, records: Mapping[str, LinkedStageSupplement]) 
     """Identify the combined fixed-ledger and active-Supplement projection."""
 
     identity = {
-        "materializer": "helixharness-eval-materialized/2.0",
+        "materializer": "helixharness-eval-materialized/2.1",
         "supplements": {
             entry_id: {
                 "payload_hash": record.payload_hash,
@@ -203,22 +203,49 @@ def _materialize_quality(value: object, linked: bool, trace: dict[str, Any]) -> 
 
 
 def _materialize_usage(usage: dict[str, Any]) -> dict[str, Any]:
+    def token_count(value: object) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
     numeric: dict[str, int] = {}
     for field in ("input_tokens", "output_tokens", "cache_write_tokens"):
         value = usage.get(field)
-        if isinstance(value, int) and not isinstance(value, bool):
+        if token_count(value):
             numeric[field] = value
     cache_read = usage.get("cache_read_tokens", usage.get("cached_input_tokens"))
-    if isinstance(cache_read, int) and not isinstance(cache_read, bool):
+    if token_count(cache_read):
         numeric["cache_read_tokens"] = cache_read
-    collected = bool(numeric)
     total = usage.get("total_tokens")
-    if not isinstance(total, int) or isinstance(total, bool):
-        primary = [numeric[field] for field in ("input_tokens", "output_tokens") if field in numeric]
-        total = sum(primary) if primary else (sum(numeric.values()) if collected else None)
+    if not token_count(total):
+        total = (
+            numeric["input_tokens"] + numeric["output_tokens"]
+            if {"input_tokens", "output_tokens"} <= numeric.keys() else None
+        )
+    metadata = usage_metadata(usage)
+    explicit_status = metadata.get("collection_status") or metadata.get("status")
+    status = {"available": "collected"}.get(explicit_status, explicit_status)
+    reason = metadata.get("unavailable_reason")
+    if status is None:
+        status = "collected" if total is not None else "unavailable"
+    elif status not in {"collected", "partial", "pending", "unavailable"}:
+        reason = reason or "unsupported_usage_collection_status"
+        status = "unavailable"
+    if total is None and status in {"collected", "partial"}:
+        status = "unavailable"
+    if status in {"partial", "pending", "unavailable"}:
+        reported_reason = metadata.get("reason")
+        if reported_reason == "native_generation_snapshots":
+            reported_reason = None
+        reason = reason or reported_reason or (
+            "partial_usage_coverage" if total is not None else
+            "incomplete_token_fields" if numeric else "async_usage_unavailable"
+        )
+    collected = status in {"collected", "partial"} and total is not None
+    legacy_exact = collected and not metadata
+    scope = metadata.get("usage_scope") or metadata.get("scope") or ("stage_session" if legacy_exact else "unknown")
     raw_models = usage.get("models") if isinstance(usage.get("models"), list) else []
     models = [item if isinstance(item, dict) else {"model": str(item)} for item in raw_models]
     return {
+        **metadata,
         **{
             field: numeric.get(field)
             for field in ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
@@ -226,13 +253,13 @@ def _materialize_usage(usage: dict[str, Any]) -> dict[str, Any]:
         "total_tokens": total,
         "model": usage.get("model") or "unknown",
         "models": models,
-        "collection_status": "collected" if collected else "unavailable",
-        "unavailable_reason": None if collected else "async_usage_unavailable",
-        "source": "async_stage_supplement" if collected else "unknown",
-        "attribution": "exact_session_window" if collected else "unknown",
-        "usage_scope": "stage_session" if collected else "unknown",
-        "contamination_risk": "low" if collected else "unknown",
-        "confidence": "high" if collected else "unknown",
+        "collection_status": status,
+        "unavailable_reason": reason,
+        "source": metadata.get("source") or ("async_stage_supplement" if collected else "unknown"),
+        "attribution": metadata.get("attribution") or ("exact_session_window" if legacy_exact else "unknown"),
+        "usage_scope": scope,
+        "contamination_risk": metadata.get("contamination_risk") or ("low" if legacy_exact else "unknown"),
+        "confidence": metadata.get("confidence") or ("high" if legacy_exact else "unknown"),
     }
 
 
@@ -300,7 +327,10 @@ def _evolution_evidence(
         "coverage": dict(evidence.get("coverage") or {}),
         "execution": {
             key: execution.get(key)
-            for key in ("tool_call_count", "subagent_spawn_count", "context_reads")
+            for key in (
+                "tool_call_count", "subagent_spawn_count", "context_reads", "child_agent_scope",
+                "collection_status", "unavailable_reason", "scope", "attribution",
+            )
             if execution.get(key) is not None
         },
         "workflow_trace": {
@@ -321,10 +351,12 @@ def _bounded_evolution_usage(usage: dict[str, Any]) -> dict[str, Any]:
             "cached_input_tokens",
             "cache_read_tokens",
             "cache_write_tokens",
+            "total_tokens",
             "model",
         )
         if usage.get(key) is not None
     }
+    result.update(usage_metadata(usage))
     models = usage.get("models") if isinstance(usage.get("models"), list) else []
     if models:
         result["models"] = [

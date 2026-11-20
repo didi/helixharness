@@ -104,6 +104,20 @@ class ReportingConfigTest(unittest.TestCase):
         actual = Path(telemetry_async.__file__).parent
         for name in telemetry_async.RUNTIME_FILES:
             shutil.copy2(actual / name, source / "scripts" / name)
+        # A runtime install now includes the verified telemetry Host Kit
+        # snapshot. Supply a complete synthetic kit, not an empty hosts folder
+        # or a mocked validation result, plus the real adapter package.
+        from test_host_runtime_registry import manifest, write_host
+        write_host(source / "hosts", "codex", manifest(
+            "codex",
+            capabilities={"telemetry": "native"},
+            adapters={"telemetry": "python:telemetry_hosts.codex:CodexAdapter",
+                      "version": "python:update_hosts.codex:plugin_version"},
+        ))
+        adapter_package = source / "scripts/telemetry_hosts"
+        adapter_package.mkdir()
+        for adapter_source in (actual / "telemetry_hosts").glob("*.py"):
+            shutil.copy2(adapter_source, adapter_package / adapter_source.name)
         config = source / "scripts/reporting_config.py"
         config.write_text(config.read_text().replace('DEFAULT_REPORT_ENDPOINT = ""',
                                                      'DEFAULT_REPORT_ENDPOINT = "https://published.example/report"'))
@@ -112,9 +126,15 @@ class ReportingConfigTest(unittest.TestCase):
         copies = list((self.report_home / "runtime").rglob("reporting_config.py"))
         self.assertEqual(1, len(copies))
         self.assertEqual(config.read_bytes(), copies[0].read_bytes())
+        snapshot = json.loads((self.report_home / "runtime/telemetry-hosts.json").read_text())
+        self.assertEqual(snapshot["hosts"], [{"host_id": "codex", "aliases": [],
+                                              "adapter": "python:telemetry_hosts.codex:CodexAdapter"}])
+        self.assertTrue(telemetry_async._runtime_files_current(source, self.report_home))
         config.write_text(config.read_text().replace("published.example", "updated.example"))
+        self.assertFalse(telemetry_async._runtime_files_current(source, self.report_home))
         telemetry_async.install_runtime(source, self.report_home)
         self.assertEqual(config.read_bytes(), copies[0].read_bytes())
+        self.assertTrue(telemetry_async._runtime_files_current(source, self.report_home))
 
 
 if __name__ == "__main__":

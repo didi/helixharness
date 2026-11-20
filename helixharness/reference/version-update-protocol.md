@@ -10,19 +10,20 @@
 - 刷新 marketplace 后识别可更新版本。
 - 展示当前版本到目标版本之间的更新内容。
 - 按版本策略决定是否允许继续使用旧版本。
-- 使用当前平台的 plugin 原生命令完成升级，不手工复制 plugin 文件。
+- 由当前 Host Kit 执行经过验证的安装步骤：原生 plugin 命令，或已登记托管安装的原子替换；Agent 不手工覆盖插件。
 - 所有实际升级必须经过用户交互确认和一次性授权；强制升级只决定是否允许继续旧版本，不能代替用户授权安装。
 
 ## 宿主支持边界
 
 update 与 eval 分别使用动态 Host Registry，并保持独立 capability、cache 和生命周期。update 是否
 可用只看当前 Host Kit 的 `plugin_update=native|emulated|unsupported`；公共协议不维护宿主白名单。
-当前内置 Claude Code/Codex adapter 都提供正式更新能力。任何未注册宿主执行 update `check` 时固定返回
+Claude Code/Codex adapter 提供原生更新能力。Cursor 的 `plugin_update=emulated`，仅更新通过 Helix installer 登记的 macOS/Linux 本地安装；未登记副本或原生市场缓存不被接管。
+任何未注册宿主或未启用更新能力的宿主执行 update `check` 时固定返回
 `state=unsupported, reason=unsupported_host, next_action=continue_silently`，不读取或写入
 版本缓存、不提示更新、不创建 authorization，也不执行任何 plugin 命令。
 
 公共版本策略、缓存、授权、安装 journal 和并发控制不包含宿主分支；宿主差异只存在于
-Host Kit 的 update adapter。未来新增宿主必须先实现正式安装识别、marketplace 定位、原生安装
+Host Kit 的 update adapter。未来新增宿主必须先实现正式安装识别、marketplace 定位、受控安装
 步骤和验证门禁，再声明 `plugin_update=native|emulated`；不得增加共享平台分支。
 
 ## 数据来源
@@ -38,9 +39,11 @@ python3 {plugin_root}/scripts/version_update.py \
 
 脚本内部匹配规则：
 
-1. 只匹配完整 ID `helix@helixharness-marketplace` 且 enabled；`helix-local`、其他 marketplace、手工目录全部忽略。
+1. Claude Code/Codex 只匹配完整 ID `helix@helixharness-marketplace` 且 enabled；`helix-local`、其他 marketplace、手工目录全部忽略。
 2. Claude Code project 安装仅在 `projectPath` 覆盖当前 repo 时生效；多个匹配时选路径最深者，否则选择唯一 user scope。Codex 只接受唯一 enabled/installed 的正式 plugin，scope 固定为 `default`。
 3. Claude Code 当前执行脚本的 plugin root 必须等于 `installPath`，或等于唯一已注册 `source=directory` marketplace 的 manifest 中 `helix.source` 声明的本地路径；该相对路径不得越出 marketplace root。Codex 允许 plugin root 等于 `source.path`，或等于 `${CODEX_HOME:-$HOME/.codex}/plugins/cache/helixharness-marketplace/helix/{selected.version}` 这一精确的宿主管理版本缓存路径。两端版本都必须等于脚本所在的当前宿主 version 权威源（Claude Code 为 `.claude-plugin/marketplace.json` 的 entry version，Codex 为 `.codex-plugin/plugin.json` 的 version）；否则报告 `WARN:helixharness_version_unknown`，不得猜测或跨来源比较。
+
+4. Cursor 只接受 `${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/plugins/local/helix`，执行根必须等于已登记安装根。外部 `managed-install.json` 绑定安装 ID、Git 来源/ref、布局；安装目录内 receipt 绑定该登记、版本、commit 和文件摘要。未登记、来源不符、版本或文件被修改时拒绝更新，不接管其他副本。首次安装使用 [Cursor installer](../hosts/cursor/installer.md)。
 
 ### 可用版本
 
@@ -59,7 +62,10 @@ codex plugin marketplace upgrade helixharness-marketplace --json
 codex plugin marketplace list --json
 ```
 
-脚本从 marketplace list 中找到唯一 `name == "helixharness-marketplace"`，Claude 读取 `installLocation`、Codex 读取 `root`，记为 `{marketplace_root}`。然后读取根 manifest：
+脚本从 marketplace list 中找到唯一 `name == "helixharness-marketplace"`，Claude 读取 `installLocation`、Codex 读取 `root`，记为 `{marketplace_root}`。
+Cursor 从登记的 Git 来源/ref 获取临时、不可变的 commit 快照，只提取公开分发文件，使用 `.cursor-plugin/marketplace.json`。检查只更新版本缓存，不修改已安装副本；来源中的未提交改动不会被发布。
+
+根 manifest 路径由当前 update adapter 的 `marketplace_manifest_path` 提供；路径必须留在所选来源内，禁止越界符号链接。现有两宿主仍读取：
 
 - `{marketplace_root}/.claude-plugin/marketplace.json`
 
@@ -68,7 +74,7 @@ codex plugin marketplace list --json
 - `{formal_plugin_root}/reference/version-policy.json`
 - `{formal_plugin_root}/{当前宿主 manifest}/plugin.json`
 
-`version-policy.json.latest_version` 是自动版本决策的唯一 latest 来源，并且必须与当前宿主的 version 权威源（Claude Code 的 marketplace entry version、Codex 的 `.codex-plugin/plugin.json` version）一致。任一文件缺失或版本不一致时，本次 policy 不可用；禁止回退到 CHANGELOG、目录名或其他安装源。
+`version-policy.json.latest_version` 是自动版本决策的唯一 latest 来源，并且必须与当前宿主的 version 权威源（Claude Code 的 marketplace entry version、Codex 的 `.codex-plugin/plugin.json` version；Cursor 的 `.cursor-plugin/plugin.json` 与 marketplace entry version）一致。任一文件缺失或版本不一致时，本次 policy 不可用；禁止回退到 CHANGELOG、目录名或其他安装源。
 
 ### 更新内容
 
@@ -196,6 +202,12 @@ claude plugin update helix@helixharness-marketplace --scope project
 - 同时列出 user scope 仍可能影响其他项目。
 - 用户传入 `--all` 时，逐个更新所有启用 scope。
 
+Cursor 的实际安装同样只能由 `version_update.py install` 消费有效授权后执行。缓存和授权中的 `update_binding` 固定安装 ID、登记摘要、原安装摘要、来源/ref、目标 commit、目标文件摘要和版本。准备授权时展示来源与目标；安装前重新验证登记与旧树，只提取批准的 commit，不执行候选代码。macOS/Linux 用原子目录交换部署，验证失败恢复旧目录；成功保留回滚副本，进程在交换后中断可幂等恢复。完成后须重载 Cursor 并新开会话。未登记副本、符号链接、未知文件覆盖、无原子交换能力或布局变化均受控拒绝；不虚构 Cursor plugin-update CLI。
+
+新 authorization 同时冻结 `approved_releases`。进入 `installing` 前仍须与当前检查缓存完全匹配；Cursor 部署前再独立记录批准的来源绑定与授权事实摘要。恢复时只有适配器验证该独立凭据、原安装或批准目标、来源和有效授权后，才使用冻结的 release 信息继续，后续 `check` 刷新、缓存损坏或上游发布新版不改变原目标。缺少冻结信息或独立凭据时不得绕过缓存校验。旧原生 CLI 适配器默认不启用此能力，防止恢复操作安装未批准的 latest。
+
+`check` 只读返回可恢复事务的 `pending_installation`（challenge、scope、target_version、expires_at），不消费授权或执行部署；无效、过期、未确认或尚未进入安装的授权不返回该字段。公共 update 在非 `--check` 模式优先恢复该事务，再走升级后重载提示；`latest` 或网络检查失败不能吞掉恢复入口，更高版本必须另行确认。
+
 ## 版本策略缓存
 
 为了让主流程命令能发现“远端发布了强制升级版本”，又避免每次都被网络拖慢，HelixHarness 使用本机缓存保存最近一次远端版本策略检查结果。
@@ -205,9 +217,10 @@ claude plugin update helix@helixharness-marketplace --scope project
 ```text
 Claude Code: ${CLAUDE_CONFIG_DIR:-$HOME/.claude}/helixharness/version-check-cache.json
 Codex: ${CODEX_HOME:-$HOME/.codex}/helixharness/version-check-cache.json
+Cursor: ${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/helixharness/version-check-cache.json
 ```
 
-缓存只能由 plugin 捆绑的 `scripts/version_update.py` 读写，禁止命令或 Agent 自行构造、修改 JSON。调用方式：
+缓存与 authorization 保持 schema 1.0，新增 `update_binding` 为可选字段；是否必需及其内容由当前 Adapter 校验，旧宿主缓存仍兼容。Cursor 必须携带完整绑定，不能用缺失该字段的旧缓存安装。新 authorization 另含可选兼容字段 `approved_releases`；旧 authorization 缺失该字段时仍执行严格缓存校验，不能启用独立恢复。缓存只能由 plugin 捆绑的 `scripts/version_update.py` 读写，禁止命令或 Agent 自行构造、修改 JSON。调用方式：
 
 ```text
 python3 {plugin_root}/scripts/version_update.py --platform claude-code --repo-root {repo_root} check
@@ -281,9 +294,14 @@ python3 {plugin_root}/scripts/version_update.py --platform claude-code skip --ta
 
 真正执行升级必须按以下顺序：
 
-1. 按正式格式调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} prepare --scope {Claude: user|project|all；Codex: default}`，生成 10 分钟有效的 pending `challenge_id`，并返回正式 `prompt.title/message/allowed_actions`。
+1. 按正式格式调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} prepare --scope {Claude: user|project|all；Codex: default；Cursor: local}`，生成 10 分钟有效的 pending `challenge_id`，并返回正式 `prompt.title/message/allowed_actions`。
 2. 交互框原样使用 prompt，不得自行改写、缩减或重排按钮。
 3. 用户选择后按正式格式调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} decide --challenge-id {id} --action {upgrade_now|skip_update} --user-confirmed`。`upgrade_now` 将 challenge 标为 authorized；`skip_update` 取消 challenge，recommended 保存 skip，required 返回阻断结果。
 4. 仅 `upgrade_now` 可以继续调用 `python3 {plugin_root}/scripts/version_update.py --platform {当前平台} install --challenge-id {id}`。install 校验 platform、scope、目标版本、有效期、实时正式安装和 authorized 状态；随后写入 `installing` journal，逐步执行 adapter 命令。Claude 执行 `plugin update`；Codex 在授权后执行 `plugin marketplace upgrade`，再执行幂等 `plugin add`；每个完成步骤立即原子持久化，全部成功后才消费 authorization，中途失败保留 journal，重试只执行未完成步骤。
 
-禁止跳过任一步骤；禁止 Agent 直接执行平台 plugin 安装命令。pending、过期、目标版本变化、无交互环境或用户取消时均不得安装。`--check` 不得创建 authorization。所有宿主 CLI 都有有界输出和超时；普通状态锁等待上限 2 秒，marketplace 获取的每条 Git/宿主命令上限 20 秒，单个安装步骤上限 60 秒。
+禁止跳过任一步骤；禁止 Agent 直接执行平台 plugin 安装命令。pending、过期、无交互确认或用户取消时均不得安装；尚未进入安装的授权在缓存目标变化后也不得安装。已进入 `installing` 的事务只有通过上述独立恢复校验，才能在检查缓存变化后继续原批准目标，禁止改用新目标。`--check` 不得创建 authorization。所有宿主 CLI 都有有界输出和超时；普通状态锁等待上限 2 秒，marketplace 获取的每条 Git/宿主命令上限 20 秒，单个安装步骤上限 60 秒。
+
+
+## Cursor native update boundary
+
+仅 Cursor 原生安装：`check` 返回 `reason=installation_update_not_supported`、`next_action=continue_with_warning` 时，展示当前安装及手动更新步骤后结束更新流程；业务继续。不得进入 prepare/decide/install，不得改用旧 Local 缓存或授权，不把 unknown 当作已是最新。显式后续更新操作退出码为 2。此限制不改变 managed-local、Claude Code 或 Codex 的原协议。

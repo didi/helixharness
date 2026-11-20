@@ -308,44 +308,50 @@ status_entities: []
 - 若不存在 → 基于 Host Kit 的 `entry_template` 生成 `entry_file`；
 - 不探测其他宿主的入口文件，也不同时生成多个入口文件。
 
-**追加规则**：读取 `entry_template`，提取其中的“目录导航”“关键约束速览”“常用命令”
-“Agent 工作规则”四个区块，以 `## HelixHarness 导航` 为标题追加到 `entry_file` 末尾。关键约束
-速览中的占位符用实际生成的 harness invariants 填充。
+**追加规则**：读取 `entry_template`，提取其中的“目录导航”“关键约束速览”“Agent 工作规则”
+区块，以 `## HelixHarness 导航` 为标题追加到 `entry_file` 末尾。关键约束速览中的占位符用
+实际生成的 harness invariants 填充。“常用命令”必须由下方管理区工具合并，不先手工追加或改写。
 
 追加前检查文件末尾是否已包含 `## HelixHarness 导航` 或 `## Agent 工作规则` 区块：
 - 若已存在 → **不重复追加**，仅确认内容是否需要更新
 - 若不存在 → 追加完整区块
 
+**常用命令管理区**：完整读取 `entry_template` 中
+`<!-- helix:commands:start -->` 至 `<!-- helix:commands:end -->` 的唯一管理区；其中同时保留
+Cursor `/helix-xxx` 与 Claude Code/Codex `/helix:xxx` 的明确宿主标签和九个公共命令。
+先生成或合并入口的其他内容，再执行
+`python3 {plugin_root}/scripts/init_guidance.py --repo-root {repo_root} --platform {canonical_host_id} --mode {init_mode} merge`，
+其中 `init_mode=service`，完整全栈为 `fullstack`。使用父流程已验证的 Python、插件根与 Host Context。
+已有入口的常用命令不得先由模型改写；工具只更新合法管理区或精确识别的旧默认区，保留用户正文。
+自定义冲突、损坏/重复边界或工具失败均返回父流程 BLOCKED，不得全局替换前缀后宣称通过。
+
 **无论新增还是追加**，入口文件最终必须包含以下核心内容：
 - 项目概述（技术栈、架构风格、业务领域）
 - 目录导航地图（指向 harness/、knowledge/、specs/、hooks/）
 - 关键约束速览（最重要的 3-5 条 invariants）
-- 常用命令速查（/helix:propose、/helix:apply 等）
+- 带宿主标签的常用命令管理区（九个公共命令，两种入口写法共同保留）
 - Agent 工作规则（含 harness 和 knowledge 的按需加载协议引用）
 
-### Phase 5.5: 最终提交 state file
+### Phase 5.5: 返回生成结果，等待父流程验收
 
-只有 Phase 4 hooks 与 Phase 5 Host Kit 入口全部生成并通过逐项验证后，才使用公共
-`Read/Edit/Write` 工具语义原子更新 `docs/.helixharness-init-state.json`；其他宿主只按
-`resources.runtime` 映射，不依赖外部 JSON CLI：
+本 bootstrap 不得写入或删除 `docs/.helixharness-init-state.json`，不得调用状态提交器，
+不得写最终完成字段或把自身生成结束表述为整体 Init 完成。父流程是检测后状态的唯一写入者。
+返回实际生成的 knowledge、harness、hooks 三组仓库相对文件清单、入口路径、逐项检查结果，
+以及适用时的 `PROJECT_HOOKS_MERGE_REQUEST`。清单只包含实际已生成、非空且属于本仓的文件，
+保留异常和待确认项，不用 `parent-owned` 代替实际 Hooks 通过事实。
 
-1. state 文件缺失、为空或不是 JSON 对象时立即 `BLOCKED:init_state_missing`，不得跳过后继续完成。
-2. `scanPlan` 为空时补后端六路数组；已有非空计划保持不变。设置 `scanStatus=completed`。
-3. `bootstrap_mode=fullstack-base` 时设置 `bootstrapStatus=backend_completed`、写
-   `backendCompletedAt` 并移除过早的 `completedAt`；service 模式设置
-   `bootstrapStatus=completed` 与 `completedAt`。所有 `*At` 字段固定为当前 UTC Unix epoch
-   秒的 JSON number，与既有状态产物类型一致，不得写 ISO 字符串或宿主本地时间文本。
-4. 从实际文件列表构造排序、去重后的 `deliverables.knowledge.files` 和
-   `deliverables.harness.files`，`count` 必须等于对应数组长度。
-5. 只修改上述字段，保留其他键。写入后重新 `Read`，确认 JSON 可解析、字段类型正确、入口、hooks
-   及所有 deliverable 文件均存在；任一步失败报告 `BLOCKED:init_state_update_failed`。
+`bootstrap_mode=fullstack-base` 时只报告后端生成阶段已结束；父流程先核验后端产物，
+再提交 backend_completed/backendCompletedAt 检查点并进入前端 bootstrap。整个 Init 的最终
+状态必须等父流程完成所有产物、实际 Hooks 和统计门禁之后才提交。
 
-> 不要删除 `docs/.helixharness-init-state.json`（供后续命令使用）。
+### Phase 6: 向父流程输出生成结果
 
-### Phase 6: 输出初始化报告
+以下是返回父流程的阶段报告，不是面向用户的最终完成报告。最终报告、错误重试和下一步建议中的
+公共命令入口必须按当前 Host Context 展示：Cursor 使用 `/helix-xxx`，Claude Code/Codex 使用
+`/helix:xxx`，参数、路径、引号、`--loop`、`--workspace` 和 `bug-fix` 保持原义。
 
 ```text
-## HelixHarness 初始化完成
+## HelixHarness 后端生成阶段结果（等待父流程验收）
 
 ### 项目信息
 - 项目模式: {project-mode}
@@ -357,7 +363,7 @@ status_entities: []
 
 ### 生成的文件
 - [x] Host Kit `entry_file`
-- [x] Host Kit `settings_file` 已按 `resources.project_hooks` 合并，或明确为跳过/parent-owned
+- Host Kit `settings_file`：如实报告已合并、契约明确跳过，或待父流程合并；待合并不计为最终通过
 - [x] docs/harness/index.md
 - [x] docs/harness/invariants/index.md + 相关叶子规则 — {N} 条规则
 - [x] docs/harness/architecture/index.md
@@ -385,10 +391,10 @@ status_entities: []
 - [x] docs/eval/.gitkeep（仅数据统计开启时）
 - [x] .gitignore 中包含 `docs/eval/**` 提交例外（仅数据统计开启时）
 
-### 下一步
+### 父流程最终验收通过后才可展示的下一步
 1. 审核 docs/harness/ 下的约束文件，补充项目特有规则
 2. 审核 docs/knowledge/ 知识库，确认准确性
-3. 执行 /helix:propose <feature-name> 开始第一个需求开发
+3. 执行 {当前宿主的 propose 命令入口} <feature-name> 开始第一个需求开发
 ```
 
 ## 注意事项

@@ -4,7 +4,7 @@
 
 当前版本：**HelixHarness 1.0.0 · helixharness-platform 1.0.0**。
 
-**面向 Codex 与 Claude Code 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
+**面向 Codex、Claude Code 与 Cursor 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
 
 从一个需求到有验证依据的代码变更：明确边界、拆分任务、实现、测试、评审，再把结果归档到项目中。HelixHarness 将这些步骤作为可复用的工作流交给编码助手，需求和执行进度保存在仓库里，便于检查和续跑。
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ 测试 + 代码评审 + 验证依据
 ```
 
-**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Cursor · 单仓 / 多仓 Workspace · Apache-2.0**
 
 只做日常开发，安装 **HelixHarness** 即可。需要观测使用情况、评测和改进 **HelixHarness 框架本身**，再运行 **helixharness-platform**。开发场景的结果用于判断框架行为，平台不是通用的业务代码评分服务。
 
@@ -50,7 +50,7 @@ Propose → Apply → Archive
 
 | 用途 | 要求 |
 | --- | --- |
-| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex 或 Claude Code；宿主已完成登录或模型配置，能够正常使用 |
+| 使用 HelixHarness | Python 3.9+、Git，以及支持插件的 Codex、Claude Code 或 Cursor；宿主已完成登录或模型配置，能够正常使用 |
 | 运行平台 Demo / 使用看板 | Python 3.10+、Git；安装平台 `server` 依赖 |
 | 真实版本评测 | 平台依赖、可用的 Codex 执行环境、模型凭据、可访问的 Git 仓库，以及 Case 所需的构建与测试工具 |
 | 前端预览与视觉验证 | 项目自身的 Node.js、包管理器及浏览器工具；设计服务按实际使用情况配置 |
@@ -59,7 +59,7 @@ Propose → Apply → Archive
 
 ### 1. 安装 HelixHarness 插件
 
-仓库公开后，在终端选择使用的宿主，只执行对应的一组命令。发布前测试或修改插件时，使用[开发者安装（本地源码）](installation.md#developer-installation)。
+仓库公开后，Codex 和 Claude Code 使用下方对应终端命令，Cursor 使用市场界面安装。发布前测试或修改插件时，使用[开发者安装（本地源码）](installation.md#developer-installation)。
 
 **Codex**
 
@@ -77,9 +77,13 @@ claude plugin install helix@helixharness-marketplace
 
 安装后，在你要开发的业务仓库中新开宿主会话，确认能找到 `helixharness` 的九个公开命令。宿主适配说明见 [Codex 安装指南](../helixharness/hosts/codex/installer.md) 和 [Claude Code 安装指南](../helixharness/hosts/claude-code/installer.md)。
 
+**Cursor**
+
+发行仓库已加入可访问的 Cursor 市场后，通过 **Customize → helix → Install** 安装。管理员配置、高级固定来源配置及托管 Local 安装见[市场安装与可选路径](installation.md#cursor-preview)。安装后重载窗口并新建 Agent。Cursor 的九个 `/helix-{command}` Skill 与下文 `/helix:*` 示例使用相同参数和业务门禁。统计需授权及本次会话身份，数据可能为 partial。原生市场更新由 Cursor 管理，`/helix-update` 支持已登记的托管 Local。详见[支持与验证边界](cursor-testing.md)。
+
 ### 2. 完成第一个需求
 
-以下 `/helix:*` 是**输入到编码助手会话中的命令**，不是终端 Shell 命令。
+命令应**输入到编码助手会话中**，不是终端 Shell 命令。以下示例使用 Codex / Claude Code 的 `/helix:` 前缀；在 Cursor 中将该前缀替换为 `/helix-`，命令名和参数保持不变。例如 `/helix:init` 对应 `/helix-init`，`/helix:bug-fix` 对应 `/helix-bug-fix`。
 
 先在业务仓库初始化项目：
 
@@ -150,7 +154,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | 项目 | 面向谁 | 负责什么 | 运行位置 |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code 会话及业务仓库 |
+| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code / Cursor 会话及业务仓库 |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | 观测和改进 HelixHarness 框架的维护者 | 数据看板、版本评测、自进化 | 独立 Python Web 服务与评测 Worker |
 
 ```mermaid
@@ -179,7 +183,7 @@ flowchart LR
 
 ## 命令参考
 
-公开命令共九个，`--loop` 是 `propose` 的参数。
+公开命令共九个，`--loop` 是 `propose` 的参数。表中示例使用 Codex / Claude Code 的 `/helix:`；在 Cursor 中使用 `/helix-` 前缀，参数相同。
 
 | 命令 | 用途 | 示例 |
 | --- | --- | --- |
@@ -219,6 +223,8 @@ flowchart LR
 ```
 
 每次执行一项修改。统计开关必须同时指定 `--scope project|user`；用户级关闭优先于项目级开启，用户级设置属于当前宿主。地址是本机用户配置，独立于统计授权；修改地址不会开启统计，也不会发送请求。恢复默认地址可能仍有接收方，需要停止统计时明确关闭授权。开启前展示数据说明；明确的修改请求不需要重复确认。损坏配置保留原文件并报错。
+
+明确开启请求在同一次交互内完成：Agent 先通过用户可见的进度消息展示完整说明，再沿用原请求继续执行，不等待再次回复“继续”或重新选择授权。直接调用 CLI 时，首次只返回只读的 `request_complete=false` 说明回执；调用方必须先展示说明，再按 `continuation` 沿用原授权与范围续执行。`request_complete=true` 只表示本次脚本请求已处理结束，不代表修改成功；仍须检查 `change.updated`、warning 和实际有效配置。
 
 模型、密钥、业务配置和平台部署不在此入口范围内。完整合同见 [status](../helixharness/commands/status.md) 和 [config](../helixharness/commands/config.md)。
 
@@ -399,7 +405,7 @@ DEFAULT_FEEDBACK_ENDPOINT = ""
 
 ### 模型配置
 
-日常使用插件时，模型由 Codex / Claude Code 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
+日常使用插件时，模型由 Codex / Claude Code / Cursor 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
 
 配置模板见 [`helixharness-platform/.env.example`](../helixharness-platform/.env.example)。服务读取**进程环境变量，不会自动加载 `.env.example`**；将真实值注入启动 Web 和 Worker 的环境。
 
@@ -611,7 +617,7 @@ Candidate 生成在普通用户（包括 macOS 本地用户）下默认使用 Co
 ├── helixharness/
 │   ├── commands/       # 九个公共命令入口和路由
 │   ├── workflows/      # single/ 单仓执行，workspace/ 多仓协调
-│   ├── hosts/          # Codex / Claude Code 适配
+│   ├── hosts/          # Codex / Claude Code / Cursor 适配
 │   ├── skills/         # 工作流复用的方法
 │   └── scripts/        # 路由、工件校验与遥测
 └── helixharness-platform/
@@ -634,7 +640,7 @@ Candidate 生成在普通用户（包括 macOS 本地用户）下默认使用 Co
 | [`systematic-debugging`](../helixharness/skills/systematic-debugging/SKILL.md) | 复现异常、验证假设、定位根因与验证修复 | 由用户明确调用，独立使用 |
 | [`feedback`](../helixharness/skills/feedback/SKILL.md) | 提交 HelixHarness 使用问题 | 独立辅助能力；需启动平台并配置地址 |
 
-Codex 安装目录包含九个公开入口 Skill 和上述八个方法 Skill；Claude Code 直接发现根 `skills/`。四个生命周期命令继续使用工作流路由；`status`、`config` 与辅助 Skill 不增加研发阶段。正式 Spec/Tasks、执行进度和完成验证仍由对应研发阶段负责。
+Codex 与 Cursor 安装目录各包含九个公开入口 Skill 和上述八个方法 Skill；Claude Code 直接发现根 `skills/`。四个生命周期命令继续使用工作流路由；`status`、`config` 与辅助 Skill 不增加研发阶段。正式 Spec/Tasks、执行进度和完成验证仍由对应研发阶段负责。
 
 `git-diff-impact` 无需 Init、活跃 feature 或平台服务。示例：“使用 HelixHarness git-diff-impact，分析当前未提交改动，--no-save”；也可明确提供两个提交或分支，以及 `--req` / `--design` 文档。默认保存 Markdown 到 `diff-impact-reports/`，`--out` 可指定位置。它不自动修复代码，也不改变评审结论。
 

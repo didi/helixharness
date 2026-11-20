@@ -13,11 +13,24 @@ Workspace 初始化只生成根目录协调产物，不自动初始化或改写�
 各子仓独立执行完整 Single Propose/Apply/Archive，分别维护 `spec.md`、`tasks.md`、`verify-report.md`。
 根目录不复制子仓工件、不维护独立 Ledger，不生成 proposal、design、verification 或 repo-plan 文件。
 
+<!-- helix:commands:start -->
 ## 常用命令
 
-`/helix:init --workspace` 初始化根目录。`/helix:propose <feature> <requirement-or-path>`
-建立需求；`--loop` 串联 Propose → Apply → Archive。`apply` 与 `archive` 按 Router 的 Workspace
-范围调度子仓；其他命令的适用范围仍以各自 Router 和完整命令为准。
+按当前宿主选择入口；同一 Workspace 可由多个宿主使用，保留两组指引。
+
+| 命令 | Cursor | Claude Code / Codex |
+| --- | --- | --- |
+| 初始化根目录 | `/helix-init --workspace` | `/helix:init --workspace` |
+| 建立需求 | `/helix-propose <feature> <requirement-or-path>` | `/helix:propose <feature> <requirement-or-path>` |
+| 执行实现 | `/helix-apply <feature>` | `/helix:apply <feature>` |
+| 归档 | `/helix-archive <feature>` | `/helix:archive <feature>` |
+
+为 propose 增加 `--loop` 按顺序执行 Propose → Apply → Archive。Apply 与 Archive 按 Router 的
+Workspace 范围调度子仓；其他命令的适用范围仍以各自 Router 和完整命令为准。
+Workspace 根不支持 BugFix；需进入已初始化子仓，对未归档的单仓需求使用
+Cursor `/helix-bug-fix <feature>` 或 Claude Code / Codex `/helix:bug-fix <feature>`。
+仅入口写法不同；参数、路径、引号与命令适用范围保持一致。
+<!-- helix:commands:end -->
 
 ## Agent 工作规则
 

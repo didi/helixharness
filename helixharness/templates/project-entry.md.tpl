@@ -11,11 +11,27 @@
 
 {{PROJECT_CONTEXT}}
 
+<!-- helix:commands:start -->
 ## 常用命令
 
-`/helix:init`、`/helix:propose`、`/helix:apply`、`/helix:archive`、
-`/helix:ut`、`/helix:bug-fix`、`/helix:update`。
-`propose --loop` 按顺序执行 Propose → Apply → Archive。
+按当前宿主选择入口；同一项目可由多个宿主使用，保留两组指引。
+
+| 命令 | Cursor | Claude Code / Codex |
+| --- | --- | --- |
+| 初始化 | `/helix-init` | `/helix:init` |
+| 需求规划 | `/helix-propose` | `/helix:propose` |
+| 执行实现 | `/helix-apply` | `/helix:apply` |
+| 归档 | `/helix-archive` | `/helix:archive` |
+| 单元测试 | `/helix-ut` | `/helix:ut` |
+| 修复未归档需求 | `/helix-bug-fix` | `/helix:bug-fix` |
+| 更新插件 | `/helix-update` | `/helix:update` |
+| 查看状态 | `/helix-status` | `/helix:status` |
+| 用户配置 | `/helix-config` | `/helix:config` |
+
+Cursor 使用 `/helix-propose <feature> <requirement-or-path> --loop`；Claude Code / Codex 使用
+`/helix:propose <feature> <requirement-or-path> --loop`，按顺序执行 Propose → Apply → Archive。
+仅入口写法不同；参数、路径、引号与命令适用范围保持一致。`bug-fix` 仅用于未归档的单仓需求。
+<!-- helix:commands:end -->
 
 ## Agent 工作规则
 

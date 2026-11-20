@@ -533,6 +533,10 @@ def start_stage(
     }
     entry_id = _entry_id(identity)
     with _lock(repo):
+        prepare_source = getattr(get_host_adapter(platform), "prepare_session_source", None)
+        if callable(prepare_source):
+            context = prepare_source(repo, {"session_id": raw_session_id, "session_cwd": str(repo)}, consent_epoch)
+            session_log_path = context.get("session_log_path")
         ledger = _ensure_ledger_locked(repo, name, now=started)
         if ledger.get("status") == "archived":
             raise LedgerError("archived Lite requirement telemetry is sealed")
@@ -943,6 +947,10 @@ def cleanup_delivered_entry(repo: Path, entry_id: str, *, feature: str) -> int:
         raise LedgerError("invalid entry id")
     removed = 0
     with _lock(repo):
+        try:
+            locator = _load_json(_locator_path(repo, entry_id)) or {}
+        except LedgerError:
+            locator = {}
         state = _state_path(repo, entry_id)
         for path in (
             _locator_path(repo, entry_id),
@@ -975,10 +983,18 @@ def cleanup_delivered_entry(repo: Path, entry_id: str, *, feature: str) -> int:
                 seal.parent.rmdir()
             except OSError:
                 pass
+        # Keep the ledger lock through source release: a simultaneous new stage
+        # must not acquire a locator to a source just declared unreferenced.
+        adapter = get_host_adapter(locator.get("platform"))
+        release_source = getattr(adapter, "release_session_source", None)
+        if callable(release_source) and isinstance(locator.get("session_log_path"), str):
+            removed += release_source(repo, locator["session_log_path"])
     return removed
 
 
-def purge_private(repo: Path, *, platform: str | None = None) -> int:
+def purge_private(repo: Path, *, platform: str | None = None, strict_scope: bool = False) -> int:
+    if strict_scope and not platform:
+        raise LedgerError("strict cleanup requires an explicit platform")
     repo = Path(repo).resolve()
     removed = 0
     trace_entry_ids: set[str] = set()
@@ -988,12 +1004,18 @@ def purge_private(repo: Path, *, platform: str | None = None) -> int:
             if not directory.is_dir():
                 continue
             for path in directory.glob("entry-*.json"):
+                if strict_scope and path.is_symlink():
+                    continue
                 try:
                     value = _load_json(path) or {}
                 except LedgerError:
                     value = {}
                 entry = value.get("entry") if isinstance(value.get("entry"), dict) else {}
                 item_platform = value.get("platform") or entry.get("platform")
+                if strict_scope and value.get("platform") and entry.get("platform") and value["platform"] != entry["platform"]:
+                    continue
+                if strict_scope and item_platform != platform:
+                    continue
                 if platform and item_platform not in {None, platform}:
                     continue
                 trace_entry_ids.add(path.stem)

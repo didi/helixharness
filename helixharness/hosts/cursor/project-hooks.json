@@ -1,0 +1,16 @@
+{
+  "project_hooks_version": "1.1",
+  "owner": "parent",
+  "settings_file": ".cursor/hooks.json",
+  "merge_strategy": "json_flat_append_dedup",
+  "dedupe_key": "hooks.*[].command+matcher",
+  "payload": {
+    "version": 1,
+    "hooks": {
+      "afterFileEdit": [
+        {"command": "bash docs/harness/linters/invariant-check.sh 2>&1 | head -50"},
+        {"command": "bash docs/harness/linters/spec-sync-check.sh 2>&1 | head -50"}
+      ]
+    }
+  }
+}

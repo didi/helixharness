@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from host_runtime import HostContractError, HostRegistry
-from host_runtime.project_hooks import load_project_hooks
+from host_runtime.project_hooks import load_project_hooks, validate_flat_payload
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 
@@ -72,6 +72,35 @@ def merge_payload(current: dict, required: dict) -> dict:
     return result
 
 
+def merge_flat_payload(current: dict, required: dict) -> dict:
+    """Append native handlers by command/matcher while retaining user options."""
+
+    result = copy.deepcopy(current)
+    result.setdefault("version", 1)
+    events = result.setdefault("hooks", {})
+    validate_flat_payload(result)
+    validate_flat_payload(required)
+    for event, expected_handlers in required["hooks"].items():
+        handlers = events.setdefault(event, [])
+        for expected in expected_handlers:
+            found = False
+            kept = []
+            for existing in handlers:
+                if (
+                    existing.get("type", "command") == expected.get("type", "command")
+                    and existing.get("command") == expected.get("command")
+                    and existing.get("matcher") == expected.get("matcher")
+                ):
+                    if found:
+                        continue
+                    found = True
+                kept.append(existing)
+            if not found:
+                kept.append(copy.deepcopy(expected))
+            handlers[:] = kept
+    return result
+
+
 def project_hooks(repo: Path, platform: str, action: str) -> dict:
     manifest = HostRegistry.discover(PLUGIN_ROOT / "hosts").get(platform)
     if manifest is None:
@@ -89,7 +118,10 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
     current = json.loads(target.read_text()) if exists else {}
     if not isinstance(current, dict):
         raise ValueError("project settings must be an object")
-    merged = merge_payload(current, contract.payload)
+    if contract.merge_strategy == "json_flat_append_dedup":
+        merged = merge_flat_payload(current, contract.payload)
+    else:
+        merged = merge_payload(current, contract.payload)
     if action == "check":
         if not exists or current != merged:
             raise ValueError("project_hooks_missing_or_duplicated")

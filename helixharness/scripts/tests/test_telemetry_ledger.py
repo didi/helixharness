@@ -586,7 +586,7 @@ class TelemetryLedgerTest(unittest.TestCase):
                 self.repo,
                 feature="unsupported-host",
                 command="apply",
-                platform="cursor",
+                platform="unregistered-host",
                 trigger="user_command",
                 consent_epoch="cep_0123456789abcdef01234567",
             )

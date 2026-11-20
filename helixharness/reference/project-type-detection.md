@@ -1,10 +1,16 @@
 # 项目类型检测协议
 
-init 命令的 Step 0 执行此脚本，使用 bash 检测项目类型（<100ms），写入状态文件供 Step 1 分支编排。
+单仓 init 命令的 Step 0 执行此脚本，使用 bash 检测项目类型（<100ms），写入状态文件供 Step 1 分支编排。
+Workspace 只执行自己的 W0/W1/W2，不运行本检测或单仓状态提交器。
 
 ## 状态文件
 
 `docs/.helixharness-init-state.json`
+
+本检测每次开始新一轮单仓 Init，按既有规则替换上一轮检测状态；初始状态明确为 pending，
+不得沿用上一轮的 completed/completedAt。后续 checkpoint 和最终完成状态只有父流程可通过
+`scripts/init_state.py` 提交；扫描和 bootstrap 子任务不得写入该状态文件。缺失、损坏或非对象
+状态必须停止，不得跳过后声称完成；重新执行完整检测才可开始新一轮。
 
 ## 检测脚本
 
@@ -125,7 +131,9 @@ cat > "$STATE_FILE" << JSONEOF
     "hasFrontend": $HAS_FRONTEND
   },
   "scanPlan": $SCAN_PLAN,
-  "userConfirmed": $USER_CONFIRMED
+  "userConfirmed": $USER_CONFIRMED,
+  "scanStatus": "pending",
+  "bootstrapStatus": "pending"
 }
 JSONEOF
 

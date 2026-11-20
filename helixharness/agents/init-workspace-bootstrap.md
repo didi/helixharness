@@ -11,6 +11,11 @@ description: "多仓 workspace 初始化 agent。生成 helixharness.workspace.y
 `entry_template` 仅供单仓 init 使用，`settings_file` 在 workspace 模式不写。宿主工具语义读取
 `resources.runtime`，禁止按平台名硬编码入口文件。
 
+向用户展示完成报告、错误重试、下一步建议或子仓初始化命令时，按当前 Host Context
+映射公共命令入口：Cursor 使用 `/helix-xxx`，Claude Code / Codex 使用 `/helix:xxx`。
+本文中的 `/helix:xxx` 是公共逻辑标识，不能直接复制成 Cursor 的用户输入示例。
+只改变入口标识；参数、路径、引号、`--workspace`、`--loop` 与 `bug-fix` 名称保持原义。
+
 ## 输入
 
 - workspace 根目录
@@ -103,6 +108,21 @@ Host Kit 的 `workspace_entry_template`
 - 不覆盖用户已有内容
 - 只在文件末尾追加或更新 `HelixHarness Workspace` 导航区块
 - 不写入 repo-local harness 规则
+
+常用命令区必须由模板中的 `<!-- helix:commands:start -->` 与
+`<!-- helix:commands:end -->` 包围，同时保留 Cursor 和 Claude Code / Codex 的入口标签。
+不要用全局前缀替换修改用户正文，也不要先手工改写已有常用命令区来掩盖冲突。
+生成其他导航内容后，用已验证的 Python、插件根和当前 Host Context 执行机械合并：
+
+```text
+<verified-python> <plugin-root>/scripts/init_guidance.py --repo-root <workspace-root> --platform <host-id> --mode workspace merge
+```
+
+参数必须使用宿主工具提供的独立 argv 或正确引用，保留路径中的空格。该工具只管理命令块，
+不替代 Workspace 产物验收；不存在管理区且没有常用命令冲突时追加，合法管理区仅更新此区，
+可精确识别的旧默认区才允许迁移。自定义冲突、重复/损坏边界或未知宿主返回 blocked，
+保留用户内容，不得继续报告初始化完成。Cursor 与 Codex 共用 `AGENTS.md` 时仍保留两组入口，
+不能随本次宿主覆盖另一组；本次合并也不得进入子仓。
 
 workspace 入口文件必须明确：
 
@@ -202,6 +222,17 @@ test -f ./docs/knowledge/index.md
 test -d ./docs/specs/active
 test -d ./docs/specs/completed
 ```
+
+还必须读取根入口的实际命令区，并执行同一机械工具的只读检查：
+
+```text
+<verified-python> <plugin-root>/scripts/init_guidance.py --repo-root <workspace-root> --platform <host-id> --mode workspace check
+```
+
+确认 Cursor 行为 `/helix-xxx`、Claude Code / Codex 行为 `/helix:xxx`，保留
+`--workspace`、`--loop` 和需求参数。Workspace 根不支持 BugFix，不得把子仓 BugFix 指引写成根命令。
+该检查同样用于 refresh 后产物；失败不得报告完成。`validate_init_outputs.py` 仍只用于开发期/CI，
+不得作为本流程运行期的语义验收替代品。
 
 若任一检查失败，不得输出“完成”，改为输出：
 

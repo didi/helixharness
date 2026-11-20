@@ -46,7 +46,7 @@ python3 "{plugin_root}/scripts/version_update.py" --platform "{current_platform}
 
 ## HelixHarness 统计（非阻塞）
 
-此处 `{current_platform}` 表示当前 Agent 宿主，不是操作系统：Claude Code 固定为 `claude-code`，Codex 固定为 `codex`。禁止传入 `darwin`、`linux`、`windows` 等 OS 标识。该映射适用于本 workflow 内所有 `metrics.py --platform` 调用。
+此处 `{current_platform}` 必须取自已绑定 Host Context 的 `canonical_host_id`，表示当前 Agent 宿主，不是操作系统。禁止传入 `darwin`、`linux`、`windows` 等 OS 标识，也不得借用其他宿主身份。该规则适用于本 workflow 内所有 `metrics.py --platform` 调用；`telemetry=unsupported` 时按公共统计协议跳过，业务门禁保持不变。
 
 调用 `start` 前，先按实际入口确定唯一的 `metrics_trigger`：
 

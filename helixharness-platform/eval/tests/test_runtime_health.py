@@ -34,7 +34,8 @@ def health_event(**changes) -> dict:
     }
 
 
-def test_health_v2_preserves_open_recovery_and_heartbeat(tmp_path):
+@pytest.mark.parametrize("platform", ["claude-code", "codex", "cursor"])
+def test_health_v2_preserves_open_recovery_and_heartbeat(tmp_path, platform):
     path = tmp_path / "inbox.db"
     store = StageSupplementStore(path)
     events = [
@@ -44,6 +45,8 @@ def test_health_v2_preserves_open_recovery_and_heartbeat(tmp_path):
         health_event(event_id="health_heartbeat", event="heartbeat", circuit_open=False,
                      consecutive_failures=0, observed_at="2026-09-09T03:10:00Z"),
     ]
+    for event in events:
+        event.update(platform=platform, scope_id=f"repo_a_{platform}")
     # Delayed arrival must not overwrite any other event or scope.
     for event in reversed(events):
         assert store.ingest_runtime_health(event)["status"] == "accepted"
@@ -54,21 +57,25 @@ def test_health_v2_preserves_open_recovery_and_heartbeat(tmp_path):
         assert all(row["received_at"] for row in rows)
         assert {json.loads(row["payload_json"])["event_id"] for row in rows} == {e["event_id"] for e in events}
         assert all(json.loads(row["payload_json"])["user_name"] == "test-user" for row in rows)
+        assert all(json.loads(row["payload_json"])["platform"] == platform for row in rows)
 
 
-def test_v2_conflicting_retry_does_not_overwrite_original(tmp_path):
+@pytest.mark.parametrize("platform", ["claude-code", "codex", "cursor"])
+def test_v2_conflicting_retry_does_not_overwrite_original(tmp_path, platform):
     store = StageSupplementStore(tmp_path / "inbox.db")
-    store.ingest_runtime_health(health_event())
+    store.ingest_runtime_health(health_event(platform=platform))
     with pytest.raises(StageSupplementError, match="different content") as error:
-        store.ingest_runtime_health(health_event(feature="different-feature"))
+        store.ingest_runtime_health(health_event(platform=platform, feature="different-feature"))
     assert error.value.code == "identity_conflict"
     with store._connect() as connection:
         row = connection.execute("SELECT payload_json FROM runtime_health_events").fetchone()
         assert json.loads(row[0])["feature"] == "test-feature"
+        assert json.loads(row[0])["platform"] == platform
 
 
 @pytest.mark.parametrize("change", [
     {"scope_kind": "all_projects"}, {"platform": "invalid"}, {"circuit_open": "true"},
+    {"platform": "Cursor"}, {"platform": "cursor\n"}, {"platform": "../cursor"},
     {"consecutive_failures": True}, {"consecutive_failures": -1}, {"consecutive_failures": 0},
     {"event": "circuit_closed"}, {"observed_at": "2026-09-09T03:00:00"},
     {"circuit_resume_at": "2026-09-08T03:00:00Z"}, {"reason_code": ""},

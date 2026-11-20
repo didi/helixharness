@@ -2,9 +2,11 @@
 
 当前版本：**1.0.0**。
 
-面向 Codex 与 Claude Code 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
+面向 Codex、Claude Code 与 Cursor 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
 
 ## 命令
+
+以下 `/helix:*` 为公共逻辑命令名，也是 Codex / Claude Code 的输入形式。Cursor 使用 `/helix-{command}`，从 `/helix-` 补全选择入口，参数和业务门禁相同。Cursor 默认通过市场安装，固定来源配置和托管 Local 作为可选方式；统计及更新的能力边界见 [Cursor 安装说明](hosts/cursor/installer.md)。
 
 - `/helix:init`：初始化当前项目；`--workspace` 初始化多仓目录。
 - `/helix:propose <name> <requirement-or-path>`：收敛需求并生成 Spec/Tasks。
@@ -19,7 +21,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex 或 Claude Code。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+需要 Python 3.9+、Git，以及 Codex、Claude Code 或 Cursor。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md) 和 [Cursor](hosts/cursor/installer.md) 安装说明。
 
 ## 独立方案探索与调试
 
@@ -44,7 +46,7 @@
 
 随时使用 `/helix:config` 查看生效值。显式设置示例：`/helix:config --telemetry disabled --scope project`、`/helix:config --report-endpoint http://127.0.0.1:7860/report`。反馈地址用 `--feedback-endpoint`；`--reset-report-endpoint` / `--reset-feedback-endpoint` 恢复对应发布默认地址，不等于关闭统计。详见[配置命令](commands/config.md)。
 
-统计默认关闭，但**无论是否配置异步地址，Init / 规定的 Propose 入口都按授权缓存和提醒周期正常询问**。选择开启后，同步写入 `docs/eval/<feature>/eval-log.json`，平台可本地读取或经 Git 同步获取；没有有效异步地址时仅跳过后台采集和投递。未授权或关闭时，同步账本不新增记录，异步也不采集或投递；历史记录不会自动删除。账本 `completed` 只表示阶段完成，不能声称平台已收到异步明细。
+支持统计的宿主上，统计默认关闭，但**无论是否配置异步地址，Init / 规定的 Propose 入口都按授权缓存和提醒周期正常询问**。选择开启后，同步写入 `docs/eval/<feature>/eval-log.json`，平台可本地读取或经 Git 同步获取；没有有效异步地址时仅跳过后台采集和投递。未授权或关闭时，同步账本不新增记录，异步也不采集或投递；历史记录不会自动删除。账本 `completed` 只表示阶段完成，不能声称平台已收到异步明细。
 
 未配置异步统计地址时，正常流程静默跳过，不额外显示地址缺失、未异步上报或配置提醒；仅在用户主动查询或排障时解释。
 

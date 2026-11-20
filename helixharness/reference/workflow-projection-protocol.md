@@ -36,6 +36,10 @@
 - Codex 方法薄入口必须先绑定 `hosts/codex/host.json`、公共 Host Runtime/Tool Semantics 与
   `resources.runtime`，然后才执行 canonical 正文；正文首次派发 Agent/Task 时再按需读取公共协议和
   `resources.subagent_protocol`。直接调用方法 Skill 与从公共 command 调用时使用同一能力映射。
+- Cursor 薄入口由 `scripts/cursor_skill_projection.py` 生成，绑定 `hosts/cursor/host.json`。
+  `/helix-{command}` 是原生 Skill 表面，公共 `/helix:{command}` 是相同命令的逻辑标识；转场按当前
+  `resources.workflow_transition` 内联执行唯一 contract，不依赖 UI 别名。方法入口只投影调用意图，
+  不携带 Claude hooks 或 Codex metadata；D2C 的宿主门禁由 Cursor runtime 明确执行。
 - Host Context、projection 和 manifest 已给出的资源路径必须直接使用；不得枚举或搜索 plugin 根目录、
   安装目录或 cache 来重新发现同名资源，也不得用 `find/rg/ls/wc/stat` 试探已绑定资源的位置或长度。
 - 固定且互不依赖的资源可在宿主支持时合并为一个有界读取批次；生命周期协议要求独占工具轮次的动作

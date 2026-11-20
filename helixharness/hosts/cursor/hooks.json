@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" sessionStart",
+        "timeout": 3
+      }
+    ],
+    "beforeSubmitPrompt": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" beforeSubmitPrompt", "timeout": 3}],
+    "afterAgentResponse": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" afterAgentResponse", "timeout": 3}],
+    "postToolUse": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" postToolUse", "timeout": 3}],
+    "postToolUseFailure": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" postToolUseFailure", "timeout": 3}],
+    "subagentStart": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" subagentStart", "timeout": 3}],
+    "subagentStop": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" subagentStop", "timeout": 3}],
+    "stop": [{"command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" stop", "timeout": 3}],
+    "sessionEnd": [
+      {
+        "command": "sh \"${CURSOR_PLUGIN_ROOT}/hosts/cursor/hook_bootstrap.sh\" sessionEnd",
+        "timeout": 3
+      }
+    ]
+  }
+}

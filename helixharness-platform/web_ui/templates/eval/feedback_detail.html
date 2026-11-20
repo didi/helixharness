@@ -85,7 +85,7 @@
           <div><dt>提交人</dt><dd>{{ row.user_name or '—' }}</dd></div>
           <div><dt>分类</dt><dd>{{ category }}</dd></div>
           <div><dt>插件版本</dt><dd>{{ row.plugin_version or '—' }}</dd></div>
-          <div><dt>使用平台</dt><dd>{{ {'claude-code': 'Claude Code', 'codex': 'Codex', 'unknown': '未采集'}.get(row.host, row.host or '—') }}</dd></div>
+          <div><dt>使用平台</dt><dd>{{ {'claude-code': 'Claude Code', 'codex': 'Codex', 'cursor': 'Cursor', 'unknown': '未采集'}.get(row.host, row.host or '—') }}</dd></div>
           <div><dt>需求</dt><dd>{{ row.feature or '未关联需求' }}</dd></div>
           <div><dt>项目标识</dt><dd class="helixharness-feedback-mono">{{ row.project or '—' }}</dd></div>
         </dl>
