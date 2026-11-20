@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-meta
 description: "前端元信息扫描 Agent。合并 scan-tech + scan-frontend-build + scan-frontend-structure + scan-frontend-style 四个配置扫描任务（配置/结构/样式），串行执行 4 个子任务，输出到 docs/knowledge/architecture.md（技术栈部分）、structure.md、build.md、style.md 四个文件。"
 ---
 

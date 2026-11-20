@@ -191,7 +191,7 @@ def collect_codex_window(
     return SupplementWindow(events=events, usage=usage)
 
 
-def collect_claude_window(
+def _collect_message_window(
     path: Path,
     *,
     started_at: str,
@@ -285,3 +285,39 @@ def collect_claude_window(
         if len(models) == 1:
             usage["model"] = next(iter(models))
     return SupplementWindow(events=events, usage=usage)
+
+def collect_claude_window(
+    path: Path,
+    *,
+    started_at: str,
+    ended_at: str,
+    max_bytes: int | None = None,
+) -> SupplementWindow:
+    """Claude Code transcripts: message records plus ``message.usage``."""
+
+    return _collect_message_window(
+        path, started_at=started_at, ended_at=ended_at, max_bytes=max_bytes
+    )
+
+
+def collect_qoder_window(
+    path: Path,
+    *,
+    started_at: str,
+    ended_at: str,
+    max_bytes: int | None = None,
+) -> SupplementWindow:
+    """Qoder transcripts share the message-record shape.
+
+    Verified differences from Claude Code: extra non-message record types
+    (``workspace-directories``, ``runtime-config``, ``active-leaf``,
+    ``file-history-snapshot``, ``attachment``, ``worktree-state``,
+    ``last-prompt``) and no ``message.usage``. Message records and content
+    blocks (``text`` / ``thinking`` / ``tool_use`` / ``tool_result``) match, so
+    the shared window builder is reused; token usage stays empty rather than
+    being estimated.
+    """
+
+    return _collect_message_window(
+        path, started_at=started_at, ended_at=ended_at, max_bytes=max_bytes
+    )

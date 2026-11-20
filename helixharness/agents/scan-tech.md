@@ -1,4 +1,5 @@
 ---
+name: scan-tech
 description: "后端技术栈与架构深度扫描 agent。分析代码库的构建工具、语言版本、框架、中间件、架构模式、工程规范，生成完整的技术全景文档到 docs/knowledge/architecture.md。前端项目使用 scan-frontend-meta 替代。"
 ---
 

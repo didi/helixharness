@@ -349,7 +349,7 @@ def locate_formal_policy(
         )
     except UpdateHostError as exc:
         raise UpdateError(str(exc)) from exc
-    marketplace = _read_json(root / ".claude-plugin" / "marketplace.json")
+    marketplace = _read_json(root / adapter.marketplace_manifest_relative)
     plugins = marketplace.get("plugins") if isinstance(marketplace.get("plugins"), list) else []
     matches = [item for item in plugins if isinstance(item, dict) and item.get("name") == PLUGIN_NAME]
     if marketplace.get("name") != MARKETPLACE or len(matches) != 1:

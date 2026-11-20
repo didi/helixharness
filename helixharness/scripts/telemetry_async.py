@@ -64,6 +64,7 @@ RUNTIME_SCRIPT_DIRECTORIES = (
 RUNTIME_RESOURCE_DIRECTORIES = (
     ".claude-plugin",
     ".codex-plugin",
+    ".qoder-plugin",
     "commands",
     "hosts",
     "reference",

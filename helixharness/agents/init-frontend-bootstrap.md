@@ -1,4 +1,5 @@
 ---
+name: init-frontend-bootstrap
 description: "前端项目初始化收尾 agent。消费扫描产物，生成 harness、knowledge、hooks、linters，更新宿主入口文件与状态文件，汇总扫描耗时并输出初始化报告。"
 ---
 

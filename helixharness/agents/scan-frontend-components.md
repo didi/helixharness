@@ -1,4 +1,5 @@
 ---
+name: scan-frontend-components
 description: "前端组件深度扫描 Agent。两阶段扫描：Phase 1 快速清单 + 评分，Phase 2 精选深度分析（只对高价值组件展开 Props/Emits/State）。输出到 docs/knowledge/components.md。"
 ---
 
