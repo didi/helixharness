@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Python 3.10+, Git and a plugin-capable Codex, Claude Code or Cursor installation are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional. Cursor desktop support follows the release scope and limitations below.
+Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (OpenCode v2.2.2+) are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional. Cursor desktop support follows the release scope and limitations below.
 
 The shared runtime supports macOS, native Windows and Linux; see [platform support and verification](platform-support.md). Windows Codex uses the PowerShell entrypoint, while Claude Code hooks require Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
 
@@ -28,7 +28,18 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Both hosts consume this compatible marketplace format. The platform is not installed by these commands.
+```bash
+# OpenCode v2.2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+**OpenCode Preview support (v2.2.2+):** The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles, binding Host Context to the current repository and session. Full Init → Propose → Apply → Archive acceptance with a real model remains unverified. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+
+OpenCode has no native SessionStart/Stop/failure/session-end hooks or plan tool (`tasks.md` tracks the plan). Telemetry is unsupported (`unsupported_host`); `/helix:update` returns `continue_silently`, so update manually through OpenCode plugin management. Project hooks are unsupported: Init merges `AGENTS.md` without creating `.opencode/` settings. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
+
+See the [OpenCode installer](../helixharness/hosts/opencode/installer.md) for host-specific checks.
+
+The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Codex and Claude Code consume this compatible marketplace format. OpenCode installs the same `helixharness/` package directly through its `package.json` export, `opencode/index.ts`. The platform is not installed by these commands.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -50,19 +61,28 @@ claude plugin marketplace add "$HELIXHARNESS_SOURCE"
 claude plugin install helix@helixharness-marketplace
 ```
 
+For OpenCode local development, add the plugin subdirectory to project or global `opencode.json(c)`:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["/absolute/path/to/helixharness/helixharness"]
+}
+```
+
 A standalone plugin copy can still use the absolute path to `helixharness/`; its nested marketplace points to `.`. Register only one source under `helixharness-marketplace` at a time. When switching sources, remove the old marketplace using the host's plugin management first.
 
 ## Verify installation
 
 Open a new host session in the application repository you want to develop. Confirm the nine public commands: `init`, `propose`, `apply`, `archive`, `bug-fix`, `ut`, `update`, `status`, `config`.
 
-Review and trust the plugin's hooks through the host's native interface. Confirm SessionStart identifies the host and installed plugin path. Command visibility alone does not prove hooks executed. Then run `/helix:init` (Cursor: `/helix-init`); check generated project hooks and project documentation before creating a feature. Repeated init should preserve unrelated host settings. For single-repository Init, required project files include nonempty `docs/harness/index.md`, `docs/knowledge/index.md` and `docs/knowledge/project-context.md`; also check the other outputs required for the detected project type. A final completion message is not a substitute for those checks.
+On Claude Code, Codex and Cursor, review and trust the plugin's hooks through the host's native interface and confirm SessionStart identifies the host and installed plugin path. Command visibility alone does not prove hooks executed. OpenCode instead registers native commands, skills and agents; check a command expansion includes `canonical_host_id: opencode`, the intended `plugin_root`, and the current `repo_root` and session binding. It does not generate project hooks or `.opencode/` settings. Then run `/helix:init` (Cursor: `/helix-init`); check project documentation and, on hosts supporting them, generated project hooks before creating a feature. Repeated init should preserve unrelated host settings. For single-repository Init, required project files include nonempty `docs/harness/index.md`, `docs/knowledge/index.md` and `docs/knowledge/project-context.md`; also check the other outputs required for the detected project type. A final completion message is not a substitute for those checks.
 
 If an entrypoint reports `plugin_source_mismatch`, its executing copy differs from the source bound to the session. Check the active marketplace and installed plugin, keep the intended source selected, and start a new session. Use resources from that installation; do not mix another checkout or cached version into the workflow.
 
 ### Start with an empty project
 
-Run `/helix:init` (Cursor: `/helix-init`) in a Git repository root. For a new directory, run `git init` yourself first; an initial commit is not required. An empty or documentation-only repository skips code scans and gets a minimal project context, harness, specs directories, and host hooks. Unconfirmed project details stay as TODOs. Use `/helix:propose` and `/helix:apply` (Cursor: `/helix-propose` and `/helix-apply`) to develop the first feature. Init and Apply do not create a commit.
+Run `/helix:init` (Cursor: `/helix-init`) in a Git repository root. For a new directory, run `git init` yourself first; an initial commit is not required. An empty or documentation-only repository skips code scans and gets a minimal project context, harness, specs directories, and host hooks where supported (OpenCode merges `AGENTS.md` only). Unconfirmed project details stay as TODOs. Use `/helix:propose` and `/helix:apply` (Cursor: `/helix-propose` and `/helix-apply`) to develop the first feature. Init and Apply do not create a commit.
 
 <a id="cursor-preview"></a>
 
@@ -90,7 +110,7 @@ Statistics require explicit consent and current-session identity. Missing identi
 
 ## Updates
 
-On Claude Code and Codex, run `/helix:update` in the host conversation. The plugin checks the configured marketplace, shows an available update and uses the host adapter after authorization. Cursor uses `/helix-update` for registered Helix-managed local installations on macOS/Linux, following the same check, confirmation and one-time authorization protocol. Manual copies and Cursor marketplace installations use their original update mechanism.
+On Claude Code and Codex, run `/helix:update` in the host conversation. The plugin checks the configured marketplace, shows an available update and uses the host adapter after authorization. Cursor uses `/helix-update` for registered Helix-managed local installations on macOS/Linux, following the same check, confirmation and one-time authorization protocol. Manual copies and Cursor marketplace installations use their original update mechanism. OpenCode has `plugin_update=unsupported`; update manually with `opencode plugin update`, or update local source and reload. `/helix:update` returns `continue_silently`.
 
 - **Git source:** the host refreshes the configured repository; use the same marketplace for later versions.
 - **Local source:** update the source copy yourself first, then check for updates. The plugin does not pull an arbitrary local checkout automatically. If the copy was cloned, review its working tree and update it using your normal Git workflow.
@@ -99,17 +119,21 @@ On Claude Code and Codex, run `/helix:update` in the host conversation. The plug
 
 ## Uninstall
 
-Use the host's plugin management to uninstall `helix@helixharness-marketplace`. Generated project knowledge, requirements and business code are retained. Review project hook settings separately if you no longer want the host to invoke HelixHarness in that application repository.
+Use the host's plugin management to uninstall `helix@helixharness-marketplace`; OpenCode uses `opencode plugin remove` or removes the source from its `plugins` array. Generated project knowledge, requirements and business code are retained. Review project hook settings separately if you no longer want the host to invoke HelixHarness in that application repository.
 
 ## 中文说明
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code 或 Cursor。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。
 
-正式发布后，Codex 与 Claude Code 使用上面的 GitHub 安装命令，Cursor 使用市场界面流程；这些市场安装方式无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
+**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
 
-安装后新开会话，确认九个命令可见、插件 hooks 已审阅并实际执行，再在业务仓库运行 `/helix:init`（Cursor 为 `/helix-init`）并检查项目 hooks。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。Claude Code/Codex 更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。Cursor 在 macOS/Linux 上使用 `/helix-update` 升级已登记的 Helix 托管本地安装，复用检查、确认与一次性授权协议；手工副本和原生市场安装仍通过原安装方式更新。
+OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
 
-**从空项目开始：**在 Git 仓库根目录运行 `/helix:init`（Cursor 为 `/helix-init`）。新目录请先自行执行 `git init`，不需要首次提交。空仓库或纯文档仓库跳过代码扫描，生成最小项目上下文、约束、需求目录与宿主 hooks，未确认的信息标记 TODO。再用 `/helix:propose` 和 `/helix:apply`（Cursor 为 `/helix-propose` 和 `/helix-apply`）开发第一个需求。Init 和 Apply 不创建提交。
+正式发布后，Codex 与 Claude Code 使用上面的 GitHub 安装命令，Cursor 使用市场界面流程，OpenCode 使用上面的 `opencode plugin add`；这些市场安装方式无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
+
+安装后新开会话，确认九个命令可见；Claude Code/Codex/Cursor 检查插件 hooks 已审阅并实际执行，OpenCode 检查命令展开后的当前仓库/会话 Host Context 绑定，再在业务仓库运行 `/helix:init`（Cursor 为 `/helix-init`）并检查项目文档及宿主支持的项目 hooks（OpenCode 不生成项目 hooks）。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。Claude Code/Codex 更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。Cursor 在 macOS/Linux 上使用 `/helix-update` 升级已登记的 Helix 托管本地安装，复用检查、确认与一次性授权协议；手工副本和原生市场安装仍通过原安装方式更新。
+
+**从空项目开始：**在 Git 仓库根目录运行 `/helix:init`（Cursor 为 `/helix-init`）。新目录请先自行执行 `git init`，不需要首次提交。空仓库或纯文档仓库跳过代码扫描，生成最小项目上下文、约束、需求目录与宿主支持的 hooks（OpenCode 只合并 `AGENTS.md`），未确认的信息标记 TODO。再用 `/helix:propose` 和 `/helix:apply`（Cursor 为 `/helix-propose` 和 `/helix-apply`）开发第一个需求。Init 和 Apply 不创建提交。
 
 ## Windows local source / Windows 本地源码
 

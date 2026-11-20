@@ -1,0 +1,50 @@
+{
+  "host_id": "opencode",
+  "host_api_version": "1.1",
+  "aliases": [],
+  "support": {
+    "level": "preview",
+    "display_name": "OpenCode",
+    "evidence": null,
+    "limitations": [
+      "No native session-start, session-end, stop or failure hooks; the plugin injects Host Context when a command executes or a method skill loads.",
+      "Telemetry and plugin-update adapters are unsupported; HelixHarness scripts return unsupported_host or continue_silently while business work continues.",
+      "OpenCode has no native plan tool; update_plan falls back to the current Feature tasks.md.",
+      "Project hooks are unsupported because OpenCode has no project settings hook contract; Init uses AGENTS.md and settings_file is null.",
+      "Workspace Apply RepoJobs use delegation_policy=may_delegate; OpenCode defaults to subagent depth 1, so set experimental.subagent_depth to at least 2.",
+      "The d-d2c Claude skill-scoped Stop/PreToolUse guards are not active; run that skill in its no-hook/--bare semantics without claiming guard enforcement."
+    ]
+  },
+  "capabilities": {
+    "command_surface": "native",
+    "skill_discovery": "native",
+    "session_start": "emulated",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "native",
+    "workflow_transition": "emulated",
+    "subagents": "native",
+    "unit_test_workflow": "native",
+    "task_tracking": "unsupported",
+    "project_hooks": "unsupported",
+    "session_events": "unsupported",
+    "telemetry": "unsupported",
+    "plugin_install": "native",
+    "plugin_update": "unsupported",
+    "session_end": "unsupported"
+  },
+  "adapters": {
+    "detector": "python:update_hosts.opencode:detect_host",
+    "distribution": "resource:package.json",
+    "installer": "resource:hosts/opencode/installer.md",
+    "command_projection": "resource:hosts/opencode/command-projection.json",
+    "runtime": "resource:hosts/opencode/runtime.md",
+    "subagent_protocol": "resource:hosts/opencode/subagent.md",
+    "workflow_transition": "resource:hosts/opencode/workflow-transition.md",
+    "project_config": "resource:hosts/opencode/project.json",
+    "project_hooks": "resource:hosts/opencode/project-hooks.json",
+    "ut": "resource:hosts/opencode/ut.md",
+    "lifecycle": "resource:hosts/opencode/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md"
+  }
+}

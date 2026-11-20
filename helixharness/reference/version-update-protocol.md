@@ -18,6 +18,7 @@
 update 与 eval 分别使用动态 Host Registry，并保持独立 capability、cache 和生命周期。update 是否
 可用只看当前 Host Kit 的 `plugin_update=native|emulated|unsupported`；公共协议不维护宿主白名单。
 Claude Code/Codex adapter 提供原生更新能力。Cursor 的 `plugin_update=emulated`，仅更新通过 Helix installer 登记的 macOS/Linux 本地安装；未登记副本或原生市场缓存不被接管。
+OpenCode 明确声明 `plugin_update=unsupported`，`/helix:update` 的 check 返回 `continue_silently`；通过 OpenCode 插件管理手动更新，不创建 Helix 更新授权或接管其他宿主安装。
 任何未注册宿主或未启用更新能力的宿主执行 update `check` 时固定返回
 `state=unsupported, reason=unsupported_host, next_action=continue_silently`，不读取或写入
 版本缓存、不提示更新、不创建 authorization，也不执行任何 plugin 命令。

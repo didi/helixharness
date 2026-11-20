@@ -26,6 +26,8 @@ Codex: ${CODEX_HOME:-$HOME/.codex}/helixharness/telemetry-consent-cache.json
 Cursor: ${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/helixharness/telemetry-consent-cache.json
 ```
 
+OpenCode 声明 `telemetry=unsupported`，没有 consent 缓存路径；统计脚本返回 `unsupported_host` 后继续业务，不读写上述缓存或借用其他宿主授权。
+
 用户主动查询和修改配置使用 `/helix:config`，通过 `scripts/user_config.py` 复用本协议 API；默认查看不触发 CLI resolve 的清理副作用，显式修改仍由既有授权 API 管理 scope、epoch 和清理。
 
 Config 开启统计使用两阶段 CLI：首次明确开启请求返回只读 `notice_required` 和本文件固定说明，不改授权；Agent 先在单独用户可见消息中逐字展示 `notice.text`，下一次调用才附加内部 `--telemetry-notice-shown {notice.sha256}` 与 `--user-confirmed` 执行。说明 digest 只核对内容版本，不能证明 UI 已展示，也不代替用户授权；旧 digest 不允许开启。不得并行或合并准备与修改调用，不通过直接 set/choose 绕过 Config 入口。关闭、地址设置与普通查询不需要此内部标记；Init/Propose 保持各自既有授权交互合同。

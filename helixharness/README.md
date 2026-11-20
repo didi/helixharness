@@ -2,11 +2,11 @@
 
 当前版本：**1.0.0**。
 
-面向 Codex、Claude Code 与 Cursor 的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
+面向 Codex、Claude Code、Cursor 与 OpenCode（预览）的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
 
 ## 命令
 
-以下 `/helix:*` 为公共逻辑命令名，也是 Codex / Claude Code 的输入形式。Cursor 使用 `/helix-{command}`，从 `/helix-` 补全选择入口，参数和业务门禁相同。Cursor 默认通过市场安装，固定来源配置和托管 Local 作为可选方式；统计及更新的能力边界见 [Cursor 安装说明](hosts/cursor/installer.md)。
+以下 `/helix:*` 为公共逻辑命令名，也是 Codex / Claude Code / OpenCode 的输入形式。Cursor 使用 `/helix-{command}`，从 `/helix-` 补全选择入口，参数和业务门禁相同。Cursor 默认通过市场安装，固定来源配置和托管 Local 作为可选方式；统计及更新的能力边界见 [Cursor 安装说明](hosts/cursor/installer.md)。
 
 - `/helix:init`：初始化当前项目；`--workspace` 初始化多仓目录。
 - `/helix:propose <name> <requirement-or-path>`：收敛需求并生成 Spec/Tasks。
@@ -21,7 +21,11 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex、Claude Code 或 Cursor。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md) 和 [Cursor](hosts/cursor/installer.md) 安装说明。
+需要 Python 3.10+、Git，以及 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md)、[Cursor](hosts/cursor/installer.md) 和 [OpenCode](hosts/opencode/installer.md) 安装说明。OpenCode 将本插件目录加入 `plugins` 数组。
+
+**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+
+OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
 
 ## 独立方案探索与调试
 
@@ -32,7 +36,7 @@
 
 有代码库时结合相关实现探索方案；没有代码库时先澄清想法与约束。Skill 交付讨论摘要或调试结果后结束；用户可自行将结果作为后续需求输入。两项 Skill 不创建 feature、Spec/Tasks 或 eval-log，不推进研发阶段。
 
-这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex 使用生成的宿主入口，Claude Code 直接发现根 `skills/`；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
+这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex 与 Cursor 使用各自生成的宿主入口，Claude Code 直接发现根 `skills/`，OpenCode 注册 `helix-<name>` 方法 Skill；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
 
 可选的 [git-diff-impact](skills/git-diff-impact/SKILL.md) 可独立分析 Git 改动的调用链、业务影响和兼容性。显式要求“使用 HelixHarness git-diff-impact，分析当前未提交改动，--no-save”即可，无需 Init 或 feature。默认保存 Markdown 报告到 `diff-impact-reports/`；日常 Apply 不自动调用，也不改变评审状态。`code-review` / `tdd` 当前仍依赖 HelixHarness 的 Spec 和执行上下文，没有独立模式。
 
@@ -79,6 +83,8 @@ feedback 使用相同结构，地址为实际平台的 `/feedback/report`。**�
 ```bash
 python3 scripts/run_tests.py
 python3 scripts/host_runtime_cli.py list
+bun test opencode/tests
+bun run typecheck
 ```
 
 此发行版仅维护当前 HelixHarness 合同，不迁移其他工作流历史。循环不包含发布或部署。

@@ -20,6 +20,16 @@ PLUGIN = REPOSITORY / "helixharness"
 
 @unittest.skipUnless(shutil.which("git") and sys.platform in {"darwin", "linux"}, "Git and atomic directory exchange required")
 class CursorFullBundleUpdateTests(unittest.TestCase):
+    def test_native_opencode_distribution_includes_runtime_without_dependencies_or_private_files(self):
+        for name in ("package.json", "opencode/index.ts", "opencode/core.ts"):
+            with self.subTest(name=name):
+                self.assertTrue(_distributed(PurePosixPath(name)))
+        for name in ("bun.lock", "node_modules/dependency/index.ts", "opencode/node_modules/dependency/index.ts",
+                     "opencode/.bun/cache/index.ts", "opencode/.env.local", "opencode/credentials.json",
+                     "opencode/output/session.json", "opencode/tests/native-fixture.ts", "opencode/runtime/session.json"):
+            with self.subTest(name=name):
+                self.assertFalse(_distributed(PurePosixPath(name)))
+
     def test_installed_bundle_runs_without_checkout_pythonpath_and_updates_itself(self):
         with tempfile.TemporaryDirectory(prefix="helix-cursor-bundle-") as temporary:
             root = Path(temporary).resolve()
@@ -48,12 +58,23 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
                 selected.add(relative.as_posix())
             self.assertIn("scripts/update_hosts/cursor.py", selected)
             self.assertIn("hosts/cursor/hooks.json", selected)
+            native_files = ("package.json", "opencode/index.ts", "opencode/core.ts")
+            for name in native_files:
+                self.assertIn(name, selected)
+            native_contents = {name: (PLUGIN / name).read_bytes() for name in native_files}
             root_manifest = source / ".cursor-plugin/marketplace.json"
             root_manifest.parent.mkdir()
             root_manifest.write_bytes((REPOSITORY / ".cursor-plugin/marketplace.json").read_bytes())
 
             def git(*arguments):
                 return subprocess.run(["git", "-c", "core.hooksPath=/dev/null", "-c", "user.name=Synthetic Bundle", "-c", "user.email=bundle@example.invalid", "-C", str(source), *arguments], env=environment, check=True, capture_output=True, text=True, timeout=15).stdout.strip()
+
+            excluded_native_files = ("node_modules/synthetic/index.ts", "opencode/.bun/cache/index.ts",
+                                     "opencode/.env.local", "opencode/credentials.json", "opencode/runtime/session.json")
+            for name in excluded_native_files:
+                synthetic = source / "helixharness" / name
+                synthetic.parent.mkdir(parents=True, exist_ok=True)
+                synthetic.write_text("synthetic excluded packaging fixture")
 
             def run(script, *arguments, input_data=None, expected=0, env=None, structured=True):
                 process = subprocess.run([sys.executable, str(script), *arguments], cwd=workspace, env=env or environment, input=json.dumps(input_data) if input_data is not None else None, capture_output=True, text=True, timeout=45)
@@ -81,13 +102,23 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
                 return git("rev-parse", "HEAD")
 
             git("init", "--template=", "-b", "main")
+            git("add", "--force", *["helixharness/" + name for name in excluded_native_files])
             release("1.0.0")
             installed = run(source / "helixharness/scripts/cursor_managed_install.py", "install", "--source", str(source), "--ref", "main", "--user-confirmed")
             plugin = Path(installed["plugin_root"])
+            for name, content in native_contents.items():
+                self.assertEqual((plugin / name).read_bytes(), content)
+            for name in excluded_native_files:
+                self.assertFalse((plugin / name).exists(), name)
             environment["HELIXHARNESS_BOUND_PLUGIN_ROOT"] = str(plugin)
             runtime = run(plugin / "scripts/host_runtime_cli.py", "resolve", "--platform", "cursor", "--expected-plugin-root", str(plugin))
             self.assertEqual(runtime["plugin_root"], str(plugin))
             self.assertEqual(runtime["host_id"], "cursor")
+            # Resolve every installed host using the shipped CLI; this validates
+            # the OpenCode package resource together with the existing kits.
+            for host in ("claude-code", "codex", "opencode"):
+                resolved = run(plugin / "scripts/host_runtime_cli.py", "resolve", "--platform", host, "--expected-plugin-root", str(plugin))
+                self.assertEqual(resolved["host_id"], host)
             for generator in ("cursor_skill_projection.py", "codex_skill_projection.py"):
                 run(plugin / "scripts" / generator, "--check", structured=False)
             commands = json.loads((plugin / "hosts/cursor/command-projection.json").read_text())["entrypoints"]
@@ -118,6 +149,12 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
             self.assertEqual(updated["verified_commit"], approved_commit)
             self.assertEqual(updated["verified_version"], "1.0.1")
             self.assertEqual((plugin / "reference/cursor-synthetic-release.txt").read_text(), "1.0.1")
+            for name, content in native_contents.items():
+                self.assertEqual((plugin / name).read_bytes(), content)
+            for directory in ("node_modules", ".bun", "opencode/tests", "opencode/runtime"):
+                self.assertFalse((plugin / directory).exists(), directory)
+            for name in excluded_native_files:
+                self.assertFalse((plugin / name).exists(), name)
             self.assertTrue(updated["authorization_consumed"])
             self.assertNotIn("PYTHONPATH", environment)
             for generator in ("cursor_skill_projection.py", "codex_skill_projection.py"):

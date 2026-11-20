@@ -32,8 +32,9 @@ RECEIPT = ".helixharness-managed.json"
 REGISTRATION_KEYS = {"schema_version", "kind", "install_id", "install_root", "source", "ref", "plugin_source"}
 BINDING_KEYS = {"schema_version", "kind", "install_id", "registration_sha256", "install_root", "source", "ref", "plugin_source", "current_tree", "target_commit", "target_tree", "target_version"}
 RECEIPT_KEYS = {"schema_version", "install_id", "registration_sha256", "version", "commit", "tree_sha256"}
-DISTRIBUTION_DIRS = {".claude-plugin", ".codex-plugin", ".cursor-plugin", "agents", "commands", "hosts", "reference", "scripts", "skills", "templates", "workflows"}
-DISTRIBUTION_FILES = {"AGENTS.md", "CLAUDE.md", "LICENSE", "NOTICE", "PLUGIN_USAGE.md", "README.md", "README.zh-CN.md", "SKILL.md", "THIRD_PARTY_NOTICES.md", ".gitignore"}
+DISTRIBUTION_DIRS = {".claude-plugin", ".codex-plugin", ".cursor-plugin", "agents", "commands", "hosts", "opencode", "reference", "scripts", "skills", "templates", "workflows"}
+DISTRIBUTION_FILES = {"AGENTS.md", "CLAUDE.md", "LICENSE", "NOTICE", "PLUGIN_USAGE.md", "README.md", "README.zh-CN.md", "SKILL.md", "THIRD_PARTY_NOTICES.md", ".gitignore", "package.json"}
+OPENCODE_RUNTIME_FILES = {"opencode/index.ts", "opencode/core.ts"}
 EXCLUDED_PARTS = {".git", ".env", ".cursor", ".claude", ".codex", ".agents", ".aws", "output", "temp", "node_modules", "__pycache__", ".pytest_cache", ".venv", "venv"}
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 MAX_FILE_BYTES = 32 * 1024 * 1024
@@ -78,6 +79,8 @@ def _distributed(relative: PurePosixPath) -> bool:
         return False
     if relative.name in {"credentials.json", ".npmrc", RECEIPT} or relative.suffix in {".pyc", ".log"}:
         return False
+    if parts[0] == "opencode":
+        return relative.as_posix() in OPENCODE_RUNTIME_FILES
     return (len(parts) == 1 and parts[0] in DISTRIBUTION_FILES) or (len(parts) > 1 and parts[0] in DISTRIBUTION_DIRS)
 
 

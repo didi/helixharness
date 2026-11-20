@@ -1,6 +1,6 @@
 # HelixHarness Host API 1.1 / 1.2
 
-HelixHarness 提供 Claude Code、Codex 和 Cursor Host Kit。公共业务契约与宿主运行机制保持解耦：
+HelixHarness 提供 Claude Code、Codex、Cursor 和 OpenCode Host Kit。公共业务契约与宿主运行机制保持解耦：
 `commands/`、`workflows/`、共享 `skills/`、`agents/` 和 `templates/` 定义业务结果，`hosts/{host-id}/`
 只定义如何在某个宿主中安装、发现和执行。
 
@@ -13,11 +13,13 @@ HelixHarness 提供 Claude Code、Codex 和 Cursor Host Kit。公共业务契约
 当前 Registry 必须只发现：
 
 - `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace；
-- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace。
-- `cursor`：独立 Skill 投影、Cursor 原生 hooks、Task 子代理与 Cursor plugin 分发；Stable（桌面范围）。
+- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace；
+- `cursor`：独立 Skill 投影、Cursor 原生 hooks、Task 子代理与 Cursor plugin 分发；Stable（桌面范围）；
+- `opencode`：插件注册原生命令/Skill/Agent、绑定当前仓库与会话 Host Context、原生 subagent 和 OpenCode plugin 分发；Host API 1.1 / Preview（v2.2.2+）。
 
 Claude Code 与 Codex 保持 Host API 1.1 / Stable；Cursor 使用向后兼容的 1.2 / Stable。
 Cursor 的会话统计和插件更新为 `emulated`：原生 hook 提供有边界的事件/用量证据，登记的托管本地安装通过批准后的原子交换升级。本次正式支持范围为桌面研发工作流；原生自动升级等限制与已接受的验证缺口见 Cursor 安装说明。
+OpenCode 的 `telemetry`、`plugin_update` 和 `project_hooks` 为 `unsupported`，完整真实模型工作流尚未验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker` 且需要 `experimental.subagent_depth >= 2`，reviewer 仍为只读 leaf；深度不足阻塞，不绕过评审。
 未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
 
 ## 共享核心与 Host Kit
@@ -141,9 +143,10 @@ Context，不在每条命令中启动 Python 重新识别。
 
 ## 插件 Hook 分发
 
-所有宿主的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
+Claude Code、Codex 与 Cursor 的原生 plugin manifest 必须显式声明 `hosts/{host-id}/hooks.json`。
 不得发布根目录默认 `hooks/hooks.json`，以免客户端自动装载另一个宿主的入口。
+OpenCode 不发布 hook manifest；`opencode/index.ts` 在插件 setup 中注册入口，按 `hosts/opencode/lifecycle.md` 声明 `session_start=emulated`、`session_events=unsupported`。
 Hook 入口位于对应 Host Kit，绑定自身安装目录的规范 manifest，转换宿主事件与环境持久化。
 共享 `scripts/lifecycle_service.py` 只消费显式 HostManifest 和规范事件，不猜平台。
-项目级检查 hooks 独立使用 `project_hooks` 合同；单仓 Init 的实际 settings 缺失或重复必须阻断。
+项目级检查 hooks 独立使用 `project_hooks` 合同；支持项目 hooks 时，单仓 Init 的实际 settings 缺失或重复必须阻断；OpenCode `settings_file=null`，只合并 `AGENTS.md`。
 遥测 adapter 统一通过该 Registry 的 manifest Python 引用装载，不维护第二份平台注册表。

@@ -6,11 +6,11 @@
 >
 > Your team's engineering DNA, carried into AI development.
 
-**HelixHarness helps your team build its own AI coding harness on Codex, Claude Code and Cursor.** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
+**HelixHarness helps your team build its own AI coding harness on Codex, Claude Code, Cursor and OpenCode (Preview).** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
 
 Start with the plugin. When you want to improve the harness itself, the optional **helixharness-platform** lets maintainers observe usage, compare framework versions and evaluate candidate improvements before adopting them.
 
-**9 commands · Codex / Claude Code / Cursor · Single repo / multi-repo Workspace · Apache-2.0**
+**9 commands · Codex / Claude Code / Cursor / OpenCode (Preview) · Single repo / multi-repo Workspace · Apache-2.0**
 
 [Quick start](#quick-start) · [The name](#the-story-behind-the-name) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
 
@@ -63,7 +63,7 @@ Knowledge accumulates as **reviewable repository documents**. You control what b
 
 ### 1. Install the plugin
 
-Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code or Cursor installation. Make sure the host is signed in or has its model configuration set up and is working normally.
+Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (OpenCode v2.2.2+). Make sure the host is signed in or has its model configuration set up and is working normally.
 
 For macOS and native Windows setup, interpreter detection and host-specific requirements, see [platform support](docs/platform-support.md). Windows Codex uses PowerShell; Windows Claude Code uses Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
 
@@ -83,15 +83,26 @@ claude plugin install helix@helixharness-marketplace
 
 Cursor users install `helix` from their Cursor marketplace through **Customize → helix → Install**, then reload the window and open a new Agent. A team administrator first imports the published release repository into the team's marketplace. Cursor uses `/helix-init`, `/helix-propose`, etc. See [marketplace setup, optional Local installation and capability limits](docs/installation.md#cursor-preview).
 
+```bash
+# OpenCode v2.2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+**OpenCode Preview support (v2.2.2+):** The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles, binding Host Context to the current repository and session. Full Init → Propose → Apply → Archive acceptance with a real model remains unverified. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+
+OpenCode has no native SessionStart/Stop/failure/session-end hooks or plan tool (`tasks.md` tracks the plan). Telemetry is unsupported (`unsupported_host`); `/helix:update` returns `continue_silently`, so update manually through OpenCode plugin management. Project hooks are unsupported: Init merges `AGENTS.md` without creating `.opencode/` settings. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
+
+See the [OpenCode installer](helixharness/hosts/opencode/installer.md) for binding checks and manual updates.
+
 The root marketplace installs the `helixharness/` plugin, not the platform. For testing before publication or modifying the plugin, use [developer installation from local source](docs/installation.md#developer-installation). See [hook verification, updates and uninstall](docs/installation.md).
 
 ### 2. Run a small feature
 
 The product name is **HelixHarness**; its plugin ID and command namespace are **`helix`**.
 
-Open a new agent session in the **application repository** you want to develop. Review the plugin hooks through the host's native interface, then enter the commands for your host in the conversation.
+Open a new agent session in the **application repository** you want to develop. On Claude Code, Codex and Cursor, review the plugin hooks through the host's native interface; OpenCode registers its surfaces from the plugin package. Then enter the commands for your host in the conversation.
 
-Codex / Claude Code:
+Codex / Claude Code / OpenCode:
 
 ```text
 /helix:init
@@ -105,7 +116,7 @@ Cursor:
 /helix-propose task-filter ./requirements/task-filter.md --loop
 ```
 
-Cursor uses `/helix-<command>` throughout; Codex and Claude Code use `/helix:<command>`. Command arguments and workflows are the same.
+Cursor uses `/helix-<command>` throughout; Codex, Claude Code and OpenCode use `/helix:<command>`. Command arguments and workflows are the same.
 
 Use the [self-contained task-filter example](examples/README.md) to get a starter project, requirement and acceptance check. `--loop` runs Propose → Apply → Archive, pausing for decisions or blockers. It does not publish or deploy your code.
 
@@ -212,10 +223,10 @@ Report community bugs through [GitHub Issues](https://github.com/didi/helixharne
 
 Two planned directions will help more teams shape HelixHarness around their development practices:
 
-- **More coding agents.** Extend support to more hosts beyond Codex, Claude Code and Cursor so teams can use HelixHarness with more of their preferred tools.
+- **More coding agents.** Extend support to more hosts beyond Codex, Claude Code, Cursor and OpenCode (Preview) so teams can use HelixHarness with more of their preferred tools.
 - **Configurable workflows.** Let teams configure workflow stages and their order to fit their development process.
 
-These are planned capabilities. The source supports Codex, Claude Code and Cursor, using the Propose → Apply → Archive workflow. Cursor native-client acceptance is tracked separately from automated contract tests. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
+These are planned capabilities. The source supports Codex, Claude Code and Cursor, plus OpenCode in Preview, using the Propose → Apply → Archive workflow. Cursor native-client acceptance is tracked separately from automated contract tests. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
 
 ## Documentation and contribution
 

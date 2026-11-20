@@ -6,11 +6,11 @@
 >
 > 为适配而生，为进化而设计。让团队的工程 DNA，融入 AI 研发。
 
-**HelixHarness 帮助团队在 Codex、Claude Code 和 Cursor 上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
+**HelixHarness 帮助团队在 Codex、Claude Code、Cursor 与 OpenCode（预览）上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
 
 从插件开始即可。当你希望改进 Harness 本身时，可选的 **helixharness-platform** 帮助框架维护者观测使用过程、对比框架版本，并在采纳候选改进前验证效果。
 
-**9 个命令 · Codex / Claude Code / Cursor · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个命令 · Codex / Claude Code / Cursor / OpenCode（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
 
 [快速开始](#快速开始) · [命名故事](#名字背后的故事) · [框架亮点](#框架亮点) · [框架迭代平台](#围绕-helixharness-框架的迭代平台) · [使用指南](docs/user-guide.zh-CN.md)
 
@@ -63,7 +63,7 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 ### 1. 安装插件
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code 或 Cursor。先确保宿主已完成登录或模型配置，能够正常使用。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）。先确保宿主已完成登录或模型配置，能够正常使用。
 
 macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。Cursor 实机验收目前覆盖 macOS，Windows Cursor 不在本期已验证范围。
 
@@ -83,13 +83,24 @@ claude plugin install helix@helixharness-marketplace
 
 Cursor 用户通过 **Customize → helix → Install** 从市场安装，随后重载窗口并新建 Agent。团队管理员需先将已发布的发行仓库导入团队市场。Cursor 使用 `/helix-init`、`/helix-propose` 等入口，详见[市场安装、可选 Local 安装及能力限制](docs/installation.md#cursor-preview)。
 
+```bash
+# OpenCode v2.2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+
+OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
+
+绑定检查与手动更新步骤见 [OpenCode 安装说明](helixharness/hosts/opencode/installer.md)。
+
 根市场会安装 `helixharness/` 插件，不会安装平台。发布前测试或修改插件时，使用[开发者安装（本地源码）](docs/installation.md#developer-installation)。详见[hooks 检查、更新与卸载](docs/installation.md)。
 
 ### 2. 完成一个小需求
 
-在要开发的**业务仓库**新开 Agent 会话，通过宿主原生界面审阅插件 hooks，然后在对话中输入对应宿主的命令。
+在要开发的**业务仓库**新开 Agent 会话，Claude Code、Codex 和 Cursor 通过宿主原生界面审阅插件 hooks；OpenCode 由插件包注册入口。然后在对话中输入对应宿主的命令。
 
-Codex / Claude Code：
+Codex / Claude Code / OpenCode：
 
 ```text
 /helix:init
@@ -103,7 +114,7 @@ Cursor：
 /helix-propose task-filter ./requirements/task-filter.md --loop
 ```
 
-Cursor 全部使用 `/helix-<command>`，Codex 和 Claude Code 使用 `/helix:<command>`；命令参数和工作流相同。
+Cursor 全部使用 `/helix-<command>`，Codex、Claude Code 和 OpenCode 使用 `/helix:<command>`；命令参数和工作流相同。
 
 [任务筛选示例](examples/README.md)提供起始项目、需求和独立验收脚本，可直接跟着操作。`--loop` 串联 Propose → Apply → Archive，遇到需要决策的问题或阻断时暂停，不包含代码发布或部署。
 
@@ -210,10 +221,10 @@ python -m web_ui.demo --port 7860
 
 接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
 
-- **支持更多 Coding Agent**：在 Codex、Claude Code 和 Cursor 的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
+- **支持更多 Coding Agent**：在 Codex、Claude Code、Cursor 与 OpenCode（预览）的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
-以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
+以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，另提供 OpenCode 预览支持，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 

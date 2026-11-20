@@ -4,7 +4,7 @@
 
 当前版本：**HelixHarness 1.0.0 · helixharness-platform 1.0.0**。
 
-**面向 Codex、Claude Code 与 Cursor 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
+**面向 Codex、Claude Code、Cursor 与 OpenCode（预览）的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
 
 从一个需求到有验证依据的代码变更：明确边界、拆分任务、实现、测试、评审，再把结果归档到项目中。HelixHarness 将这些步骤作为可复用的工作流交给编码助手，需求和执行进度保存在仓库里，便于检查和续跑。
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ 测试 + 代码评审 + 验证依据
 ```
 
-**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Cursor · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个公开命令 · 3 个核心阶段 · Codex / Claude Code / Cursor / OpenCode（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
 
 只做日常开发，安装 **HelixHarness** 即可。需要观测使用情况、评测和改进 **HelixHarness 框架本身**，再运行 **helixharness-platform**。开发场景的结果用于判断框架行为，平台不是通用的业务代码评分服务。
 
@@ -50,7 +50,7 @@ Propose → Apply → Archive
 
 | 用途 | 要求 |
 | --- | --- |
-| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex、Claude Code 或 Cursor；宿主已完成登录或模型配置，能够正常使用 |
+| 使用 HelixHarness | Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）；宿主已完成登录或模型配置，能够正常使用 |
 | 运行平台 Demo / 使用看板 | Python 3.10+、Git；安装平台 `server` 依赖 |
 | 真实版本评测 | 平台依赖、可用的 Codex 执行环境、模型凭据、可访问的 Git 仓库，以及 Case 所需的构建与测试工具 |
 | 前端预览与视觉验证 | 项目自身的 Node.js、包管理器及浏览器工具；设计服务按实际使用情况配置 |
@@ -75,6 +75,19 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
+**OpenCode v2.2.2+**
+
+```bash
+# OpenCode v2.2.2+
+opencode plugin add 'github:didi/helixharness::path:helixharness'
+```
+
+**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+
+OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
+
+安装与绑定检查见 [OpenCode 安装指南](../helixharness/hosts/opencode/installer.md)。
+
 安装后，在你要开发的业务仓库中新开宿主会话，确认能找到 `helixharness` 的九个公开命令。宿主适配说明见 [Codex 安装指南](../helixharness/hosts/codex/installer.md) 和 [Claude Code 安装指南](../helixharness/hosts/claude-code/installer.md)。
 
 **Cursor**
@@ -83,7 +96,7 @@ claude plugin install helix@helixharness-marketplace
 
 ### 2. 完成第一个需求
 
-命令应**输入到编码助手会话中**，不是终端 Shell 命令。以下示例使用 Codex / Claude Code 的 `/helix:` 前缀；在 Cursor 中将该前缀替换为 `/helix-`，命令名和参数保持不变。例如 `/helix:init` 对应 `/helix-init`，`/helix:bug-fix` 对应 `/helix-bug-fix`。
+命令应**输入到编码助手会话中**，不是终端 Shell 命令。以下示例使用 Codex / Claude Code / OpenCode 的 `/helix:` 前缀；在 Cursor 中将该前缀替换为 `/helix-`，命令名和参数保持不变。例如 `/helix:init` 对应 `/helix-init`，`/helix:bug-fix` 对应 `/helix-bug-fix`。
 
 先在业务仓库初始化项目：
 
@@ -91,7 +104,7 @@ claude plugin install helix@helixharness-marketplace
 /helix:init
 ```
 
-初始化会写入项目文档和宿主项目配置。宿主提示当前项目配置目录的写权限时，确认本项目后授权。自动化运行也需显式响应授权：Claude Code 的 `acceptEdits` 模式不会自动批准 `.claude/settings.json`，保护 `.codex/` 的沙箱也可能使 Codex hooks 未完成。开始需求前先检查初始化结果。
+Claude Code、Codex 和 Cursor 初始化会写入项目文档和宿主项目配置。OpenCode 只合并 `AGENTS.md`，不创建 `.opencode/` settings 或项目 hooks。宿主提示当前项目配置目录的写权限时，确认本项目后授权。自动化运行也需显式响应授权：Claude Code 的 `acceptEdits` 模式不会自动批准 `.claude/settings.json`，保护 `.codex/` 的沙箱也可能使 Codex hooks 未完成。开始需求前先检查初始化结果。
 
 再创建一个范围清晰的需求：
 
@@ -154,7 +167,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | 项目 | 面向谁 | 负责什么 | 运行位置 |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code / Cursor 会话及业务仓库 |
+| [`helixharness/`](../helixharness/README.md) | 日常使用 AI 编码的开发者 | 初始化项目、收敛需求、实现、测试、评审、归档 | Codex / Claude Code / Cursor / OpenCode（预览） 会话及业务仓库 |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | 观测和改进 HelixHarness 框架的维护者 | 数据看板、版本评测、自进化 | 独立 Python Web 服务与评测 Worker |
 
 ```mermaid
@@ -183,7 +196,7 @@ flowchart LR
 
 ## 命令参考
 
-公开命令共九个，`--loop` 是 `propose` 的参数。表中示例使用 Codex / Claude Code 的 `/helix:`；在 Cursor 中使用 `/helix-` 前缀，参数相同。
+公开命令共九个，`--loop` 是 `propose` 的参数。表中示例使用 Codex / Claude Code / OpenCode 的 `/helix:`；在 Cursor 中使用 `/helix-` 前缀，参数相同。
 
 | 命令 | 用途 | 示例 |
 | --- | --- | --- |
@@ -193,7 +206,7 @@ flowchart LR
 | `archive` | 核验完成证据、更新知识并归档 | `/helix:archive search-empty-state` |
 | `bug-fix` | 修订尚未归档的单仓需求 | `/helix:bug-fix search-empty-state "清除筛选后没有重新加载列表"` |
 | `ut` | 生成和维护单元测试 | `/helix:ut` |
-| `update` | 检查并更新宿主已配置来源的插件 | `/helix:update` |
+| `update` | 检查并更新支持宿主的插件来源（OpenCode 手动更新） | `/helix:update` |
 | `status` | 只读查看需求进度、阻塞与下一步 | `/helix:status search-empty-state` |
 | `config` | 查看和修改统计授权、范围及上报地址 | `/helix:config` |
 
@@ -405,7 +418,7 @@ DEFAULT_FEEDBACK_ENDPOINT = ""
 
 ### 模型配置
 
-日常使用插件时，模型由 Codex / Claude Code / Cursor 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
+日常使用插件时，模型由 Codex / Claude Code / Cursor / OpenCode（预览） 宿主配置。平台自身的模型配置用于平台发起的评测、分析等任务。
 
 配置模板见 [`helixharness-platform/.env.example`](../helixharness-platform/.env.example)。服务读取**进程环境变量，不会自动加载 `.env.example`**；将真实值注入启动 Web 和 Worker 的环境。
 
@@ -617,7 +630,7 @@ Candidate 生成在普通用户（包括 macOS 本地用户）下默认使用 Co
 ├── helixharness/
 │   ├── commands/       # 九个公共命令入口和路由
 │   ├── workflows/      # single/ 单仓执行，workspace/ 多仓协调
-│   ├── hosts/          # Codex / Claude Code / Cursor 适配
+│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode（预览） 适配
 │   ├── skills/         # 工作流复用的方法
 │   └── scripts/        # 路由、工件校验与遥测
 └── helixharness-platform/
@@ -640,7 +653,7 @@ Candidate 生成在普通用户（包括 macOS 本地用户）下默认使用 Co
 | [`systematic-debugging`](../helixharness/skills/systematic-debugging/SKILL.md) | 复现异常、验证假设、定位根因与验证修复 | 由用户明确调用，独立使用 |
 | [`feedback`](../helixharness/skills/feedback/SKILL.md) | 提交 HelixHarness 使用问题 | 独立辅助能力；需启动平台并配置地址 |
 
-Codex 与 Cursor 安装目录各包含九个公开入口 Skill 和上述八个方法 Skill；Claude Code 直接发现根 `skills/`。四个生命周期命令继续使用工作流路由；`status`、`config` 与辅助 Skill 不增加研发阶段。正式 Spec/Tasks、执行进度和完成验证仍由对应研发阶段负责。
+Codex 与 Cursor 安装目录各包含九个公开入口 Skill 和上述八个方法 Skill；Claude Code 直接发现根 `skills/`；OpenCode 从相同根文件注册 `helix-<name>` 方法 Skill。四个生命周期命令继续使用工作流路由；`status`、`config` 与辅助 Skill 不增加研发阶段。正式 Spec/Tasks、执行进度和完成验证仍由对应研发阶段负责。
 
 `git-diff-impact` 无需 Init、活跃 feature 或平台服务。示例：“使用 HelixHarness git-diff-impact，分析当前未提交改动，--no-save”；也可明确提供两个提交或分支，以及 `--req` / `--design` 文档。默认保存 Markdown 到 `diff-impact-reports/`，`--out` 可指定位置。它不自动修复代码，也不改变评审结论。
 
@@ -665,6 +678,8 @@ Codex 与 Cursor 安装目录各包含九个公开入口 Skill 和上述八个�
 ```bash
 python3 scripts/run_tests.py
 python3 scripts/host_runtime_cli.py list
+bun test opencode/tests
+bun run typecheck
 ```
 
 平台验证，在 `helixharness-platform/` 的虚拟环境中执行：

@@ -11,7 +11,8 @@ Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主�
 
 1. Claude Code 的 `commands/{entry}.md` plugin command 表面绑定 `hosts/claude-code/host.json`；
 2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`；
-3. Cursor 的 `hosts/cursor/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/cursor/host.json`。
+3. Cursor 的 `hosts/cursor/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/cursor/host.json`；
+4. OpenCode 的 `opencode/index.ts` 注册原生命令和方法 Skill，绑定 `hosts/opencode/host.json` 以及当前仓库与会话；只通过 TypeScript 注册和注入 Host Context，不借用其他宿主的启动 hooks。
 
 “分发表面绑定”是一种确定性入口绑定，不要求宿主额外设置环境变量或在目标项目
 生成 settings：当前产品加载 `resources.command_projection` 已声明的原生命令或宿主 Skill
@@ -102,7 +103,7 @@ command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWri
 
 ## 5. 未来宿主扩展契约
 
-当前仓库提供 Claude Code、Codex、Cursor。未来接入新宿主时，正常改动范围应限制为：
+当前仓库提供 Claude Code、Codex、Cursor 与 OpenCode（Preview）。OpenCode 的 `telemetry`、`plugin_update` 和 `project_hooks` 为 `unsupported`。未来接入新宿主时，正常改动范围应限制为：
 
 - `hosts/{host-id}/host.json`；
 - 该 Host Kit 引用的分发、安装、入口投影、启动、工具映射、生命周期、项目配置、遥测或更新适配器；
@@ -110,5 +111,5 @@ command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWri
 
 如果接入必须修改 `commands/`、共享 `skills/`、`scripts/metrics.py`、
 `scripts/version_update.py` 或 Host Registry 中的平台列表，说明 Host API 缺少通用能力。此时只能
-先以版本化、宿主无关的方式扩展 Host API，并为 Claude Code、Codex 补齐兼容测试；禁止加入
+先以版本化、宿主无关的方式扩展 Host API，并为现有宿主补齐兼容测试；禁止加入
 按平台名称选择业务流程的核心分支。

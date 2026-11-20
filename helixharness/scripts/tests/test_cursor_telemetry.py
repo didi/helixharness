@@ -212,8 +212,15 @@ class CursorTelemetryTest(unittest.TestCase):
         self.assertTrue(Path(final["path"]).is_file())
 
     def test_clean_installed_runtime_uses_snapshot_for_all_hosts_without_checkout_imports(self):
+        from host_runtime import HostRegistry
+
+        self.assertEqual(set(HostRegistry.discover(ROOT / "hosts").supported_ids()), {"claude-code", "codex", "cursor", "opencode"})
+        snapshot = build_runtime_snapshot(ROOT)
+        self.assertEqual({host["host_id"] for host in snapshot["hosts"]}, {"claude-code", "codex", "cursor"})
         telemetry_async.install_runtime(ROOT, self.home)
         runtime = self.home / "runtime"
+        self.assertEqual(json.loads((runtime / RUNTIME_SNAPSHOT_NAME).read_text()), snapshot)
+        self.assertFalse((self.home / "package.json").exists())
         code = (
             "import json,sys;sys.path.insert(0,sys.argv[1]);"
             "from telemetry_hosts import get_host_adapter,supported_host_ids;"

@@ -22,13 +22,17 @@ Workspace 子任务从公共入口进入 Single 正文，根目录不写子仓�
 ## 宿主边界
 
 [`Host API`](../helixharness/reference/host-api.md) 定义 manifest 和适配器合同。
-Claude Code 使用原生命令，Codex 与 Cursor 使用各自的 Skill 投影；宿主机制由 `hosts/{host-id}/` 提供。
-三个原生插件清单显式选择各自的 hook 配置。宿主入口负责固定身份和事件转换，
+Claude Code 使用原生命令，Codex 与 Cursor 使用各自的 Skill 投影；OpenCode 由插件注册原生命令、方法 Skill 和 Agent，绑定当前仓库与会话的 Host Context；宿主机制由 `hosts/{host-id}/` 提供。
+Claude Code、Codex 与 Cursor 的原生插件清单显式选择各自的 hook 配置；OpenCode 不发布 hook manifest。宿主入口负责固定身份和事件转换，
 共享生命周期逻辑不得根据平台名称、环境变量或缓存目录猜测宿主。
 
 宿主 Init 入口加载 `project_config`、`project_hooks`；UT 入口加载 `ut`。
-单仓 Init 必须实际生成并校验当前 Host Kit 的项目 hooks，重复初始化保留用户配置并去重。
+支持项目 hooks 的宿主，单仓 Init 必须实际生成并校验当前 Host Kit 的项目 hooks，重复初始化保留用户配置并去重。
 业务阶段显式记录 start/finish；会话 Stop 不是业务完成证据。
+
+**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+
+OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
 
 ## 独立性与数据边界
 

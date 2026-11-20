@@ -10,7 +10,7 @@
    `resources.runtime` 和 `resources.command_projection`。
 3. `resources.command_projection` 必须声明当前公开入口及其唯一 command contract；未声明的入口关闭失败。
 4. Skill 与原生命令入口先执行 projection 声明的 `commands/{command}.md`；Claude Code 允许入口与
-   contract 是同一个 command 文件，Codex 等 Skill 表面使用宿主薄入口加载该 contract。需要阶段正文时，完整读取 Router 返回的唯一 workflow，保留身份、scope 和 trigger，不叠加另一套正文。Host Kit
+   contract 是同一个 command 文件，Codex 等 Skill 表面使用宿主薄入口加载该 contract；OpenCode 原生命令执行器加载同一 contract 并注入当前仓库与会话的 Host Context。需要阶段正文时，完整读取 Router 返回的唯一 workflow，保留身份、scope 和 trigger，不叠加另一套正文。Host Kit
    资源只能映射执行机制，不得成为第二份业务事实源。
 5. 仅当 command contract 声明 Agent/Task 逻辑 job 时，才在首次派发前读取
    `reference/subagent-runtime-protocol.md` 与当前 `resources.subagent_protocol`；无子任务命令不得
@@ -43,6 +43,7 @@
   `/helix-{command}` 是原生 Skill 表面，公共 `/helix:{command}` 是相同命令的逻辑标识；转场按当前
   `resources.workflow_transition` 内联执行唯一 contract，不依赖 UI 别名。方法入口只投影调用意图，
   不携带 Claude hooks 或 Codex metadata；D2C 的宿主门禁由 Cursor runtime 明确执行。
+- OpenCode 插件在命令执行和方法 Skill 加载时注入含绝对路径的 Host Context；直接使用绑定资源，不读取项目 `.opencode/` 同名副本，也不枚举安装目录。不执行 Claude skill-scoped hooks；d-d2c 按无 hook / `--bare` 语义保留用户决策、视觉验收和完成门禁。
 - Host Context、projection 和 manifest 已给出的资源路径必须直接使用；不得枚举或搜索 plugin 根目录、
   安装目录或 cache 来重新发现同名资源，也不得用 `find/rg/ls/wc/stat` 试探已绑定资源的位置或长度。
 - 固定且互不依赖的资源可在宿主支持时合并为一个有界读取批次；生命周期协议要求独占工具轮次的动作
