@@ -121,6 +121,31 @@ class RuntimePreflightTest(unittest.TestCase):
         self.assertEqual(payload["python"]["status"], "ready")
         self.assertEqual(payload["next_action"], "continue")
 
+    def test_crlf_version_output_retains_minimum_and_strict_validation(self) -> None:
+        for version, status in (("3.12.0\r", "ready"), ("3.9.6\r", "unsupported_version"),
+                                ("3.12.0\r\r", "unusable"), ("3.\r12.0", "unusable"),
+                                ("3.12.0\t", "unusable"), ("banner\n3.12.0\r", "unusable")):
+            with self.subTest(version=version):
+                self.assertEqual(status, self.check(version)["python"]["status"])
+
+    def test_crlf_runtime_exec_and_hook_preserve_stdin_and_exit_code(self) -> None:
+        interpreter = self.bin_dir / "python3"
+        interpreter.write_text(
+            '#!/bin/sh\nif [ "$1" = -c ]; then printf "3.12.0\\r\\n"; exit 0; fi\n'
+            + "exec " + shlex.quote(sys.executable) + ' "$@"\n', encoding="utf-8",
+        )
+        script = self.bin_dir / "stdin echo.py"
+        script.write_text("import sys; print(sys.stdin.read(), end=''); sys.exit(7)", encoding="utf-8")
+        for launcher, action in ((SCRIPT, "exec"), (HOOK, "SessionStart")):
+            with self.subTest(action=action):
+                result = subprocess.run(
+                    ["/bin/sh", str(launcher), action, str(script)],
+                    input="合成 Hook 输入\n", env=dict(os.environ, PATH=str(self.bin_dir)),
+                    text=True, capture_output=True, timeout=10,
+                )
+                self.assertEqual(7, result.returncode, result.stderr)
+                self.assertEqual("合成 Hook 输入\n", result.stdout)
+
     def test_unusable_python3_falls_back_and_exec_uses_the_selected_runtime(self) -> None:
         (self.bin_dir / "python3").write_text("#!/bin/sh\nexit 1\n")
         fallback = self.bin_dir / "python"

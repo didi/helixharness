@@ -2,12 +2,16 @@
 
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from host_runtime import HostRegistry
+from lifecycle_service import startup_context_text
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -19,6 +23,26 @@ class WindowsRuntimeTest(unittest.TestCase):
         self.assertIsNotNone(self.powershell)
         self.base = [self.powershell, "-NoProfile", "-ExecutionPolicy", "Bypass",
                      "-File", str(ROOT / "scripts/runtime_preflight.ps1")]
+
+    def test_generated_codex_binding_runs_in_native_powershell(self):
+        manifest = HostRegistry.discover(ROOT / "hosts").require("codex")
+        context = startup_context_text(manifest)
+        command = context.split("(the preflight must run first):\n", 1)[1].split("\nThe first JSON", 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / "binding.ps1"
+            # Windows PowerShell 5.1 needs a BOM to decode non-ASCII script paths.
+            script.write_text(command, encoding="utf-8-sig")
+            result = subprocess.run(
+                [self.powershell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)],
+                capture_output=True, text=True, encoding="utf-8", timeout=30,
+            )
+        self.assertEqual(0, result.returncode, result.stderr)
+        decoder = json.JSONDecoder()
+        check, offset = decoder.raw_decode(result.stdout.lstrip())
+        resolved = json.loads(result.stdout.lstrip()[offset:].lstrip())
+        self.assertTrue(check["ok"])
+        self.assertEqual("resolved", resolved["status"])
+        self.assertEqual("codex", resolved["host_id"])
 
     def test_preflight_and_exec_preserve_unicode_spaces_and_exit_code(self):
         result = subprocess.run([*self.base, "check"], capture_output=True, text=True, encoding="utf-8", timeout=20)
@@ -104,6 +128,54 @@ class WindowsRuntimeTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["python"]["status"], "ready", payload)
         self.assertTrue(Path(payload["python"]["executable"]).is_file())
+
+
+@unittest.skipUnless(os.name == "nt", "requires native Windows Git Bash")
+class WindowsGitBashRuntimeTest(unittest.TestCase):
+    def setUp(self):
+        self.shell = shutil.which("sh.exe")
+        self.assertIsNotNone(self.shell, "Windows CI must expose Git Bash")
+        temporary = tempfile.TemporaryDirectory(prefix="helix-bash-")
+        self.addCleanup(temporary.cleanup)
+        self.base = Path(temporary.name)
+        self.plugin = self.base / "plugin 中文 'quoted' $literal"
+        shutil.copytree(ROOT, self.plugin, ignore=shutil.ignore_patterns("__pycache__"))
+        self.environment = dict(os.environ, PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ["PATH"])
+        self.environment.pop("CLAUDE_ENV_FILE", None)
+        self.environment.pop("HELIXHARNESS_BOUND_PLUGIN_ROOT", None)
+
+    def run_bash(self, command, *, payload="", code=0):
+        result = subprocess.run(
+            [self.shell, "-c", command], env=self.environment, input=payload,
+            capture_output=True, text=True, encoding="utf-8", timeout=30,
+        )
+        self.assertEqual(code, result.returncode, result.stderr + result.stdout)
+        return result.stdout
+
+    def test_claude_startup_then_generated_binding_from_quoted_installation(self):
+        self.environment["CLAUDE_PLUGIN_ROOT"] = self.plugin.as_posix()
+        hooks = json.loads((self.plugin / "hosts/claude-code/hooks.json").read_text(encoding="utf-8"))
+        command = hooks["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        output = self.run_bash(command, payload=json.dumps({"hook_event_name": "SessionStart"}))
+        context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
+        command = next(line for line in context.splitlines() if line.startswith("sh "))
+        output = self.run_bash(command)
+        decoder = json.JSONDecoder()
+        check, offset = decoder.raw_decode(output.lstrip())
+        resolved = json.loads(output.lstrip()[offset:].lstrip())
+        self.assertTrue(check["ok"])
+        self.assertEqual("resolved", resolved["status"])
+        self.assertEqual("claude-code", resolved["host_id"])
+        self.assertEqual(self.plugin.resolve(), Path(resolved["plugin_root"]).resolve())
+
+    def test_native_python_crlf_probe_exec_and_hook_keep_stdin_and_exit_status(self):
+        script = self.base / "echo 中文 'quoted'.py"
+        script.write_text("import sys; print(sys.stdin.read(), end=''); sys.exit(7)", encoding="utf-8")
+        for launcher, action in (("runtime_preflight.sh", "exec"), ("python_hook_bootstrap.sh", "SessionStart")):
+            with self.subTest(action=action):
+                command = shlex.join(["sh", (self.plugin / "scripts" / launcher).as_posix(), action, script.as_posix()])
+                output = self.run_bash(command, payload="合成输入\n", code=7)
+                self.assertEqual("合成输入\n", output)
 
 
 if __name__ == "__main__":

@@ -49,7 +49,7 @@ def main() -> int:
                 return 0
             from host_runtime_cli import _context
             manifest = HostRegistry.discover(ROOT / "hosts").get("claude-code")
-            output = startup_context(manifest)
+            output = startup_context(manifest, command_shell="bash")
             specific = output["hookSpecificOutput"]
             specific["hookEventName"] = event
             specific["additionalContext"] += (
@@ -68,7 +68,7 @@ def main() -> int:
             return 0
         if payload["hook_event_name"] in {"SessionStart", "CwdChanged"}:
             persist_environment(payload)
-        handle_event(HostRegistry.discover(ROOT / "hosts").get("claude-code"), payload)
+        handle_event(HostRegistry.discover(ROOT / "hosts").get("claude-code"), payload, command_shell="bash")
     except (OSError, ValueError):
         return 0
     return 0

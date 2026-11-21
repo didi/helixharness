@@ -17,6 +17,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from host_runtime import HostRegistry
@@ -62,7 +63,7 @@ class StartupPreflightGateTests(unittest.TestCase):
 
     def command(self, host: str) -> str:
         manifest = replace(self.registry.require(host), root=self.plugin / "hosts" / host)
-        context = startup_context_text(manifest)
+        context = startup_context_text(manifest, command_shell="bash" if host == "claude-code" else None)
         commands = [line for line in context.splitlines() if line.startswith("sh ")]
         self.assertEqual(1, len(commands))
         return commands[0]
@@ -115,6 +116,21 @@ class StartupPreflightGateTests(unittest.TestCase):
     def test_missing_git_stops_before_resolver_even_when_python_ready(self):
         self.runtimes(git=False)
         self.assert_blocked_all_hosts("ready", "missing")
+
+    def test_windows_claude_bash_gate_blocks_failures_and_accepts_crlf(self):
+        # Synthetic Windows selection executed by a real POSIX shell. Native
+        # Git Bash path/argv behavior is covered separately on Windows CI.
+        with patch("lifecycle_service.os", SimpleNamespace(name="nt")):
+            for version, git, code in (("3.12.0\r", True, 0), ("3.9.6\r", True, 2),
+                                       ("broken\r", True, 2), (None, True, 2),
+                                       ("3.12.0\r", False, 2)):
+                with self.subTest(version=version, git=git):
+                    for path in (self.bin / "python3", self.bin / "git", self.marker):
+                        path.unlink(missing_ok=True)
+                    self.runtimes(python=version, git=git)
+                    result = self.run_command("claude-code")
+                    self.assertEqual(code, result.returncode, result.stderr)
+                    self.assertEqual(code == 0, self.marker.exists())
 
     def test_check_keeps_diagnostic_exit_contract_while_require_gates(self):
         self.runtimes(python=None, git=False)

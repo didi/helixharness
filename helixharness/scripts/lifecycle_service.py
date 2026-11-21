@@ -12,8 +12,13 @@ from pathlib import Path
 from host_runtime import HostManifest
 
 
-def startup_context_text(manifest: HostManifest) -> str:
-    """Return host-neutral binding text for the installed entrypoint."""
+def startup_context_text(manifest: HostManifest, *, command_shell: str | None = None) -> str:
+    """Render binding text for the Host Kit's command shell, not the Hook's OS alone."""
+
+    if command_shell is None:
+        command_shell = "powershell" if os.name == "nt" else "bash"
+    if command_shell not in {"bash", "powershell"}:
+        raise ValueError(f"Unsupported command shell: {command_shell}")
 
     root = manifest.root.parent.parent
     binding = {
@@ -21,7 +26,7 @@ def startup_context_text(manifest: HostManifest) -> str:
         "plugin_root": str(root),
         "host_manifest": str(manifest.root / "host.json"),
     }
-    if os.name == "nt":
+    if command_shell == "powershell":
         def literal(value: str) -> str:
             return "'" + value.replace("'", "''") + "'"
 
@@ -36,12 +41,14 @@ def startup_context_text(manifest: HostManifest) -> str:
         )
         guard_description = "Only ok=true allows the PowerShell exec step to run. "
     else:
-        launcher = "sh " + shlex.quote(str(root / "scripts/runtime_preflight.sh"))
+        # Git Bash accepts drive/UNC paths with forward slashes. Keep the
+        # native paths in the binding JSON; normalize only shell arguments.
+        launcher = "sh " + shlex.quote((root / "scripts/runtime_preflight.sh").as_posix())
         guarded = (
             launcher + " require && " + launcher + " exec "
-            + shlex.quote(str(root / "scripts/host_runtime_cli.py"))
+            + shlex.quote((root / "scripts/host_runtime_cli.py").as_posix())
             + " resolve --platform " + shlex.quote(manifest.host_id)
-            + " --expected-plugin-root " + shlex.quote(str(root))
+            + " --expected-plugin-root " + shlex.quote(root.as_posix())
         )
         guard_description = "Only ok=true allows the resolver after && to run; do not replace && with a separator. "
     return (
@@ -64,13 +71,13 @@ def startup_context_text(manifest: HostManifest) -> str:
     )
 
 
-def startup_context(manifest: HostManifest) -> dict:
+def startup_context(manifest: HostManifest, *, command_shell: str | None = None) -> dict:
     """Preserve the existing nested response used by the 1.1 Host Kits."""
 
     return {
         "hookSpecificOutput": {
             "hookEventName": "SessionStart",
-            "additionalContext": startup_context_text(manifest),
+            "additionalContext": startup_context_text(manifest, command_shell=command_shell),
         }
     }
 
@@ -117,10 +124,13 @@ def cleanup_session(manifest: HostManifest, data: dict) -> int:
     return removed
 
 
-def handle_event(manifest: HostManifest, data: dict, *, emit_startup_context: bool = True) -> None:
+def handle_event(
+    manifest: HostManifest, data: dict, *, emit_startup_context: bool = True,
+    command_shell: str | None = None,
+) -> None:
     event = data.get("hook_event_name")
     if event == "SessionStart" and emit_startup_context:
-        print(json.dumps(startup_context(manifest), ensure_ascii=False))
+        print(json.dumps(startup_context(manifest, command_shell=command_shell), ensure_ascii=False))
     try:
         if event in {"SessionStart", "CwdChanged"}:
             repair_session(manifest, data)
