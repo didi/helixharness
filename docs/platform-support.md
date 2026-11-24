@@ -17,13 +17,13 @@ HelixHarness 面向 macOS、原生 Windows 与 Linux，要求 Python 3.10+、Git
 | Optional root user isolation / 可选 root 隔离 | Linux `setpriv` only | Leave `HELIXHARNESS_PLATFORM_EVOLUTION_EXECUTION_USER` unset; do not configure Linux user isolation |
 | D2C browser helpers / 浏览器工具 | Node and Chrome/Edge | Node and Chrome/Edge; native executable discovery |
 
-The host controls hook trust and execution. Codex must support `commandWindows`; Claude Code must support Bash hooks (`shell: "bash"`). Review changed hooks after updating and start a new session. Merely seeing commands in the menu does not verify hooks.
+The host controls hook trust and execution. Codex must support `commandWindows`; Claude Code must support Bash hooks (`shell: "bash"`). Review changed hooks after updating and start a new session. Merely seeing commands in the menu does not verify hooks. Generated project hook commands bind the current interpreter and the plugin paths. Qoder's Host Kit declares a shape-based stale-binding policy, so re-running Init lets `project_hooks_cli.py merge` recognize our own earlier handlers by their `--linter` flag and script path regardless of version-directory or path-spelling changes and collapse duplicates automatically; its `check` reports remaining drift as warnings unless `--strict` is set. Hosts without that declaration (Codex, Claude Code, Cursor, openCode) still match on the exact arguments, so after a version-directory or path-spelling change they keep the stale entry and append a new one: re-run Init in existing projects and then delete entries that still point at a removed version directory. User-owned hooks are never touched.
 
 Cursor follows the same Python 3.10+ requirement and uses `/helix-xxx` entries. Its desktop acceptance and update limits are recorded in the [Cursor support report](cursor-testing.md); the shared Windows runtime does not extend that host's native acceptance.
 
 Cursor 同样要求 Python 3.10+，使用 `/helix-xxx` 入口。桌面验收与更新边界见 [Cursor 支持报告](cursor-testing.md)；共享运行时的 Windows 支持不扩大该宿主的原生验收范围。
 
-宿主负责 Hook 信任与执行。Codex 需要支持 `commandWindows`，Claude Code 需要支持 Bash Hook。升级后审阅变更的 Hook 并新开会话；菜单中可见命令不等于 Hook 已执行。已有业务项目重新运行 `/helix:init`，由 `project_hooks_cli.py merge` 更新本插件的旧检查命令，保留用户的其他 Hook。生成的项目 Hook 绑定当前解释器和插件路径；移动 Python 或更新插件安装路径后重新 Init。
+宿主负责 Hook 信任与执行。Codex 需要支持 `commandWindows`，Claude Code 需要支持 Bash Hook。升级后审阅变更的 Hook 并新开会话；菜单中可见命令不等于 Hook 已执行。生成的项目 Hook 会绑定当前解释器与插件路径。Qoder 的 Host Kit 声明了基于形状的陈旧绑定策略，重跑 `/helix:init` 时由 `project_hooks_cli.py merge` 按 `--linter` 参数与脚本路径识别本插件早先写入的检查命令，无论版本目录或路径写法怎么变都会自动收敛重复条目；其 `check` 默认把残留差异报为 warning，加 `--strict` 才判为失败。未声明该策略的宿主（Codex、Claude Code、Cursor、openCode）仍按完整参数相等识别，换了版本目录或换一种路径写法（macOS 上 `/tmp` 与 `/private/tmp` 即是如此）会保留旧条目并追加新条目，需要重跑 Init 后手动删掉仍指向已删除版本目录的条目。用户自己的其他 Hook 不受影响。
 
 ## Preflight / 预检
 

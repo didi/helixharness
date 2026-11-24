@@ -15,10 +15,12 @@ import tempfile
 from pathlib import Path
 
 from host_runtime import HostContractError, HostRegistry
-from host_runtime.project_hooks import load_project_hooks, validate_flat_payload
+from host_runtime.project_hooks import StaleBindingPolicy, load_project_hooks, validate_flat_payload
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 WINDOWS_COMMAND_PREFIX = "powershell.exe -NoProfile -NonInteractive -EncodedCommand "
+KNOWN_LINTERS = ("invariant-check", "spec-sync-check")
+LINTER_SCRIPT_SUFFIX = ("scripts", "project_linter.py")
 
 
 def windows_command(argv: list[str]) -> str:
@@ -29,22 +31,90 @@ def windows_command(argv: list[str]) -> str:
     return WINDOWS_COMMAND_PREFIX + encoded
 
 
-def is_bound_linter_command(command: str, linter_args: list[str]) -> bool:
-    """Recognize our generated command with any absolute interpreter path."""
-    if command.startswith(WINDOWS_COMMAND_PREFIX):
-        try:
-            encoded = command.removeprefix(WINDOWS_COMMAND_PREFIX)
-            source = base64.b64decode(encoded, validate=True).decode("utf-16-le")
-        except ValueError:
-            return False
-        match = re.match(r"^& '((?:[^']|'')*)' ", source)
-        if match is None:
-            return False
-        python = match[1].replace("''", "'")
-        return Path(python).is_absolute() and command == windows_command([python, *linter_args])
+def _parse_windows_command(command: str) -> list[str] | None:
+    """Decode a Windows powershell-encoded command back to argv."""
+    if not command.startswith(WINDOWS_COMMAND_PREFIX):
+        return None
     try:
-        argv = shlex.split(command)
+        encoded = command.removeprefix(WINDOWS_COMMAND_PREFIX)
+        source = base64.b64decode(encoded, validate=True).decode("utf-16-le")
     except ValueError:
+        return None
+    match = re.match(r"^& ((?:'[^']*'\s*)+);\s*exit\s+\$LASTEXITCODE\s*$", source)
+    if match is None:
+        return None
+    quoted = match[1].strip()
+    argv = []
+    for token in re.findall(r"'((?:[^']|'')*)'", quoted):
+        argv.append(token.replace("''", "'"))
+    return argv
+
+
+def _parse_posix_command(command: str) -> list[str] | None:
+    """Parse a POSIX shell-quoted command into argv."""
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return None
+
+
+def _recognize_linter_name(argv: list[str]) -> str | None:
+    """Return the linter name if argv matches our generator shape, else None."""
+    if len(argv) < 4:
+        return None
+    if not Path(argv[0]).is_absolute():
+        return None
+    if "-X" not in argv or "utf8" not in argv:
+        return None
+    x_index = argv.index("-X")
+    if argv.index("utf8") != x_index + 1:
+        return None
+    script_path = None
+    for arg in argv:
+        parts = Path(arg).parts
+        if len(parts) >= 2 and tuple(parts[-2:]) == LINTER_SCRIPT_SUFFIX:
+            script_path = arg
+            break
+    if script_path is None:
+        return None
+    try:
+        linter_index = argv.index("--linter")
+    except ValueError:
+        return None
+    if linter_index + 1 >= len(argv):
+        return None
+    linter_name = argv[linter_index + 1]
+    if linter_name not in KNOWN_LINTERS:
+        return None
+    return linter_name
+
+
+def recognize_linter_command(command: str, policy: StaleBindingPolicy) -> str | None:
+    """Return the linter name if command is our generated linter, else None.
+
+    Under exact_args policy, returns the linter name only if argv[1:] matches exactly.
+    Under linter_flag policy, returns the linter name if the shape matches.
+    """
+    if policy.recognize == "exact_args":
+        # Legacy behavior: caller must pass expected argv[1:] to compare.
+        # This branch is handled by the caller passing linter_args.
+        return None
+    argv = _parse_windows_command(command) or _parse_posix_command(command)
+    if argv is None:
+        return None
+    return _recognize_linter_name(argv)
+
+
+def is_bound_linter_command(command: str, linter_args: list[str]) -> bool:
+    """Recognize our generated command with any absolute interpreter path (legacy exact_args)."""
+    if command.startswith(WINDOWS_COMMAND_PREFIX):
+        argv = _parse_windows_command(command)
+        if argv is None:
+            return False
+        python = argv[0]
+        return Path(python).is_absolute() and command == windows_command([python, *linter_args])
+    argv = _parse_posix_command(command)
+    if argv is None:
         return False
     return (
         argv[1:] == linter_args
@@ -72,13 +142,23 @@ def validate_events(events: dict) -> None:
                     raise ValueError(f"missing project hook command: {event}")
 
 
-def merge_payload(current: dict, required: dict, bound_linters: dict[str, tuple[str, list[str]]]) -> dict:
+def merge_payload(
+    current: dict,
+    required: dict,
+    bound_linters: dict[str, tuple[str, list[str]]],
+    policy: StaleBindingPolicy,
+) -> tuple[dict, list[str]]:
+    """Merge required hooks into current settings, returning (merged, warnings).
+
+    Under collapse policy, duplicate shape-matched entries are removed.
+    """
     result = copy.deepcopy(current)
     events = result.setdefault("hooks", {})
     if not isinstance(events, dict):
         raise ValueError("settings.hooks must be an object")
     validate_events(events)
     validate_events(required["hooks"])
+    warnings: list[str] = []
     for event, expected_groups in required["hooks"].items():
         groups = events.setdefault(event, [])
         for expected in expected_groups:
@@ -93,30 +173,60 @@ def merge_payload(current: dict, required: dict, bound_linters: dict[str, tuple[
             for handler in expected["hooks"]:
                 command = handler.get("command")
                 legacy, linter_args = bound_linters.get(command, ("", [])) if isinstance(command, str) else ("", [])
+                handler_linter_name = None
+                if policy.recognize == "linter_flag" and isinstance(command, str):
+                    handler_linter_name = recognize_linter_command(command, policy)
                 found = False
                 for group in matching:
                     kept = []
                     for existing in group["hooks"]:
                         old_command = existing.get("command")
-                        if existing.get("type") == handler["type"] and (
-                            old_command == command
-                            or (
-                                linter_args and isinstance(old_command, str)
-                                and (old_command == legacy or is_bound_linter_command(old_command, linter_args))
-                            )
-                        ):
+                        if not isinstance(old_command, str) or existing.get("type") != handler["type"]:
+                            kept.append(existing)
+                            continue
+                        # Check if this existing entry matches our handler
+                        is_match = False
+                        if policy.recognize == "linter_flag":
+                            # Shape-based recognition
+                            existing_linter_name = recognize_linter_command(old_command, policy)
+                            if existing_linter_name and handler_linter_name and existing_linter_name == handler_linter_name:
+                                is_match = True
+                            # Also check commandWindows under shape match
+                            if not is_match and "commandWindows" in handler:
+                                old_windows = existing.get("commandWindows")
+                                if isinstance(old_windows, str) and recognize_linter_command(old_windows, policy) == handler_linter_name:
+                                    is_match = True
+                        else:
+                            # Legacy exact_args recognition
+                            if linter_args:
+                                if old_command == command or old_command == legacy or is_bound_linter_command(old_command, linter_args):
+                                    is_match = True
+                                # Also check commandWindows under legacy recognition
+                                if not is_match and "commandWindows" in handler:
+                                    old_windows = existing.get("commandWindows")
+                                    if isinstance(old_windows, str) and is_bound_linter_command(old_windows, linter_args):
+                                        is_match = True
+                            else:
+                                # Exact command match
+                                if old_command == command:
+                                    is_match = True
+                        if is_match:
                             if found:
+                                # Duplicate: skip it (original dedup behavior)
+                                # Under collapse policy, also report as warning
+                                if policy.merge == "collapse":
+                                    warnings.append(f"Removed duplicate linter handler: {old_command[:80]}")
                                 continue
                             found = True
+                            # Update to canonical command
                             if command != old_command:
                                 existing["command"] = command
                             old_windows = existing.get("commandWindows")
-                            if (
-                                "commandWindows" in handler and linter_args
-                                and isinstance(old_windows, str)
-                                and is_bound_linter_command(old_windows, linter_args)
-                            ):
-                                existing["commandWindows"] = handler["commandWindows"]
+                            if "commandWindows" in handler:
+                                if linter_args and isinstance(old_windows, str) and is_bound_linter_command(old_windows, linter_args):
+                                    existing["commandWindows"] = handler["commandWindows"]
+                                elif policy.recognize == "linter_flag" and isinstance(old_windows, str) and recognize_linter_command(old_windows, policy):
+                                    existing["commandWindows"] = handler["commandWindows"]
                             for key in ("commandWindows", "shell"):
                                 if key in handler:
                                     existing.setdefault(key, handler[key])
@@ -124,7 +234,7 @@ def merge_payload(current: dict, required: dict, bound_linters: dict[str, tuple[
                     group["hooks"] = kept
                 if not found:
                     matching[0]["hooks"].append(copy.deepcopy(handler))
-    return result
+    return result, warnings
 
 
 def merge_flat_payload(current: dict, required: dict, bound_linters: dict[str, tuple[str, list[str]]] | None = None) -> dict:
@@ -159,7 +269,7 @@ def merge_flat_payload(current: dict, required: dict, bound_linters: dict[str, t
             handlers[:] = kept
     return result
 
-def project_hooks(repo: Path, platform: str, action: str) -> dict:
+def project_hooks(repo: Path, platform: str, action: str, strict: bool = False) -> dict:
     manifest = HostRegistry.discover(PLUGIN_ROOT / "hosts").get(platform)
     if manifest is None:
         raise ValueError("unsupported_host")
@@ -206,10 +316,18 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
                             handler["command"] = shlex.join(argv)
                             handler["shell"] = "bash"
                         bound_linters[handler["command"]] = (legacy, argv[1:])
-    merged = (merge_flat_payload(current, required, bound_linters) if flat
-              else merge_payload(current, required, bound_linters))
+    if flat:
+        merged, merge_warnings = merge_flat_payload(current, required, bound_linters), []
+    else:
+        merged, merge_warnings = merge_payload(current, required, bound_linters, contract.stale_binding_policy)
     if action == "check":
         if not exists or original != merged:
+            if contract.stale_binding_policy.check == "warn" and not strict:
+                return {
+                    "status": "pass",
+                    "settings_file": contract.settings_file,
+                    "warnings": merge_warnings if merge_warnings else ["Project hooks missing or duplicated"],
+                }
             raise ValueError("project_hooks_missing_or_duplicated")
         return {"status": "pass", "settings_file": contract.settings_file}
     changed = not exists or original != merged
@@ -226,21 +344,25 @@ def project_hooks(repo: Path, platform: str, action: str) -> dict:
             os.replace(temporary, target)
         finally:
             Path(temporary).unlink(missing_ok=True)
-    return {
+    result = {
         "status": "merged",
         "changed": changed,
         "settings_file": contract.settings_file,
     }
+    if merge_warnings:
+        result["warnings"] = merge_warnings
+    return result
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--platform", required=True)
+    parser.add_argument("--strict", action="store_true", help="Treat warnings as failures in check mode")
     parser.add_argument("action", choices=("merge", "check"))
     args = parser.parse_args()
     try:
-        result = project_hooks(args.repo_root, args.platform, args.action)
+        result = project_hooks(args.repo_root, args.platform, args.action, strict=args.strict)
     except (OSError, ValueError, HostContractError) as exc:
         print(json.dumps({"status": "blocked", "reason": str(exc)}))
         return 1

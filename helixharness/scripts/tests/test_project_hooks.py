@@ -214,6 +214,110 @@ class ProjectHooksTest(unittest.TestCase):
                             project_hooks(repo, "codex", action)
                         self.assertEqual(raw, target.read_text())
 
+    def test_qoder_collapse_removes_version_dir_duplicates(self):
+        """Under linter_flag policy, entries differing only in --repo-root collapse."""
+        from project_hooks_cli import project_hooks
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            target = repo / ".qoder/settings.json"
+            target.parent.mkdir()
+            # Simulate stale entries from two different plugin versions
+            stale = {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Write|Edit|NotebookEdit",
+                            "hooks": [
+                                {
+                                    "type": "command",
+                                    "command": f"'{sys.executable}' -X utf8 /old/version/1.0.0/scripts/project_linter.py --repo-root /tmp/old --linter invariant-check",
+                                },
+                                {
+                                    "type": "command",
+                                    "command": f"'{sys.executable}' -X utf8 /new/version/1.1.0/scripts/project_linter.py --repo-root /tmp/new --linter invariant-check",
+                                },
+                                {
+                                    "type": "command",
+                                    "command": f"'{sys.executable}' -X utf8 /old/version/1.0.0/scripts/project_linter.py --repo-root /tmp/old --linter spec-sync-check",
+                                },
+                                {
+                                    "type": "command",
+                                    "command": f"'{sys.executable}' -X utf8 /new/version/1.1.0/scripts/project_linter.py --repo-root /tmp/new --linter spec-sync-check",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            }
+            target.write_text(json.dumps(stale))
+            result = project_hooks(repo, "qoder", "merge")
+            self.assertTrue(result["changed"])
+            self.assertIn("warnings", result)
+            # Should have warnings about removed duplicates
+            self.assertGreater(len(result["warnings"]), 0)
+            merged = json.loads(target.read_text())
+            handlers = merged["hooks"]["PostToolUse"][0]["hooks"]
+            # Should collapse to 2 handlers (one per linter)
+            self.assertEqual(2, len(handlers))
+            # Check that both linters are present
+            linter_names = set()
+            for handler in handlers:
+                command = handler["command"]
+                if "--linter invariant-check" in command:
+                    linter_names.add("invariant-check")
+                elif "--linter spec-sync-check" in command:
+                    linter_names.add("spec-sync-check")
+            self.assertEqual({"invariant-check", "spec-sync-check"}, linter_names)
+
+    def test_qoder_check_warns_by_default_fails_with_strict(self):
+        """Under warn policy, check returns warnings; --strict makes it fail."""
+        from project_hooks_cli import project_hooks
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            target = repo / ".qoder/settings.json"
+            target.parent.mkdir()
+            # Missing hooks entirely
+            result = project_hooks(repo, "qoder", "check", strict=False)
+            self.assertEqual("pass", result["status"])
+            self.assertIn("warnings", result)
+            # With strict, should raise
+            with self.assertRaisesRegex(ValueError, "project_hooks_missing_or_duplicated"):
+                project_hooks(repo, "qoder", "check", strict=True)
+
+    def test_qoder_does_not_claim_shape_mismatched_commands(self):
+        """Commands with project_linter.py but wrong flags are not recognized."""
+        from project_hooks_cli import project_hooks
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            target = repo / ".qoder/settings.json"
+            target.parent.mkdir()
+            user_hook = {
+                "type": "command",
+                "command": f"'{sys.executable}' /some/path/scripts/project_linter.py --unknown-flag",
+                "timeout": 42,
+            }
+            settings = {
+                "hooks": {
+                    "PostToolUse": [
+                        {
+                            "matcher": "Write|Edit|NotebookEdit",
+                            "hooks": [user_hook],
+                        }
+                    ]
+                }
+            }
+            target.write_text(json.dumps(settings))
+            project_hooks(repo, "qoder", "merge")
+            merged = json.loads(target.read_text())
+            handlers = merged["hooks"]["PostToolUse"][0]["hooks"]
+            # User hook should be preserved (not recognized as our linter)
+            self.assertEqual(3, len(handlers))  # user + 2 linters
+            self.assertEqual(42, handlers[0]["timeout"])
+            self.assertEqual(user_hook["command"], handlers[0]["command"])
+
 
 class FlatProjectHooksTest(unittest.TestCase):
     def setUp(self):

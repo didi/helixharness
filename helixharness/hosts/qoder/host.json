@@ -1,0 +1,53 @@
+{
+  "host_id": "qoder",
+  "host_api_version": "1.1",
+  "aliases": [
+    "qoder-cn"
+  ],
+  "support": {
+    "level": "preview",
+    "display_name": "Qoder",
+    "evidence": null,
+    "limitations": [
+      "分发使用本地 ZIP 与 App 安装工具，宿主没有等价 marketplace CLI，因此 plugin_update 为 unsupported，更新等于构建并安装新版本。",
+      "实测：已启动的会话沿用会话启动时绑定的 plugin_root，插件更新不会刷新该绑定；旧版本缓存目录被移除后，旧会话里的插件资源路径失效，必须新开会话。",
+      "子代理可并行派发，但只返回单次终态，没有 job 级写域与显式等待 API；subagents、workflow_transition、unit_test_workflow 记为 emulated，写域隔离由父流程约束并在终态后核查文件系统。",
+      "telemetry 为 unsupported：不注册 Stop 与 Failure hook（宿主具备这两类事件，本 Kit 只注册 SessionStart），不读写 consent 与 eval-log，不发起异步上报；统计开关不改变工作流完成门禁。",
+      "实测：9 个 commands/*.md 在盘上，但没有任何注册面区块把它们列为可调用斜杠命令，程序发送 /helix:status 零展开透传（同路径下 /help 会展开）；输入框手工提交是否走斜杠解析未排除。投影为 surface=skill，薄入口在 hosts/qoder/skills/ 由清单 skills 声明装载，command_surface 记 emulated。",
+      "实测：hook 以非零码失败时宿主只记录 hook_non_blocking_error，不注入模型上下文、也不显示在会话界面，因此项目检查静默失败在对话里不可见，验收必须读转录里的 hook 记录。",
+      "实测：项目级 .qoder/settings.json 的 PostToolUse hook 会被执行且 additionalContext 注入会话，因此 project_hooks 记为 native。配置按事件读取，会话中途写入即在下次同类工具调用生效；注入要求退出码 0 且 stdout 为合法 JSON。",
+      "Windows 启动器未验证，只提供 POSIX hook 命令。"
+    ]
+  },
+  "capabilities": {
+    "command_surface": "emulated",
+    "skill_discovery": "native",
+    "session_start": "native",
+    "session_end": "native",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "emulated",
+    "workflow_transition": "emulated",
+    "subagents": "emulated",
+    "unit_test_workflow": "emulated",
+    "task_tracking": "native",
+    "project_hooks": "native",
+    "session_events": "native",
+    "telemetry": "unsupported",
+    "plugin_install": "native",
+    "plugin_update": "unsupported"
+  },
+  "adapters": {
+    "distribution": "resource:.qoder-plugin/plugin.json",
+    "installer": "resource:hosts/qoder/installer.md",
+    "command_projection": "resource:hosts/qoder/command-projection.json",
+    "runtime": "resource:hosts/qoder/runtime.md",
+    "subagent_protocol": "resource:hosts/qoder/subagent.md",
+    "workflow_transition": "resource:hosts/qoder/workflow-transition.md",
+    "project_config": "resource:hosts/qoder/project.json",
+    "project_hooks": "resource:hosts/qoder/project-hooks.json",
+    "ut": "resource:hosts/qoder/ut.md",
+    "lifecycle": "resource:hosts/qoder/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md"
+  }
+}

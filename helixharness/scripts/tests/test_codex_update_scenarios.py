@@ -17,7 +17,7 @@ from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[2]
 REPOSITORY = PLUGIN.parent
-PUBLIC_ROOTS = {".codex-plugin", ".claude-plugin", ".cursor-plugin", "package.json", "scripts", "hosts", "commands", "workflows", "reference", "skills", "agents", "templates"}
+PUBLIC_ROOTS = {".codex-plugin", ".claude-plugin", ".cursor-plugin", ".qoder-plugin", "package.json", "scripts", "hosts", "commands", "workflows", "reference", "skills", "agents", "templates"}
 PRIVATE_PARTS = {".git", ".codex", ".claude", ".cursor", ".agents", ".aws", "output", "temp", "runtime", "sessions", "rollouts", "cache", ".cache", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv"}
 NATIVE_STUB = r'''
 import json, os, sys

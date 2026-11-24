@@ -214,7 +214,7 @@ class CursorTelemetryTest(unittest.TestCase):
     def test_clean_installed_runtime_uses_snapshot_for_all_hosts_without_checkout_imports(self):
         from host_runtime import HostRegistry
 
-        self.assertEqual(set(HostRegistry.discover(ROOT / "hosts").supported_ids()), {"claude-code", "codex", "cursor", "opencode"})
+        self.assertEqual(set(HostRegistry.discover(ROOT / "hosts").supported_ids()), {"claude-code", "codex", "cursor", "opencode", "qoder"})
         snapshot = build_runtime_snapshot(ROOT)
         self.assertEqual({host["host_id"] for host in snapshot["hosts"]}, {"claude-code", "codex", "cursor", "opencode"})
         telemetry_async.install_runtime(ROOT, self.home)

@@ -112,7 +112,8 @@ class ReportingConfigTest(unittest.TestCase):
             "codex",
             capabilities={"telemetry": "native"},
             adapters={"telemetry": "python:telemetry_hosts.codex:CodexAdapter",
-                      "version": "python:update_hosts.codex:plugin_version"},
+                      "version": "python:update_hosts.codex:plugin_version",
+                      "distribution": "resource:.codex-plugin/plugin.json"},
         ))
         adapter_package = source / "scripts/telemetry_hosts"
         adapter_package.mkdir()

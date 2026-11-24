@@ -19,7 +19,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex、Claude Code、Cursor 或 OpenCode（macOS、2.3.2；见[支持矩阵](../docs/opencode-testing.md)）。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md)、[Cursor](hosts/cursor/installer.md) 和 [OpenCode](hosts/opencode/installer.md) 安装说明。OpenCode 将本插件目录加入 `plugins` 数组。
+需要 Python 3.10+、Git，以及 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](../docs/opencode-testing.md)）或 Qoder。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装；OpenCode 将本插件目录加入 `plugins` 数组；Qoder 没有等价 marketplace CLI，需先用 `scripts/package_qoder_plugin.py` 生成 ZIP，再由 App 安装工具安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md)、[Cursor](hosts/cursor/installer.md)、[OpenCode](hosts/opencode/installer.md) 和 [Qoder](hosts/qoder/installer.md) 安装说明。
 
 **OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](../docs/opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 

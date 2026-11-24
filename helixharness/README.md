@@ -21,7 +21,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex、Claude Code、Cursor 或 OpenCode（macOS、2.3.2；见[支持矩阵](../docs/opencode-testing.md)）。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md)、[Cursor](hosts/cursor/installer.md) 和 [OpenCode](hosts/opencode/installer.md) 安装说明。OpenCode 将本插件目录加入 `plugins` 数组。
+需要 Python 3.10+、Git，以及 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](../docs/opencode-testing.md)）或 Qoder。Codex、Claude Code 可将本目录作为本地 marketplace 添加；Cursor 通过市场界面安装；OpenCode 将本插件目录加入 `plugins` 数组；Qoder 没有等价 marketplace CLI，需先用 `scripts/package_qoder_plugin.py` 生成 ZIP，再由 App 安装工具安装。宿主步骤见 [Codex](hosts/codex/installer.md)、[Claude Code](hosts/claude-code/installer.md)、[Cursor](hosts/cursor/installer.md)、[OpenCode](hosts/opencode/installer.md) 和 [Qoder](hosts/qoder/installer.md) 安装说明。
 
 **OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](../docs/opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 
@@ -38,7 +38,7 @@ OpenCode 适配使用原生工具和会话 Hook，但未提供等价的 SessionS
 
 有代码库时结合相关实现探索方案；没有代码库时先澄清想法与约束。Skill 交付讨论摘要或调试结果后结束；用户可自行将结果作为后续需求输入。两项 Skill 不创建 feature、Spec/Tasks 或 eval-log，不推进研发阶段。
 
-这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex 与 Cursor 使用各自生成的宿主入口，Claude Code 直接发现根 `skills/`，OpenCode 注册 `helix-<name>` 方法 Skill；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
+这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex、Cursor 与 Qoder 使用各自生成的宿主薄入口（`hosts/<host>/skills/`），Claude Code 直接发现根 `skills/`，OpenCode 注册 `helix-<name>` 方法 Skill；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
 
 可选的 [git-diff-impact](skills/git-diff-impact/SKILL.md) 可独立分析 Git 改动的调用链、业务影响和兼容性。显式要求“使用 HelixHarness git-diff-impact，分析当前未提交改动，--no-save”即可，无需 Init 或 feature。默认保存 Markdown 报告到 `diff-impact-reports/`；日常 Apply 不自动调用，也不改变评审状态。`code-review` / `tdd` 当前仍依赖 HelixHarness 的 Spec 和执行上下文，没有独立模式。
 

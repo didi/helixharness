@@ -237,4 +237,4 @@ class PublicRouterTest(unittest.TestCase):
             for key in host.adapters:
                 if host.adapter_reference(key).kind=='python':
                     host.load_python_adapter(key)
-        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code','cursor','opencode'})
+        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code','cursor','opencode','qoder'})

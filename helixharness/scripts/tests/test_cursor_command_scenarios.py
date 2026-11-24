@@ -25,7 +25,7 @@ import workflow
 PLUGIN = Path(__file__).resolve().parents[2]
 REPOSITORY = PLUGIN.parent
 COMMANDS = {"init", "propose", "apply", "archive", "bug-fix", "ut", "update", "status", "config"}
-PUBLIC_ROOTS = {".claude-plugin", ".codex-plugin", ".cursor-plugin", "package.json", "scripts", "hosts", "commands", "workflows", "reference", "skills", "agents", "templates"}
+PUBLIC_ROOTS = {".claude-plugin", ".qoder-plugin", ".codex-plugin", ".cursor-plugin", "package.json", "scripts", "hosts", "commands", "workflows", "reference", "skills", "agents", "templates"}
 PRIVATE_PARTS = {".git", ".codex", ".claude", ".cursor", ".agents", ".aws", "output", "temp", "runtime", "sessions", "rollouts", "cache", ".cache", "__pycache__", ".pytest_cache", "node_modules", ".venv", "venv"}
 
 
