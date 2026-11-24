@@ -4,6 +4,11 @@
   "settings_file": ".qoder/settings.json",
   "merge_strategy": "json_append_dedup",
   "dedupe_key": "hooks.PostToolUse[].matcher=Write|Edit|NotebookEdit",
+  "stale_binding_policy": {
+    "recognize": "linter_flag",
+    "merge": "collapse",
+    "check": "warn"
+  },
   "payload": {
     "hooks": {
       "PostToolUse": [
