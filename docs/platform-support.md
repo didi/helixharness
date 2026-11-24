@@ -16,9 +16,9 @@ HelixHarness 面向 macOS、原生 Windows 与 Linux，要求 Python 3.10+、Git
 | Optional root user isolation / 可选 root 隔离 | Linux `setpriv` only | Leave `HELIXHARNESS_PLATFORM_EVOLUTION_EXECUTION_USER` unset; do not configure Linux user isolation |
 | D2C browser helpers / 浏览器工具 | Node and Chrome/Edge | Node and Chrome/Edge; native executable discovery |
 
-The host controls hook trust and execution. Codex must support `commandWindows`; Claude Code must support Bash hooks (`shell: "bash"`). Review changed hooks after updating and start a new session. Merely seeing commands in the menu does not verify hooks.
+The host controls hook trust and execution. Codex must support `commandWindows`; Claude Code must support Bash hooks (`shell: "bash"`). Review changed hooks after updating and start a new session. Merely seeing commands in the menu does not verify hooks. Generated project hook commands pin the interpreter, the plugin version directory and the resolved repository root, so `project_hooks_cli.py merge` rewrites our own older command only while all of them are unchanged; after a version-directory or path-spelling change it keeps the stale entry and appends a new one, so re-run Init in existing projects and then delete entries that still point at a removed version directory. User-owned hooks are never touched.
 
-宿主负责 Hook 信任与执行。Codex 需要支持 `commandWindows`，Claude Code 需要支持 Bash Hook。升级后审阅变更的 Hook 并新开会话；菜单中可见命令不等于 Hook 已执行。已有业务项目重新运行 `/helix:init`，由 `project_hooks_cli.py merge` 更新本插件的旧检查命令，保留用户的其他 Hook。生成的项目 Hook 绑定当前解释器和插件路径；移动 Python 或更新插件安装路径后重新 Init。
+宿主负责 Hook 信任与执行。Codex 需要支持 `commandWindows`，Claude Code 需要支持 Bash Hook。升级后审阅变更的 Hook 并新开会话；菜单中可见命令不等于 Hook 已执行。生成的项目 Hook 命令钉死了当前解释器、插件版本目录与 resolve 后的仓库根目录，因此 `project_hooks_cli.py merge` 只在这几个字段完全相等时才改写本插件的旧检查命令；换了版本目录或换一种路径写法（macOS 上 `/tmp` 与 `/private/tmp` 即是如此）会保留旧条目并追加新条目，所以已有业务项目重跑 `/helix:init` 之后还要检查 settings，删掉仍指向已删除版本目录的条目；用户自己的其他 Hook 不受影响。
 
 ## Preflight / 预检
 

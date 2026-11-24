@@ -23,7 +23,7 @@ import uuid
 import xml.etree.ElementTree as element_tree
 from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterator
 from xml.sax.saxutils import escape
 
@@ -62,12 +62,46 @@ RUNTIME_SCRIPT_DIRECTORIES = (
     "telemetry_hosts",
 )
 RUNTIME_RESOURCE_DIRECTORIES = (
-    ".claude-plugin",
-    ".codex-plugin",
     "commands",
     "hosts",
     "reference",
 )
+
+
+def _distribution_targets(plugin_root: Path) -> tuple[PurePosixPath, ...]:
+    """Return every installed Host Kit's declared distribution manifest, plugin-relative.
+
+    Each manifest is read on its own, and only the declared reference is used, so the
+    runtime snapshot mirrors what the Host Kits point at instead of a per-platform list
+    while one incomplete kit cannot hide the others.
+    """
+
+    targets: list[PurePosixPath] = []
+    for manifest_path in sorted((Path(plugin_root) / "hosts").glob("*/host.json")):
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        adapters = payload.get("adapters") if isinstance(payload, dict) else None
+        reference = adapters.get("distribution") if isinstance(adapters, dict) else None
+        kind, _, target = str(reference or "").partition(":")
+        if kind != "resource" or not target:
+            continue
+        relative = PurePosixPath(target)
+        if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2:
+            continue
+        if relative not in targets:
+            targets.append(relative)
+    return tuple(targets)
+
+
+def runtime_resource_directories(plugin_root: Path) -> tuple[str, ...]:
+    """Static shared resources plus each Host Kit's own distribution directory."""
+
+    names = set(RUNTIME_RESOURCE_DIRECTORIES)
+    for target in _distribution_targets(plugin_root):
+        names.add(target.parts[0])
+    return tuple(sorted(names))
 
 
 def _now() -> str:
@@ -77,7 +111,7 @@ def _now() -> str:
 def _runtime_version(plugin_root: Path) -> str:
     root = Path(plugin_root).resolve()
     for path in (
-        root / ".codex-plugin" / "plugin.json",
+        *(root / str(target) for target in _distribution_targets(root)),
         root / "runtime-manifest.json",
     ):
         try:
@@ -1272,7 +1306,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
                 target_directory,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
-    for directory in RUNTIME_RESOURCE_DIRECTORIES:
+    for directory in runtime_resource_directories(plugin):
         source_directory = plugin / directory
         target_directory = root / directory
         if source_directory.is_dir():
@@ -1327,7 +1361,7 @@ def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) ->
         plugin = source.parent
         return all(
             trees_match(plugin / directory, root / directory)
-            for directory in RUNTIME_RESOURCE_DIRECTORIES
+            for directory in runtime_resource_directories(plugin)
         )
     except OSError:
         return False

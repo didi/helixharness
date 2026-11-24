@@ -1,0 +1,21 @@
+{
+  "name": "helix",
+  "version": "1.2.9",
+  "description": "HelixHarness 研发工作流：以项目约束、知识库、Spec 与验证证据驱动 Propose/Apply/Archive 闭环。",
+  "author": {
+    "name": "HelixHarness contributors"
+  },
+  "license": "Apache-2.0",
+  "keywords": [
+    "qoder-plugin",
+    "workflow",
+    "spec-driven",
+    "harness",
+    "knowledge-base"
+  ],
+  "category": "Coding",
+  "skills": [
+    "./skills",
+    "./hosts/qoder/skills"
+  ]
+}

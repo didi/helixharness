@@ -102,6 +102,9 @@ class ReportingConfigTest(unittest.TestCase):
         # The real installer verifies and copies the bundled runtime dependencies.
         import shutil
         actual = Path(telemetry_async.__file__).parent
+        # The installed Host Kits declare which distribution manifest is copied.
+        shutil.copytree(actual.parent / "hosts", source / "hosts",
+                        ignore=shutil.ignore_patterns("__pycache__"))
         for name in telemetry_async.RUNTIME_FILES:
             shutil.copy2(actual / name, source / "scripts" / name)
         config = source / "scripts/reporting_config.py"

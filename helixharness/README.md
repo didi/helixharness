@@ -19,7 +19,7 @@
 
 ## 安装
 
-需要 Python 3.10+、Git，以及 Codex 或 Claude Code。将本目录作为本地 marketplace 添加。宿主具体命令见 `hosts/codex/installer.md` 或 `hosts/claude-code/installer.md`。
+需要 Python 3.10+、Git，以及 Codex、Claude Code 或 Qoder。Codex 与 Claude Code 把本目录作为本地 marketplace 添加；Qoder 没有等价 marketplace CLI，需先用 `scripts/package_qoder_plugin.py` 生成 ZIP，再由 App 安装工具安装。宿主具体命令见 `hosts/codex/installer.md`、`hosts/claude-code/installer.md` 或 `hosts/qoder/installer.md`。
 
 ## 独立方案探索与调试
 
@@ -30,7 +30,7 @@
 
 有代码库时结合相关实现探索方案；没有代码库时先澄清想法与约束。Skill 交付讨论摘要或调试结果后结束；用户可自行将结果作为后续需求输入。两项 Skill 不创建 feature、Spec/Tasks 或 eval-log，不推进研发阶段。
 
-这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex 使用生成的宿主入口，Claude Code 直接发现根 `skills/`；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
+这两项是辅助 Skill，不增加研发阶段，公开入口另含 status 与 config。Codex 与 Qoder 使用宿主薄入口（`hosts/<host>/skills/`），Claude Code 直接发现根 `skills/`；详细示例见[使用指南](../docs/user-guide.zh-CN.md#从想法或异常开始)。
 
 可选的 [git-diff-impact](skills/git-diff-impact/SKILL.md) 可独立分析 Git 改动的调用链、业务影响和兼容性。显式要求“使用 HelixHarness git-diff-impact，分析当前未提交改动，--no-save”即可，无需 Init 或 feature。默认保存 Markdown 报告到 `diff-impact-reports/`；日常 Apply 不自动调用，也不改变评审状态。`code-review` / `tdd` 当前仍依赖 HelixHarness 的 Spec 和执行上下文，没有独立模式。
 
