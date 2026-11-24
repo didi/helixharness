@@ -422,7 +422,7 @@ function isExcludedPath(file, excludedPaths) {
   return excludedPaths.some((excluded) => file === excluded || file.startsWith(`${excluded}/`))
 }
 
-function sourceFingerprint(cwd = process.cwd(), extraFiles = [], excludeFiles = []) {
+function sourceFingerprint(cwd = process.cwd(), extraFiles = [], excludeFiles = [], options = {}) {
   const root = path.resolve(cwd)
   const excludedFiles = normalizeRelativeFiles(root, excludeFiles)
   const explicitFiles = normalizeRelativeFiles(root, extraFiles).filter(isImplementationPath)
@@ -432,6 +432,12 @@ function sourceFingerprint(cwd = process.cwd(), extraFiles = [], excludeFiles = 
   hash.update('d2c-runtime-source-v1\0')
   for (const file of files) {
     const abs = path.resolve(root, file)
+    if (options.requireWithinRoot) {
+      const relative = path.relative(fs.realpathSync(root), fs.existsSync(abs) ? fs.realpathSync(abs) : abs)
+      if (!relative || relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+        throw new Error('runtime health source path escapes repository')
+      }
+    }
     hash.update(file)
     hash.update('\0')
     if (fs.existsSync(abs) && fs.statSync(abs).isFile()) hash.update(fs.readFileSync(abs))
@@ -461,7 +467,8 @@ function validateHealthEvidence(evidence, options = {}) {
   const current = sourceFingerprint(
     options.cwd || process.cwd(),
     options.extraFiles || evidence.sourceFingerprint.explicitFiles || [],
-    options.excludeFiles || evidence.sourceFingerprint.excludedFiles || []
+    options.excludeFiles || evidence.sourceFingerprint.excludedFiles || [],
+    { requireWithinRoot: Boolean(options.requireWithinRoot) }
   )
   if (current.digest !== evidence.sourceFingerprint.digest) {
     problems.push(

@@ -792,6 +792,11 @@ def _source_boundary(
     }
     if not locator:
         return boundary
+    if getattr(get_host_adapter(str(entry.get("platform") or "")), "stage_facts_only", False) is True:
+        snapshot = json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        boundary.update({"source_status": "stage_facts", "source_limit_bytes": 0,
+                         "source_fingerprint": "sealed-" + hashlib.sha256(snapshot.encode("utf-8")).hexdigest()})
+        return boundary
     try:
         path = Path(str(locator.get("session_log_path") or "")).expanduser()
         if path.is_symlink() or not path.is_file():

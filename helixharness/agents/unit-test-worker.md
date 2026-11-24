@@ -2,6 +2,9 @@
 description: "单测 worker agent。由 /helix:ut 调用，负责处理单个类的完整单元测试维护。包含 Ralph Loop 6 阶段完整执行、经验库复用、缺陷发现、覆盖率达标保证。"
 ---
 
+> **工件与分类门禁**：首个业务写入前完整读取 `reference/ut-artifact-protocol.md`。最终必须通过 `scripts/ut_artifacts.py findings` 生成自己的分类 JSON 与 defects 报告，再通过 write 原子发布 result。只有有规范/机械失败依据和实际反例的 confirmed_defect 计缺陷；未确认风险与改进分别保留，不能混算或据此高危退出。
+
+
 # unit-test-worker 执行手册
 
 ## 文档摘要
@@ -259,7 +262,7 @@ Loop 执行状态在内存中跟踪（见 §2.2），关键规则：
 1. 验证 Bash 权限：执行 `echo "permission test"`
 2. 验证 Write/Read/Delete 权限：使用父流程传入的 `{WorkerTempPath}`，先执行下方 §4.2.2 的本 Worker 目录准备，再在该目录内创建唯一命名的临时文件，验证读写删除。后续构建与清理始终使用同一路径，不重新解析系统临时目录。若未传入绝对路径，返回父流程补齐参数，不自行回退到其他目录。
 3. 验证项目目录 Write 权限：在 `docs/specs/active/{feature}/` 下创建临时文件，验证读写删除
-4. 确认业务写域边界（自检声明，不做物理写入试探）：主项目 sandbox 实际允许写入（Loop 4 同步测试文件需要），「主项目只读」是业务约束而非宿主边界。自检确认本次执行仅写：worker 临时目录、`docs/specs/active/{feature}/` 下自己的 result/defects 文件、共享经验库（按 `experience_write_mode`）、主项目中目标测试文件 `{ClassName}Test.java`；除此之外主项目任何路径一律不写
+4. 确认业务写域边界（自检声明，不做物理写入试探）：主项目 sandbox 实际允许写入（Loop 4 同步测试文件需要），「主项目只读」是业务约束而非宿主边界。自检确认本次执行仅写：worker 临时目录、`docs/specs/active/{feature}/` 下自己的 result/defects/findings JSON 及同名 `.tmp` staging 文件、共享经验库（按 `experience_write_mode`）、主项目中目标测试文件 `{ClassName}Test.java`；除此之外主项目任何路径一律不写
 5. 任何验证失败：立即写入失败结果文件，说明阻断点，追加 `权限托管异常，请重新运行 /helix:ut`
 
 #### 4.2.2 前置清理与检查
@@ -278,6 +281,11 @@ Loop 执行状态在内存中跟踪（见 §2.2），关键规则：
 4. 隔离构建：所有构建输出和缓存写入临时目录
 5. 仅编译测试：worker 的构建只编译 `src/test/java`，被测类通过外部引用
 6. 版本一致：所有依赖版本、插件版本与主项目严格一致
+
+父流程必须附入本轮 `ut_precompile.py` 的 `status=compile_ready`、`ready=true` 回执和
+`class_directories` 实际路径。旧 class 目录存在不是源码已编译的证明；缺失回执或发现预编译后
+目标源码已变化时返回父流程重新预编译，Worker 不自行在主项目编译，也不把旧字节码当成本轮实现。
+该回执只证明主源码编译就绪，不能替代本 Worker 的测试、覆盖率或最终统一验证。
 
 **执行步骤**：
 
@@ -396,7 +404,7 @@ Loop 0 完成：已理解 {ClassName}
 
 按格式记录缺陷到内存，缺陷统一记录规则：
 - Loop 1 和 Loop 3 发现的缺陷都写入同一内存清单
-- 最终合并后写入 `worker-{ID}-defects.md`
+- 最终按 `reference/ut-artifact-protocol.md` 发布 `worker-{ID}-findings.json`，由脚本生成 `worker-{ID}-defects.md`；缺陷总数只取 normalized confirmed_defect 数。
 - High 缺陷触发提前退出流程，Medium/Low 记录后继续
 
 **缺陷记录格式**：
@@ -760,11 +768,11 @@ Loop 4 完成：{ClassName} 覆盖率达标与文件同步
    - 如有多次重试循环：只需要保留最后一次完整循环的证据，或者保留关键的补充用例部分
 6. 完整性检查通过后才能继续下一步
 
-#### 9.3.2 第 1 步：向独立缺陷文件写入缺陷（如发现缺陷）
+#### 9.3.2 第 1 步：发布分类记录（无观察也必须执行）
 
-- 如 Loop 1 和 Loop 3 中发现了任何缺陷：
-  - 创建/覆盖独立缺陷文件 `worker-{ID}-defects.md`
-  - 写入本类发现的缺陷（标记类名、方法名、缺陷描述、严重程度、处理状态"已记录，待后续处理"）
+- 将 Loop 1/3 观察按 confirmed_defect / unconfirmed_risk / optional_improvement 记录到自己的 findings.json.tmp；无观察也写空列表。
+- 运行 `ut_artifacts.py findings`，检查退出码和 normalized counts。脚本生成分类 JSON 与 defects.md；不直接 Write 两个最终文件。
+- result 与 final 中的缺陷数只使用 confirmed_defect；分别报告风险和建议，不能使用被自动降级前的提议数。
 
 #### 9.3.3 第 2 步：按适配模式沉淀新经验（如解决了新问题）
 
@@ -960,11 +968,11 @@ Loop 5 完成：{ClassName} 结果报告与完整性检查
 
 写文件必须按以下顺序，确保 ut.md 能正确检测状态：
 
-1. **第 1 步**：如有缺陷 → 写入 `worker-{ID}-defects.md`
+1. **第 1 步**：发布 `worker-{ID}-findings.json` 与脚本生成的 `worker-{ID}-defects.md`（空观察也执行）
 2. **第 2 步**：如有新经验 → 按 `experience_write_mode` 锁追加或加入 final 经验候选
 3. **第 3 步**：**最后写入** `worker-{ID}-result.md`（无论成功或失败），**必须使用原子写协议**：
    - 先写入临时文件 `worker-{ID}-result.md.tmp`
-   - 再 `mv` 原子重命名为 `worker-{ID}-result.md`
+   - 按 `reference/ut-artifact-protocol.md` 运行 `ut_artifacts.py write --name worker-{ID}-result.md --source ...`，由脚本 fsync + 原子 replace 发布
    - **严禁**直接 Write 到目标文件（父流程在原生终态后读取 result，非原子写入可能暴露不完整证据）
 
 ### 12.2 结果文件必选规则

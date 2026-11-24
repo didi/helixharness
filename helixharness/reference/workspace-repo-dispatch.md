@@ -93,9 +93,16 @@ identity、上下文继承、结果编码、容量准入、等待和生命周期
   Reviewer 必须继承同一读取上限。额外跨仓输入缺失时返回父 Coordinator，
   由其执行聚合验收或按已确认合同提供明确输入，子任务不自行扩大范围。
 - `read` job 不得修改业务代码；`write` job 也不得越过自己的 repo 根。
+  `read` 表示业务代码只读；各阶段仍由该 repo 的 Single 命令维护本 feature 的工件和私有状态，
+  不等于整个 repo 文件系统不可写。
 - 父 Coordinator 不与仍在运行的子任务并发写同一 repo。子任务原生失败后不自动重试，
   也不以内联执行覆盖失败事实。
 - 任一 job 失败或 `needs_input` 时，停止它的依赖后继；不回滚、不重跑不相关的已完成 job。
+- `failed|cancelled` 按原生失败收口，本轮不得自动再次派发或转成内联执行。
+  `in_progress` 继续等待本轮原生 job；重新生成 plan 不代表可以启动第二个 owner。
+  跨会话重新读取根合同和各仓工件，使用逻辑 `job_id`、输入收据及工件恢复，
+  不把旧 child/session ID 当作可续用的 handle，也不写入恢复状态。
+  未确认旧 owner 已终止时，不得仅因新 plan 仍有该 repo 就并发启动新 owner。
 
 ## 5. 父级完成校验
 
@@ -110,3 +117,12 @@ identity、上下文继承、结果编码、容量准入、等待和生命周期
 所有调用同时传入 `--repo-root "{ownership_root}" --feature "{feature}"`。只有子任务原生
 终态成功、Router identity 匹配且确定性完成校验通过，RepoJob 才记为 completed。父流程
 随后重新运行 Workspace plan/聚合门禁，以本地工件事实决定下一批，而不是信任内存状态。
+
+新 plan 的 `jobs` 和 `batches` 只包含尚需执行的 repo；`repo_results` 保留已校验的完成事实。
+Apply 的 `implemented|completed` 子仓必须先通过严格 `archive-preflight` 才跳过；
+Archive 已移动的子仓必须通过 completed preflight 才跳过。收据、证据或 Review Scope 无效时
+不得当作已完成。Apply 在身份、Tasks 和首次基线校验通过后，若 Evidence 缺失、无效或 Review Scope
+变化，仍派发完整 Single Apply 的 Evidence 恢复分支，保留已完成任务并重新验证、Review 和生成报告；
+身份、Tasks 或首次基线无效仍阻断，不重建基线。Archive 的 preflight 失败继续阻断。
+待执行 job 的 `depends_on` 仍引用原合同的 repo key，
+已跳过的依赖通过 `repo_results` 中的校验事实满足。plan 不保存宿主运行状态，也不授权重试。

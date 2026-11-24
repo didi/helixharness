@@ -86,8 +86,10 @@ class FeedbackTest(unittest.TestCase):
         self.assertEqual("future-host", draft["item"]["document"]["host"])
 
     def test_registered_host_without_telemetry_preserves_feedback_identity(self):
-        self.assertIsNone(feedback.get_host_adapter("opencode"))
-        draft = self.prepare(platform="opencode")
+        # Simulate a registered host with telemetry disabled; OpenCode now has
+        # a stage-facts adapter, so its real installed manifest is not this case.
+        with mock.patch.object(feedback, "get_host_adapter", return_value=None):
+            draft = self.prepare(platform="opencode")
         self.assertEqual("opencode", draft["item"]["document"]["host"])
         self.assertEqual("unknown", draft["item"]["document"]["session"])
         self.assertEqual("unknown", self.prepare(platform="unregistered-host")["item"]["document"]["host"])

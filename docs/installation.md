@@ -4,7 +4,7 @@
 
 ## Requirements
 
-Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (OpenCode v2.2.2+) are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional. Cursor desktop support follows the release scope and limitations below.
+Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional. Cursor desktop support follows the release scope and limitations below.
 
 The shared runtime supports macOS, native Windows and Linux; see [platform support and verification](platform-support.md). Windows Codex uses the PowerShell entrypoint, while Claude Code hooks require Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
 
@@ -28,18 +28,35 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
+## OpenCode local-directory installation (verified with 2.3.2)
+
+The plugin package lives in this repository's `helixharness/` subdirectory. In the tested OpenCode 2.3.2 client, native `plugin add` accepts npm/Git package specifications, but not an absolute local directory or a Git subdirectory suffix. Clone the repository after publication (replace the destination placeholder), then configure the plugin directory:
+
 ```bash
-# OpenCode v2.2.2+
-opencode plugin add 'github:didi/helixharness::path:helixharness'
+git clone https://github.com/didi/helixharness.git /absolute/path/to/helixharness-source
 ```
 
-**OpenCode Preview support (v2.2.2+):** The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles, binding Host Context to the current repository and session. Full Init → Propose → Apply → Archive acceptance with a real model remains unverified. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+Merge this entry into the existing `plugins` array in project or global `opencode.json(c)`, preserving other settings and plugins:
 
-OpenCode has no native SessionStart/Stop/failure/session-end hooks or plan tool (`tasks.md` tracks the plan). Telemetry is unsupported (`unsupported_host`); `/helix:update` returns `continue_silently`, so update manually through OpenCode plugin management. Project hooks are unsupported: Init merges `AGENTS.md` without creating `.opencode/` settings. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": ["/absolute/path/to/helixharness-source/helixharness"]
+}
+```
+
+Use the directory containing the plugin's `package.json`, not the repository root or a single `.ts` file. This package has no runtime npm dependencies; an independent source copy loads without `node_modules` or `bun install`. Restart or reload OpenCode and open a new session after configuring it. These installation observations apply to 2.3.2; other client versions need their own verification.
+
+
+**OpenCode Stable support (macOS, 2.3.2):** See the [support matrix](opencode-testing.md) for the current source candidate’s scope and boundaries. OpenCode 2.2.2 and 2.3.0 have automated compatibility coverage only.
+
+The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles. Commands, native `skill` tool results, Skill mentions and native Skill activation bind the requesting session's repository. Unbound Skill content is blocked when session lookup or directory validation fails. On 2026-11-20, OpenCode 2.3.2 with DeepSeek completed one synthetic single-repository Init → Propose → Apply → Archive lifecycle, with operator confirmations and a controlled contract amendment. On 2026-11-23, OpenCode 2.3.2 with DeepSeek also completed assisted synthetic two-repository Workspace and standalone UT runs; UT classification validation and protected atomic publication were subsequently fixed and passed a fresh real-model UT run without corrective operator prompts. [Targeted real-model tests on synthetic Workspaces](../helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23) also verified native Apply and partial Archive cancellation followed by fresh-session recovery, plus dependent-dispatch blocking after an injected native context-hook failure. Full production-project acceptance, unattended protocol compliance and full TUI/desktop UI acceptance remain outstanding; see [targeted terminal UI acceptance](../helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23) for the tested scope. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+
+The adapter uses native tool/session hooks but provides no equivalent SessionStart/Stop/failure/session-end business guarantee. `scripts/task_plan.py` atomically updates the canonical `tasks.md`. Explicitly consented telemetry records stage facts and workflow traces only; native conversations, token usage and unobserved tool counts remain unavailable. `/helix:update` uses the existing confirmation protocol for clean source checkouts with an explicit Git upstream, pins the approved commit and only fast-forwards. Dirty, detached or package-managed copies are not automatically updated. Init merges `AGENTS.md` without `.opencode/` settings; plugin-level checks run existing project linters after successful native write/edit/patch. Shell changes still require explicit checks. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
 
 See the [OpenCode installer](../helixharness/hosts/opencode/installer.md) for host-specific checks.
 
-The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Codex and Claude Code consume this compatible marketplace format. OpenCode installs the same `helixharness/` package directly through its `package.json` export, `opencode/index.ts`. The platform is not installed by these commands.
+The repository root contains `.claude-plugin/marketplace.json`, whose `./helixharness` source points to the plugin. Codex and Claude Code consume this compatible marketplace format. OpenCode loads the configured local `helixharness/` package through its `package.json` export, `opencode/index.ts`. These installation routes do not install the platform.
 
 Sources: [OpenAI plugin packaging](https://developers.openai.com/plugins/build/plugins#marketplace-metadata), [Claude Code marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Host commands and trust screens can vary with client version; use a version providing the listed commands.
 
@@ -61,14 +78,7 @@ claude plugin marketplace add "$HELIXHARNESS_SOURCE"
 claude plugin install helix@helixharness-marketplace
 ```
 
-For OpenCode local development, add the plugin subdirectory to project or global `opencode.json(c)`:
-
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "plugins": ["/absolute/path/to/helixharness/helixharness"]
-}
-```
+For OpenCode local development, use the same [local-directory configuration](#opencode-local-directory-installation-verified-with-232) with the absolute plugin subdirectory of your source copy; no native `plugin add` step is used.
 
 A standalone plugin copy can still use the absolute path to `helixharness/`; its nested marketplace points to `.`. Register only one source under `helixharness-marketplace` at a time. When switching sources, remove the old marketplace using the host's plugin management first.
 
@@ -110,28 +120,32 @@ Statistics require explicit consent and current-session identity. Missing identi
 
 ## Updates
 
-On Claude Code and Codex, run `/helix:update` in the host conversation. The plugin checks the configured marketplace, shows an available update and uses the host adapter after authorization. Cursor uses `/helix-update` for registered Helix-managed local installations on macOS/Linux, following the same check, confirmation and one-time authorization protocol. Manual copies and Cursor marketplace installations use their original update mechanism. OpenCode has `plugin_update=unsupported`; update manually with `opencode plugin update`, or update local source and reload. `/helix:update` returns `continue_silently`.
+On Claude Code and Codex, run `/helix:update` in the host conversation. The plugin checks the configured marketplace, shows an available update and uses the host adapter after authorization. Cursor uses `/helix-update` for registered Helix-managed local installations on macOS/Linux, following the same check, confirmation and one-time authorization protocol. Manual copies and Cursor marketplace installations use their original update mechanism. OpenCode's `/helix:update` supports clean source checkouts with an explicit Git upstream through the same confirmation protocol, pins the approved commit and only fast-forwards. Dirty, detached or package-managed copies require their original manual mechanism. Restart or reload OpenCode and open a new session after an update. Rollback remains an explicit source-revision selection, not an automatic reset; see the [OpenCode update and rollback steps](../helixharness/hosts/opencode/installer.md#更新回退与卸载).
 
-- **Git source:** the host refreshes the configured repository; use the same marketplace for later versions.
-- **Local source:** update the source copy yourself first, then check for updates. The plugin does not pull an arbitrary local checkout automatically. If the copy was cloned, review its working tree and update it using your normal Git workflow.
+- **Marketplace Git source (Codex/Claude Code):** the host refreshes the configured repository; use the same marketplace for later versions. OpenCode's clone-based directory configuration follows the local-source steps below.
+- **Local source:** update the source copy yourself first, then restart or reload the host. The plugin does not pull an arbitrary local checkout automatically. If the copy was cloned, review its working tree and update it using your normal Git workflow.
 - Start a new host session after updating; review changed hooks when the host requests it.
 
 
 ## Uninstall
 
-Use the host's plugin management to uninstall `helix@helixharness-marketplace`; OpenCode uses `opencode plugin remove` or removes the source from its `plugins` array. Generated project knowledge, requirements and business code are retained. Review project hook settings separately if you no longer want the host to invoke HelixHarness in that application repository.
+Use the host's plugin management to uninstall `helix@helixharness-marketplace`; for this repository's OpenCode directory configuration, remove only its entry from the `plugins` array and restart or reload OpenCode. Generated project knowledge, requirements and business code are retained. Review project hook settings separately if you no longer want the host to invoke HelixHarness in that application repository.
 
 ## 中文说明
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（macOS、2.3.2；见[支持矩阵](opencode-testing.md)）。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。
 
-**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+**OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 
-OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
+插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色。命令、原生 `skill` 工具结果、Skill mention 与原生 Skill 激活均按请求会话绑定仓库目录；会话查询或目录校验失败时阻断未绑定的 Skill 正文。2026-11-20 已在 OpenCode 2.3.2 + DeepSeek 上完成一次合成单仓 Init → Propose → Apply → Archive 真实模型闭环，包含操作者确认和一次受控合同修订；2026-11-23 又完成了 OpenCode 2.3.2 + DeepSeek 的操作者辅助合成双仓 Workspace 与独立 UT 验证；后续已修复 UT 分类校验与原子发布保护，并通过无纠正提醒的真实模型复验。[合成 Workspace 的专项真实模型验证](../helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23)还覆盖了 Apply 与部分 Archive 原生取消后新会话恢复，以及注入原生 context hook 故障后阻断依赖派发。完整生产业务项目、无人干预时的协议遵守与完整 TUI/桌面 UI 验收仍未完成；已覆盖范围见[定向终端 UI 验收](../helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23)。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
 
-正式发布后，Codex 与 Claude Code 使用上面的 GitHub 安装命令，Cursor 使用市场界面流程，OpenCode 使用上面的 `opencode plugin add`；这些市场安装方式无需先手动克隆源码。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码，再从**包含两个子项目的根目录**添加本地市场。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
+OpenCode 适配使用原生工具和会话 Hook，但未提供等价的 SessionStart/Stop/失败/会话结束业务保证。任务跟踪通过 `scripts/task_plan.py` 原子更新同一份 `tasks.md`。统计在明确授权后记录阶段事实和工作流轨迹，不采集原始会话，token 和未观察到的工具次数保持未知。`/helix:update` 对有明确 Git upstream 的干净源码安装执行既有确认协议，锁定 commit 并仅快进；有本地修改、游离版本或包管理安装时不自动更新。Init 合并 `AGENTS.md`，不创建 `.opencode/` settings；插件在原生 write/edit/patch 成功后执行已有项目巡检，shell 修改仍需显式检查。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
+
+正式发布后，Codex 与 Claude Code 使用上面的 GitHub 安装命令，Cursor 使用市场界面流程，这些市场安装方式无需先手动克隆源码。OpenCode 的安装已在 2.3.2 验证：按[本地目录安装步骤](#opencode-local-directory-installation-verified-with-232)先克隆本仓库，再将 `helixharness/` 子目录的绝对路径加入项目或全局 `opencode.json(c)` 的 `plugins`；保留已有配置和其他插件，无需 `bun install`，随后重启或重新加载并新开会话。该版本原生 `plugin add` 不接受绝对本地目录或 Git 子目录后缀；其他版本须另行核验。发布前测试或修改插件时，使用[开发者安装（本地源码）](#developer-installation)：先下载或克隆源码；Codex/Claude Code 从**包含两个子项目的根目录**添加本地市场，OpenCode 继续使用上述本地目录配置。根市场指向 `./helixharness`，不会安装平台。独立插件副本仍可添加插件目录本身；同名市场只保留一个来源。
 
 安装后新开会话，确认九个命令可见；Claude Code/Codex/Cursor 检查插件 hooks 已审阅并实际执行，OpenCode 检查命令展开后的当前仓库/会话 Host Context 绑定，再在业务仓库运行 `/helix:init`（Cursor 为 `/helix-init`）并检查项目文档及宿主支持的项目 hooks（OpenCode 不生成项目 hooks）。单仓 Init 还需检查非空的 `docs/harness/index.md`、`docs/knowledge/index.md`、`docs/knowledge/project-context.md` 及对应项目类型要求的其他产物，不能只看“已完成”回复。若出现 `plugin_source_mismatch`，先核对市场来源与当前安装插件，选定正确来源并新开会话，避免混用其他 checkout 或缓存版本。Claude Code/Codex 更新使用 `/helix:update`；本地来源需先自行更新源码，不能把版本识别成功当作已完成跨版本升级。Cursor 在 macOS/Linux 上使用 `/helix-update` 升级已登记的 Helix 托管本地安装，复用检查、确认与一次性授权协议；手工副本和原生市场安装仍通过原安装方式更新。
+
+OpenCode 的本仓库安装由用户自行更新源码并重启或重新加载；回退时在源码副本切换到此前批准的版本，不能用原生 `plugin update` 替代。卸载只移除 `plugins` 中本插件的目录条目，不删除业务仓库的知识、需求或代码。固定版本与回退示例见 [OpenCode 安装说明](../helixharness/hosts/opencode/installer.md#更新回退与卸载)。
 
 **从空项目开始：**在 Git 仓库根目录运行 `/helix:init`（Cursor 为 `/helix-init`）。新目录请先自行执行 `git init`，不需要首次提交。空仓库或纯文档仓库跳过代码扫描，生成最小项目上下文、约束、需求目录与宿主支持的 hooks（OpenCode 只合并 `AGENTS.md`），未确认的信息标记 TODO。再用 `/helix:propose` 和 `/helix:apply`（Cursor 为 `/helix-propose` 和 `/helix-apply`）开发第一个需求。Init 和 Apply 不创建提交。
 

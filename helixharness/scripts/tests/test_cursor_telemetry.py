@@ -216,7 +216,7 @@ class CursorTelemetryTest(unittest.TestCase):
 
         self.assertEqual(set(HostRegistry.discover(ROOT / "hosts").supported_ids()), {"claude-code", "codex", "cursor", "opencode"})
         snapshot = build_runtime_snapshot(ROOT)
-        self.assertEqual({host["host_id"] for host in snapshot["hosts"]}, {"claude-code", "codex", "cursor"})
+        self.assertEqual({host["host_id"] for host in snapshot["hosts"]}, {"claude-code", "codex", "cursor", "opencode"})
         telemetry_async.install_runtime(ROOT, self.home)
         runtime = self.home / "runtime"
         self.assertEqual(json.loads((runtime / RUNTIME_SNAPSHOT_NAME).read_text()), snapshot)
@@ -230,7 +230,7 @@ class CursorTelemetryTest(unittest.TestCase):
         clean = {**self.env, "PYTHONPATH": ""}
         result = subprocess.run([sys.executable, "-I", "-c", code, str(runtime)], cwd=self.root, env=clean, text=True, capture_output=True, check=True)
         output = json.loads(result.stdout)
-        self.assertEqual(set(output["hosts"]), {"claude-code", "codex", "cursor"})
+        self.assertEqual(set(output["hosts"]), {"claude-code", "codex", "cursor", "opencode"})
         self.assertEqual(output["hosts"], output["ids"])
         self.assertTrue(output["unknown"])
         self.assertFalse(output["source_imported"])

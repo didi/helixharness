@@ -6,11 +6,11 @@
 >
 > 为适配而生，为进化而设计。让团队的工程 DNA，融入 AI 研发。
 
-**HelixHarness 帮助团队在 Codex、Claude Code、Cursor 与 OpenCode（预览）上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
+**HelixHarness 帮助团队在 Codex、Claude Code、Cursor 与 [OpenCode（macOS Stable）](docs/opencode-testing.md)上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
 
 从插件开始即可。当你希望改进 Harness 本身时，可选的 **helixharness-platform** 帮助框架维护者观测使用过程、对比框架版本，并在采纳候选改进前验证效果。
 
-**9 个命令 · Codex / Claude Code / Cursor / OpenCode（预览） · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个命令 · Codex / Claude Code / Cursor / [OpenCode（macOS Stable）](docs/opencode-testing.md) · 单仓 / 多仓 Workspace · Apache-2.0**
 
 [快速开始](#快速开始) · [命名故事](#名字背后的故事) · [框架亮点](#框架亮点) · [框架迭代平台](#围绕-helixharness-框架的迭代平台) · [使用指南](docs/user-guide.zh-CN.md)
 
@@ -63,7 +63,7 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 ### 1. 安装插件
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（v2.2.2+）。先确保宿主已完成登录或模型配置，能够正常使用。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（macOS、2.3.2；见[支持矩阵](docs/opencode-testing.md)）。先确保宿主已完成登录或模型配置，能够正常使用。
 
 macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。Cursor 实机验收目前覆盖 macOS，Windows Cursor 不在本期已验证范围。
 
@@ -83,14 +83,13 @@ claude plugin install helix@helixharness-marketplace
 
 Cursor 用户通过 **Customize → helix → Install** 从市场安装，随后重载窗口并新建 Agent。团队管理员需先将已发布的发行仓库导入团队市场。Cursor 使用 `/helix-init`、`/helix-propose` 等入口，详见[市场安装、可选 Local 安装及能力限制](docs/installation.md#cursor-preview)。
 
-```bash
-# OpenCode v2.2.2+
-opencode plugin add 'github:didi/helixharness::path:helixharness'
-```
+OpenCode 安装已在 2.3.2 验证：克隆本仓库后，在 `opencode.json(c)` 中配置 `helixharness/` 子目录的绝对路径。详见[本地目录安装步骤](docs/installation.md#opencode-local-directory-installation-verified-with-232)；本仓库不使用原生 `plugin add` 安装。
 
-**OpenCode 预览支持（v2.2.2+）：** 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色，将 Host Context 绑定到当前仓库和会话。完整 Init → Propose → Apply → Archive 流程尚未完成真实模型验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+**OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](docs/opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 
-OpenCode 没有原生 SessionStart/Stop/失败/会话结束 hooks，也没有原生计划工具（计划写入 `tasks.md`）。统计不支持（`unsupported_host`）；`/helix:update` 返回 `continue_silently`，请通过 OpenCode 插件管理手动更新。项目 hooks 不支持：Init 只合并 `AGENTS.md`，不创建 `.opencode/` settings。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行，采用无 hook / `--bare` 语义，仍须遵守用户决策、视觉验收和完成门禁。
+插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色。命令、原生 `skill` 工具结果、Skill mention 与原生 Skill 激活均按请求会话绑定仓库目录；会话查询或目录校验失败时阻断未绑定的 Skill 正文。2026-11-20 已在 OpenCode 2.3.2 + DeepSeek 上完成一次合成单仓 Init → Propose → Apply → Archive 真实模型闭环，包含操作者确认和一次受控合同修订；2026-11-23 又完成了 OpenCode 2.3.2 + DeepSeek 的操作者辅助合成双仓 Workspace 与独立 UT 验证；后续已修复 UT 分类校验与原子发布保护，并通过无纠正提醒的真实模型复验。[合成 Workspace 的专项真实模型验证](helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23)还覆盖了 Apply 与部分 Archive 原生取消后新会话恢复，以及注入原生 context hook 故障后阻断依赖派发。完整生产业务项目、无人干预时的协议遵守与完整 TUI/桌面 UI 验收仍未完成；已覆盖范围见[定向终端 UI 验收](helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23)。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
+
+OpenCode 适配使用原生工具和会话 Hook，但未提供等价的 SessionStart/Stop/失败/会话结束业务保证。任务跟踪通过 `scripts/task_plan.py` 原子更新同一份 `tasks.md`。统计在明确授权后记录阶段事实和工作流轨迹，不采集原始会话，token 和未观察到的工具次数保持未知。`/helix:update` 对有明确 Git upstream 的干净源码安装执行既有确认协议，锁定 commit 并仅快进；有本地修改、游离版本或包管理安装时不自动更新。Init 合并 `AGENTS.md`，不创建 `.opencode/` settings；插件在原生 write/edit/patch 成功后执行已有项目巡检，shell 修改仍需显式检查。d-d2c 的 Claude skill-scoped Stop/PreToolUse guard 不执行。[OpenCode 显式门禁](helixharness/hosts/opencode/runtime.md) 将新检查点绑定到实际原生会话并校验完成证据，须在文档指定的流程节点主动调用；它不拦截任意停止，也不认证浏览器/MasterGo 的真实性。写入型命令的入口预检观察工具注册和会话移动 API 是否存在；权限仍须实际执行验证，有效委派深度在原生准入前保持未知。
 
 绑定检查与手动更新步骤见 [OpenCode 安装说明](helixharness/hosts/opencode/installer.md)。
 
@@ -221,10 +220,10 @@ python -m web_ui.demo --port 7860
 
 接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
 
-- **支持更多 Coding Agent**：在 Codex、Claude Code、Cursor 与 OpenCode（预览）的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
+- **支持更多 Coding Agent**：在 Codex、Claude Code、Cursor 与 [OpenCode（macOS Stable）](docs/opencode-testing.md)的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
-以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，另提供 OpenCode 预览支持，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
+以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，另提供 [OpenCode macOS Stable 支持](docs/opencode-testing.md)，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 

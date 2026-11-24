@@ -26,7 +26,7 @@ Codex: ${CODEX_HOME:-$HOME/.codex}/helixharness/telemetry-consent-cache.json
 Cursor: ${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/helixharness/telemetry-consent-cache.json
 ```
 
-OpenCode 声明 `telemetry=unsupported`，没有 consent 缓存路径；统计脚本返回 `unsupported_host` 后继续业务，不读写上述缓存或借用其他宿主授权。
+OpenCode 使用自己的 consent 缓存：`HELIXHARNESS_OPENCODE_HOME`（否则 `$XDG_STATE_HOME/opencode` 或 `~/.local/state/opencode`）下的 `helixharness/telemetry-consent-cache.json`。明确授权后仅记录阶段事实和工作流轨迹；不读取原始会话日志，不借用其他宿主授权，token 和工具调用信息保持未知。
 
 用户主动查询和修改配置使用 `/helix:config`，通过 `scripts/user_config.py` 复用本协议 API；默认查看不触发 CLI resolve 的清理副作用，显式修改仍由既有授权 API 管理 scope、epoch 和清理。
 

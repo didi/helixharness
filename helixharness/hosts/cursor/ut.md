@@ -16,7 +16,7 @@ permission_cleanup: not_required
 清理为 `not_required`，不删除用户设置。
 
 每个 worker 映射为 `ut_worker_<worker_id>` 逻辑 job，并完整读取当前安装的
-`agents/unit-test-worker.md`。只授权 worker 自己的临时目录、result/defects、唯一目标测试文件；
+`agents/unit-test-worker.md`。只授权 worker 自己的临时目录、result/defects/findings JSON 及同名 `.tmp` staging、唯一目标测试文件；
 业务源码、构建配置、共享 queue/session/summary/experience 与其他 worker 路径禁止写入。
 冲突目标测试或 fixture 必须串行，任务数和验证要求不变。
 

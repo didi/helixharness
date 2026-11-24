@@ -15,11 +15,11 @@ HelixHarness 提供 Claude Code、Codex、Cursor 和 OpenCode Host Kit。公共�
 - `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace；
 - `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace；
 - `cursor`：独立 Skill 投影、Cursor 原生 hooks、Task 子代理与 Cursor plugin 分发；Stable（桌面范围）；
-- `opencode`：插件注册原生命令/Skill/Agent、绑定当前仓库与会话 Host Context、原生 subagent 和 OpenCode plugin 分发；Host API 1.1 / Preview（v2.2.2+）。
+- `opencode`：插件注册原生命令/Skill/Agent、命令、原生 `skill` 工具、Skill mention 与原生 Skill 激活的会话目录绑定、原生 subagent 和 OpenCode plugin 分发；Host API 1.1 / Stable（macOS、OpenCode 2.3.2；详见[支持矩阵](../../docs/opencode-testing.md)）。
 
 Claude Code 与 Codex 保持 Host API 1.1 / Stable；Cursor 使用向后兼容的 1.2 / Stable。
 Cursor 的会话统计和插件更新为 `emulated`：原生 hook 提供有边界的事件/用量证据，登记的托管本地安装通过批准后的原子交换升级。本次正式支持范围为桌面研发工作流；原生自动升级等限制与已接受的验证缺口见 Cursor 安装说明。
-OpenCode 的 `telemetry`、`plugin_update` 和 `project_hooks` 为 `unsupported`，完整真实模型工作流尚未验收。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker` 且需要 `experimental.subagent_depth >= 2`，reviewer 仍为只读 leaf；深度不足阻塞，不绕过评审。
+OpenCode 的统计、源码更新和任务跟踪为 `emulated`；原生项目设置 Hook 仍为 `unsupported`，插件级 `project_checks` 已接入编辑后巡检。详细边界见 [OpenCode 能力适配](../hosts/opencode/capabilities.md)。2026-11-20 已在 OpenCode 2.3.2 + DeepSeek 上完成一次合成单仓真实模型闭环（含操作者确认与受控合同修订）；2026-11-23 又完成合成双仓 Workspace 与独立 UT 的操作者辅助验证；后续分类校验与原子发布保护已修复并通过无纠正提醒的真实模型 UT 复验。[合成 Workspace 的专项真实模型验证](../opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23)还覆盖了 Apply 与部分 Archive 原生取消后新会话恢复，以及注入原生 context hook 故障后阻断依赖派发。完整生产业务项目、无人干预时的协议遵守与完整 TUI/桌面 UI 验收仍未完成；已覆盖范围见[定向终端 UI 验收](../opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23)。Skill mention 仓库绑定与插件资源符号链接越界检查已于 2026-11-23 修复并经原生宿主回归；当前 Stable 仅覆盖上述支持矩阵；OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker` 且需要 `experimental.subagent_depth >= 2`，reviewer 仍为只读 leaf；深度不足阻塞，不绕过评审。
 未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
 
 ## 共享核心与 Host Kit

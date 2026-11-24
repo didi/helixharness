@@ -45,6 +45,7 @@ const {
   isHeadlessEnv,
   signalForAction,
   syncActiveWorkflow,
+  withWorkflowLock,
 } = require('./lib/d2c-workflow-guard-core.cjs')
 const {
   validateHealthEvidence,
@@ -185,8 +186,10 @@ function syncWorkflowGuard(stateDir, pageDir, state, stateFile, printSignal = fa
 }
 
 function persistWorkflowState(stateFile, stateDir, pageDir, state, printSignal = false) {
-  writeState(stateFile, state)
-  syncWorkflowGuard(stateDir, pageDir, state, stateFile, printSignal, true)
+  return withWorkflowLock(stateDir, () => {
+    writeState(stateFile, state)
+    syncWorkflowGuard(stateDir, pageDir, state, stateFile, printSignal, true)
+  })
 }
 
 function persistStateSnapshot(stateDir, pageDir, state) {
@@ -2991,7 +2994,12 @@ function showStatus(state) {
 // ─── main ────────────────────────────────────────────
 function main() {
   const args = parseArgs(process.argv)
+  const mutating = ['enter', 'component-complete', 'complete', 'pause', 'resume'].some((name) => args[name])
+  if (mutating) return withWorkflowLock(args['state-dir'] || 'd-d2c/temp', () => runCommand(args))
+  return runCommand(args)
+}
 
+function runCommand(args) {
   const stateDir = args['state-dir'] || 'd-d2c/temp'
   const pageDir = args['page-dir'] || ''
 
@@ -3058,6 +3066,7 @@ function main() {
 if (require.main === module) main()
 
 module.exports = {
+  collectPhase2GateStatus,
   resolvePageFlowReportMarks,
   collectRenderGateViolations,
   combinePhase2Gate,

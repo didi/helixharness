@@ -4,7 +4,7 @@
 
 Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
 
-**A development workflow for Codex, Claude Code, Cursor and OpenCode (Preview), with a companion platform for usage dashboards, version evaluation and evolution.**
+**A development workflow for Codex, Claude Code, Cursor and [OpenCode (macOS Stable)](opencode-testing.md), with a companion platform for usage dashboards, version evaluation and evolution.**
 
 Take a requirement through to a verified code change: define the scope, break it into tasks, implement, test, review, and archive the result. HelixHarness gives your coding agent a reusable workflow. Requirements and progress stay in the repository so you can inspect them and resume unfinished work.
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ Tests + code review + verification evidence
 ```
 
-**9 public commands · 3 core stages · Codex / Claude Code / Cursor / OpenCode (Preview) · Single repo / multi-repo Workspace · Apache-2.0**
+**9 public commands · 3 core stages · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) · Single repo / multi-repo Workspace · Apache-2.0**
 
 Install **HelixHarness** for everyday development. Add **helixharness-platform** to observe usage and evaluate or improve **the HelixHarness framework itself**. Scenario results provide evidence about framework behavior; this is not a general business-code grading service.
 
@@ -49,12 +49,12 @@ Install **HelixHarness** for everyday development. Add **helixharness-platform**
 
 | Use case | Requirements |
 | --- | --- |
-| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (OpenCode v2.2.2+) that is signed in or has its model configuration set up and works normally |
+| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) that is signed in or has its model configuration set up and works normally |
 | Platform demo or usage dashboard | Python 3.10+, Git, and the platform's `server` dependencies |
 | Real version evaluation | Platform dependencies, a working Codex execution environment, model credentials, accessible Git repositories, and the build/test tools required by each Case |
 | Frontend previews and visual verification | Your project's Node.js, package manager, and browser tools; configure design services as needed |
 
-The terminal examples below use Bash / Zsh. GitHub plugin installation does not require a manual clone. Running the platform or developing the plugin requires a source checkout.
+The terminal examples below use Bash / Zsh. Codex/Claude Code marketplace installation does not require a manual clone. The OpenCode 2.3.2 route below uses a source clone and local-directory configuration; running the platform or developing the plugin also requires a source checkout.
 
 ### 1. Install the Plugin
 
@@ -74,16 +74,15 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
-**OpenCode v2.2.2+**
+**OpenCode (installation verified with 2.3.2)**
 
-```bash
-# OpenCode v2.2.2+
-opencode plugin add 'github:didi/helixharness::path:helixharness'
-```
+Clone this repository and configure its absolute `helixharness/` subdirectory in project or global `opencode.json(c)`. Follow the [local-directory installation steps](installation.md#opencode-local-directory-installation-verified-with-232). Native `plugin add` does not install this repository layout in the verified client.
 
-**OpenCode Preview support (v2.2.2+):** The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles, binding Host Context to the current repository and session. Full Init → Propose → Apply → Archive acceptance with a real model remains unverified. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+**OpenCode Stable support (macOS, 2.3.2):** See the [support matrix](opencode-testing.md) for the current source candidate’s scope and boundaries. OpenCode 2.2.2 and 2.3.0 have automated compatibility coverage only.
 
-OpenCode has no native SessionStart/Stop/failure/session-end hooks or plan tool (`tasks.md` tracks the plan). Telemetry is unsupported (`unsupported_host`); `/helix:update` returns `continue_silently`, so update manually through OpenCode plugin management. Project hooks are unsupported: Init merges `AGENTS.md` without creating `.opencode/` settings. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
+The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles. Commands, native `skill` tool results, Skill mentions and native Skill activation bind the requesting session's repository. Unbound Skill content is blocked when session lookup or directory validation fails. On 2026-11-20, OpenCode 2.3.2 with DeepSeek completed one synthetic single-repository Init → Propose → Apply → Archive lifecycle, with operator confirmations and a controlled contract amendment. On 2026-11-23, OpenCode 2.3.2 with DeepSeek also completed assisted synthetic two-repository Workspace and standalone UT runs; UT classification validation and protected atomic publication were subsequently fixed and passed a fresh real-model UT run without corrective operator prompts. [Targeted real-model tests on synthetic Workspaces](../helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23) also verified native Apply and partial Archive cancellation followed by fresh-session recovery, plus dependent-dispatch blocking after an injected native context-hook failure. Full production-project acceptance, unattended protocol compliance and full TUI/desktop UI acceptance remain outstanding; see [targeted terminal UI acceptance](../helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23) for the tested scope. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+
+The adapter uses native tool/session hooks but provides no equivalent SessionStart/Stop/failure/session-end business guarantee. `scripts/task_plan.py` atomically updates the canonical `tasks.md`. Explicitly consented telemetry records stage facts and workflow traces only; native conversations, token usage and unobserved tool counts remain unavailable. `/helix:update` uses the existing confirmation protocol for clean source checkouts with an explicit Git upstream, pins the approved commit and only fast-forwards. Dirty, detached or package-managed copies are not automatically updated. Init merges `AGENTS.md` without `.opencode/` settings; plugin-level checks run existing project linters after successful native write/edit/patch. Shell changes still require explicit checks. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
 
 See the [OpenCode installation guide](../helixharness/hosts/opencode/installer.md) for setup and binding checks.
 
@@ -166,7 +165,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | Project | Who it is for | What it does | Where it runs |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Cursor / OpenCode (Preview) sessions and application repositories |
+| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) sessions and application repositories |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | Maintainers observing and improving the HelixHarness framework | Usage dashboards, version evaluation and evolution | A separate Python web service and evaluation Workers |
 
 ```mermaid
@@ -417,7 +416,7 @@ Paths below are relative to your platform's base URL:
 
 ### Model Configuration
 
-For everyday plugin use, configure models in Codex / Claude Code / Cursor / OpenCode (Preview). The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
+For everyday plugin use, configure models in Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md). The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
 
 See [`helixharness-platform/.env.example`](../helixharness-platform/.env.example) for the template. The service reads **process environment variables and does not automatically load `.env.example`**. Inject real values into the environments running both the web service and Workers.
 
@@ -629,7 +628,7 @@ The repository contains two independently installable projects:
 ├── helixharness/
 │   ├── commands/       # Nine public command entrypoints
 │   ├── workflows/      # single/ execution and workspace/ coordination
-│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode (Preview) adapters
+│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode (macOS Stable) adapters
 │   ├── skills/         # Reusable workflow methods
 │   └── scripts/        # Routing, artifact validation, and telemetry
 └── helixharness-platform/

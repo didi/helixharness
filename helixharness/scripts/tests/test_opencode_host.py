@@ -40,7 +40,7 @@ class OpenCodeHostKitTest(unittest.TestCase):
     def test_manifest_is_discovered_with_expected_capabilities(self) -> None:
         self.assertEqual(self.manifest.host_id, "opencode")
         self.assertEqual(self.manifest.host_api_version, "1.1")
-        self.assertEqual(self.manifest.support_level, "preview")
+        self.assertEqual(self.manifest.support_level, "stable")
         self.assertEqual(self.manifest.display_name, "OpenCode")
 
         expected = {
@@ -53,12 +53,13 @@ class OpenCodeHostKitTest(unittest.TestCase):
             "workflow_transition": "emulated",
             "subagents": "native",
             "unit_test_workflow": "native",
-            "task_tracking": "unsupported",
+            "task_tracking": "emulated",
             "project_hooks": "unsupported",
+            "project_checks": "emulated",
             "session_events": "unsupported",
-            "telemetry": "unsupported",
+            "telemetry": "emulated",
             "plugin_install": "native",
-            "plugin_update": "unsupported",
+            "plugin_update": "emulated",
             "session_end": "unsupported",
         }
         self.assertEqual(self.manifest.capabilities, expected)
@@ -147,31 +148,21 @@ class OpenCodeHostKitTest(unittest.TestCase):
         self.assertIsNone(detect_host({}))
         self.assertIsNone(detect_host({"CODEX_THREAD_ID": "thread"}))
 
-    def test_telemetry_and_update_are_declared_unsupported(self) -> None:
+    def test_telemetry_is_registered_and_update_refuses_unmanaged_copy(self) -> None:
         self.assertEqual(normalize_host_id("opencode"), "opencode")
-        self.assertIsNone(get_host_adapter("opencode"))
+        self.assertEqual(get_host_adapter("opencode").host_id, "opencode")
 
+        from version_update import check_for_update
+
+        # Never depend on the developer checkout being dirty or fetch its remote.
         with tempfile.TemporaryDirectory() as directory:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(PLUGIN_ROOT / "scripts/version_update.py"),
-                    "--platform",
-                    "opencode",
-                    "--repo-root",
-                    directory,
-                    "check",
-                ],
-                capture_output=True,
-                text=True,
-                check=False,
-                cwd=PLUGIN_ROOT / "scripts",
-            )
-        self.assertEqual(result.returncode, 0, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertEqual(payload["state"], "unsupported")
-        self.assertEqual(payload["reason"], "unsupported_host")
-        self.assertEqual(payload["next_action"], "continue_silently")
+            root = Path(directory).resolve()
+            plugin = root / "unmanaged-plugin"
+            plugin.mkdir()
+            payload = check_for_update("opencode", root, root / "state/cache.json", plugin_root=plugin)
+            self.assertFalse((root / "state").exists())
+        self.assertEqual(payload["state"], "unavailable")
+        self.assertEqual(payload["next_action"], "continue_with_warning")
 
     def test_host_context_cli_resolves_the_installed_plugin(self) -> None:
         result = subprocess.run(
@@ -194,7 +185,7 @@ class OpenCodeHostKitTest(unittest.TestCase):
         self.assertEqual(payload["status"], "resolved")
         self.assertEqual(payload["host_id"], "opencode")
         self.assertEqual(payload["plugin_root"], str(PLUGIN_ROOT.resolve()))
-        self.assertEqual(payload["capabilities"]["telemetry"], "unsupported")
+        self.assertEqual(payload["capabilities"]["telemetry"], "emulated")
         self.assertEqual(
             payload["resources"]["runtime"], "hosts/opencode/runtime.md"
         )

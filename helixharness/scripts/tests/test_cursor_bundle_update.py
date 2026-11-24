@@ -16,21 +16,45 @@ from update_hosts.cursor import _distributed
 
 REPOSITORY = Path(__file__).resolve().parents[3]
 PLUGIN = REPOSITORY / "helixharness"
+BUN = shutil.which("bun")
+OPENCODE_NATIVE = os.environ.get("HELIXHARNESS_OPENCODE_E2E") == "1" and shutil.which(os.environ.get("HELIXHARNESS_OPENCODE_BIN", "opencode"))
 
 
 @unittest.skipUnless(shutil.which("git") and sys.platform in {"darwin", "linux"}, "Git and atomic directory exchange required")
 class CursorFullBundleUpdateTests(unittest.TestCase):
     def test_native_opencode_distribution_includes_runtime_without_dependencies_or_private_files(self):
-        for name in ("package.json", "opencode/index.ts", "opencode/core.ts"):
+        for name in ("package.json", "opencode/index.ts", "opencode/core.ts", "opencode/project-checks.ts", "opencode/ut-state.ts"):
             with self.subTest(name=name):
                 self.assertTrue(_distributed(PurePosixPath(name)))
         for name in ("bun.lock", "node_modules/dependency/index.ts", "opencode/node_modules/dependency/index.ts",
                      "opencode/.bun/cache/index.ts", "opencode/.env.local", "opencode/credentials.json",
-                     "opencode/output/session.json", "opencode/tests/native-fixture.ts", "opencode/runtime/session.json"):
+                     "opencode/output/session.json", "opencode/tests/native-fixture.ts", "opencode/tests/managed-bundle-probe.ts",
+                     "opencode/runtime/session.json", "opencode/unreviewed-helper.ts"):
             with self.subTest(name=name):
                 self.assertFalse(_distributed(PurePosixPath(name)))
 
     def test_installed_bundle_runs_without_checkout_pythonpath_and_updates_itself(self):
+        self._installed_bundle_scenario()
+
+    @unittest.skipUnless(BUN, "Bun is required to import the installed OpenCode runtime")
+    def test_installed_and_updated_bundle_loads_opencode_without_checkout_dependencies(self):
+        self._installed_bundle_scenario(probe="setup")
+
+    @unittest.skipUnless(BUN and OPENCODE_NATIVE, "Enable OpenCode E2E with Bun and a native client")
+    def test_installed_and_updated_bundle_runs_native_opencode_hooks(self):
+        self._installed_bundle_scenario(probe="native")
+
+    def _probe(self, plugin, workspace, mode):
+        environment = {key: os.environ[key] for key in ("PATH", "TMPDIR", "LANG", "SystemRoot", "HELIXHARNESS_OPENCODE_BIN") if key in os.environ}
+        environment.update({"HOME": str(workspace), "NODE_PATH": ""})
+        result = subprocess.run([BUN, str(PLUGIN / "opencode/tests/managed-bundle-probe.ts"), str(plugin), str(workspace), mode],
+                                cwd=workspace, env=environment, capture_output=True, text=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        value = json.loads(result.stdout)
+        self.assertTrue(value["ut_guard"])
+        return environment
+
+    def _installed_bundle_scenario(self, *, probe=None):
         with tempfile.TemporaryDirectory(prefix="helix-cursor-bundle-") as temporary:
             root = Path(temporary).resolve()
             source = root / "synthetic public distribution"
@@ -58,8 +82,8 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
                 selected.add(relative.as_posix())
             self.assertIn("scripts/update_hosts/cursor.py", selected)
             self.assertIn("hosts/cursor/hooks.json", selected)
-            native_files = ("package.json", "opencode/index.ts", "opencode/core.ts")
-            for name in native_files:
+            native_files = ("package.json", "opencode/index.ts", "opencode/core.ts", "opencode/project-checks.ts", "opencode/ut-state.ts")
+            for name in native_files[:3]:
                 self.assertIn(name, selected)
             native_contents = {name: (PLUGIN / name).read_bytes() for name in native_files}
             root_manifest = source / ".cursor-plugin/marketplace.json"
@@ -106,6 +130,19 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
             release("1.0.0")
             installed = run(source / "helixharness/scripts/cursor_managed_install.py", "install", "--source", str(source), "--ref", "main", "--user-confirmed")
             plugin = Path(installed["plugin_root"])
+            if probe:
+                self._probe(plugin, workspace, probe)
+            if probe == "setup":
+                for missing in ("project-checks.ts", "ut-state.ts"):
+                    with self.subTest(missing=missing):
+                        damaged = root / ("damaged-" + missing)
+                        shutil.copytree(plugin, damaged)
+                        (damaged / "opencode" / missing).unlink()
+                        process = subprocess.run([BUN, str(PLUGIN / "opencode/tests/managed-bundle-probe.ts"), str(damaged), str(workspace), "setup"],
+                            cwd=workspace, env={"PATH": os.environ.get("PATH", ""), "HOME": str(workspace), "NODE_PATH": ""},
+                            capture_output=True, text=True, timeout=15)
+                        self.assertNotEqual(process.returncode, 0)
+                        self.assertIn(missing, process.stderr)
             for name, content in native_contents.items():
                 self.assertEqual((plugin / name).read_bytes(), content)
             for name in excluded_native_files:
@@ -149,6 +186,8 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
             self.assertEqual(updated["verified_commit"], approved_commit)
             self.assertEqual(updated["verified_version"], "1.0.1")
             self.assertEqual((plugin / "reference/cursor-synthetic-release.txt").read_text(), "1.0.1")
+            if probe:
+                self._probe(plugin, workspace, probe)
             for name, content in native_contents.items():
                 self.assertEqual((plugin / name).read_bytes(), content)
             for directory in ("node_modules", ".bun", "opencode/tests", "opencode/runtime"):

@@ -36,6 +36,20 @@ dispatch_mode: native_job
   运行时明确没有暴露且无法发现 `subagent` 能力，并且命令 Dispatch Contract 允许时，才按同一
   prompt 串行内联一次。
 
+## RepoJob 会话目录绑定
+
+原生 child 默认继承父会话目录。Dispatch prompt 中的 `cwd` / `ownership_root` 只声明目标，
+不会自动修改 native session location；仅在 `shell` 中 `cd` 也不会改变后续命令和 Skill 的绑定。
+当 RepoJob 的 `ownership_root` 与继承目录不同时，在任何 repo-local 读取、写入、命令或 Skill
+之前，按当前暴露的 schema 使用原生会话目录切换能力（2.3.2 的 Code Mode 可调用 `tools.opencode.session_move`；直接工具表面可能显示为
+`opencode_session_move`，以当前 schema 为准），
+目标为规范化的 `ownership_root` 绝对路径。确认返回位置与目标一致后，才继续公共命令 Router
+与 Single workflow。后续 reviewer 继承已切换的 repo 目录，仍保留原始父子关联与委派深度。
+
+不得伪造 `subagent` 的 `cwd` / `directory` 参数，不得通过替换 prompt 中的 `repo_root`
+掩盖真实会话目录不符。目录切换能力未暴露、被拒绝或结果不一致时返回
+`BLOCKED: native_session_location_unavailable`；父流程保留该 job，不代写子仓工件或降级内联。
+
 ## 工作区深化
 
 OpenCode 默认子代理嵌套深度为一。Workspace Apply 的 RepoJob 明确声明

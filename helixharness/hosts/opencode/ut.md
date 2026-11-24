@@ -21,6 +21,22 @@ permission_cleanup: not_required
   OpenCode 原生审批流程。未获得时保存证据并按公共命令标记 blocked/failed。
 - `permission_cleanup` 固定返回 `not_required`，因为本适配器不写项目权限文件。
 
+## 临时目录与原子写映射
+
+- 公共命令的“系统临时目录”使用当前进程真实的 `TMPDIR` / 平台临时目录发现结果；
+  不把项目内或其相邻的自建目录冒充系统临时目录。派发前确认每个 worker 的绝对路径与写域，
+  只清理本次拥有的目录；系统临时目录权限不足时走原生审批，未获授权则保留 blocker。
+- 公共命令要求原子写的 queue、session、主结果与共享经验等文件，先完整读取公共
+  `reference/ut-artifact-protocol.md`，使用原生 `write` 写入
+  **目标同目录的临时文件**，再用 `shell` 调用绑定插件的 `scripts/ut_artifacts.py write` 完成原子替换。
+  插件必需的 `tool.execute.before` 会在原生 write/edit 执行前拒绝直接写最终 UT 状态文件，
+  返回 `ut_atomic_write_required` 并给出脚本入口；按同一合同自行恢复，不需要操作者提醒。
+  该保护覆盖 native write/edit，不声称是对任意 shell 或外部工具的通用文件系统沙箱。
+  直接 `write` / `edit` 目标文件不构成该原子写证据。该映射同样适用于父流程最终报告收口，
+  不能只对 worker result 或经验合并执行；具体适用文件仍服从公共 UT 命令。
+- 发现先前使用直接写入时，如实保留不符合项，再按公共合同纠正后续操作；不得把最终
+  原子替换追述为此前所有写入均合规。
+
 ## Worker Dispatch Contract
 
 每个逻辑 Worker ID 建立 `ut_worker_<worker_id>` job：
@@ -30,9 +46,9 @@ permission_cleanup: not_required
 | `prompt_source` | `agents/unit-test-worker.md`，worker 首个业务动作前完整读取 |
 | `agent` | `helix-unit-test-worker`；不可用时使用内建 `general` 并传入同一完整 prompt |
 | `depends_on` | 目标测试路径或共享 fixture 写域冲突时依赖前一 job |
-| `write_scope` | worker 临时目录、自己的 result/defects、唯一目标测试文件 |
+| `write_scope` | worker 临时目录、自己的 result/defects/findings JSON 及同名 `.tmp` staging、唯一目标测试文件 |
 | `forbidden_scope` | 业务源码、构建配置、共享 queue/session/summary/experience、其他 worker 路径 |
-| `expected_artifacts` | result；成功时目标测试文件；有缺陷时 defects |
+| `expected_artifacts` | result、findings JSON 与生成的分类 defects；成功时目标测试文件 |
 | `validation` | 原生终态、公共 final、写域、结果结构、6 Loop、测试和覆盖率 |
 | `unavailable_fallback` | 仅确认子代理能力不可用时，父流程按同一 prompt 串行内联 |
 
@@ -52,3 +68,11 @@ permission_cleanup: not_required
 结构合法的 worker 业务失败（包括高危 Bug）仍按公共 UT 状态机处理，不等同于宿主原生 job 失败。
 只有确认当前运行时没有暴露且无法发现 `subagent` 能力时才允许 inline fallback，并记录
 `WARN:opencode_subagent_unavailable`；容量暂满、等待中、单个 job 失败或取消不得触发 fallback。
+
+## UT 直接写入守卫范围
+
+保留工件路径按大小写不敏感识别；原生 Write/Edit 不得直接覆盖。相对符号链接检查仅在已注册
+`/helix:ut` 的活跃父会话或 `helix-unit-test-worker` 内解析当前 session 目录。普通会话的普通相对
+编辑不查询 session API；绝对路径别名和显式保留路径仍受检查。父会话无后台任务而进入 idle，
+或切换到其他 Helix 命令后释放 UT 范围；中断/失败后重新执行命令可重建范围，不缓存 cwd。
+该守卫只覆盖原生 write/edit，不能当作 shell 沙箱；所有宿主仍须遵守公共原子发布合同。

@@ -89,7 +89,7 @@ command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWri
   `commands/{command}.md` 唯一契约入口；宿主资源不进入公共命令面。
 - `project_hooks=native|emulated`：读取 `resources.project_hooks`，按 owner、目标、合并策略和去重键
   执行；为 `unsupported` 时不创建替代 settings 文件。
-- `task_tracking=native|emulated`：使用宿主计划工具；为 `unsupported` 时回退到当前 Feature
+- `task_tracking=native`：使用宿主计划工具；`emulated` 使用 Host Kit 明确的计划适配器（可直接操作 canonical tasks.md）；为 `unsupported` 时回退到当前 Feature
   的 `tasks.md`，不得另造宿主专属状态文件。
 - telemetry 命令必须读取 `reference/telemetry-command-protocol.md` 与
   `resources.telemetry_protocol`，只按 `hook|command|disabled` 生命周期模式执行；不得按宿主 ID、
@@ -103,7 +103,7 @@ command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWri
 
 ## 5. 未来宿主扩展契约
 
-当前仓库提供 Claude Code、Codex、Cursor 与 OpenCode（Preview）。OpenCode 的 `telemetry`、`plugin_update` 和 `project_hooks` 为 `unsupported`。未来接入新宿主时，正常改动范围应限制为：
+当前仓库提供 Claude Code、Codex、Cursor 与 [OpenCode（macOS Stable）](../../docs/opencode-testing.md)。OpenCode 的统计、源码更新和任务跟踪为 `emulated`；原生项目设置 Hook 仍为 `unsupported`，插件级 `project_checks` 已接入编辑后巡检。详细边界见 [OpenCode 能力适配](../hosts/opencode/capabilities.md)。未来接入新宿主时，正常改动范围应限制为：
 
 - `hosts/{host-id}/host.json`；
 - 该 Host Kit 引用的分发、安装、入口投影、启动、工具映射、生命周期、项目配置、遥测或更新适配器；

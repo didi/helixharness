@@ -10,5 +10,5 @@ Apply 的双轴评审完整执行 `skills/code-review/SKILL.md`，通过原生 `
 Apply Stage，不创建独立 Review 阶段，也不提前 finish coding entry。
 
 当前阶段的 start、trace-event、finish 均以所选工作流及 `resources.telemetry_protocol` 为准。
-OpenCode 的 `telemetry=unsupported`，统计脚本返回 `unsupported_host` 时跳过统计并继续业务；
-不得因此跳过评审、验证或完成门禁。
+OpenCode 的 `telemetry=emulated` 仅在明确授权后记录阶段事实和工作流轨迹；未授权、会话身份
+不可用或统计异常时跳过统计并继续业务，不得因此跳过评审、验证或完成门禁。空闲事件不等于 finish。

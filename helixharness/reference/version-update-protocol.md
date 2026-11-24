@@ -18,7 +18,7 @@
 update 与 eval 分别使用动态 Host Registry，并保持独立 capability、cache 和生命周期。update 是否
 可用只看当前 Host Kit 的 `plugin_update=native|emulated|unsupported`；公共协议不维护宿主白名单。
 Claude Code/Codex adapter 提供原生更新能力。Cursor 的 `plugin_update=emulated`，仅更新通过 Helix installer 登记的 macOS/Linux 本地安装；未登记副本或原生市场缓存不被接管。
-OpenCode 明确声明 `plugin_update=unsupported`，`/helix:update` 的 check 返回 `continue_silently`；通过 OpenCode 插件管理手动更新，不创建 Helix 更新授权或接管其他宿主安装。
+OpenCode 的 `plugin_update=emulated` 仅适配有明确 Git upstream 的干净源码分支，复用同一 check/prepare/decide/install 授权链路，锁定批准 commit 并只允许快进；有本地改动、游离版本或不受管理副本时保留手动更新，不接管其他宿主安装。安装步骤见 [OpenCode 安装说明](../hosts/opencode/installer.md)，适配边界见文末 OpenCode source checkout adapter。
 任何未注册宿主或未启用更新能力的宿主执行 update `check` 时固定返回
 `state=unsupported, reason=unsupported_host, next_action=continue_silently`，不读取或写入
 版本缓存、不提示更新、不创建 authorization，也不执行任何 plugin 命令。
@@ -306,3 +306,8 @@ Cursor: ${HELIXHARNESS_CURSOR_HOME:-$HOME/.cursor}/helixharness/version-check-ca
 ## Cursor native update boundary
 
 仅 Cursor 原生安装：`check` 返回 `reason=installation_update_not_supported`、`next_action=continue_with_warning` 时，展示当前安装及手动更新步骤后结束更新流程；业务继续。不得进入 prepare/decide/install，不得改用旧 Local 缓存或授权，不把 unknown 当作已是最新。显式后续更新操作退出码为 2。此限制不改变 managed-local、Claude Code 或 Codex 的原协议。
+
+
+## OpenCode source checkout adapter
+
+OpenCode 的 `checkout` 范围由 `update_hosts.opencode.OpenCodeUpdateAdapter` 实现。检查通过临时 Git ref 和隔离快照读取正式 policy；已有本地改动、无 upstream、游离版本或分叉不进入安装。prepare/decide/install 保持原确认协议，绑定 checkout、分支、原 HEAD 和批准 target commit；安装禁用 Git hooks，仅允许快进并核验版本与 HEAD。不强制重置、不 stash、不 commit/push。当前会话仍需在更新后重启。包管理缓存不借用本适配或其他宿主授权，详见 [OpenCode 能力适配](../hosts/opencode/capabilities.md)。

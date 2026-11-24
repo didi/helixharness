@@ -34,7 +34,10 @@ BINDING_KEYS = {"schema_version", "kind", "install_id", "registration_sha256", "
 RECEIPT_KEYS = {"schema_version", "install_id", "registration_sha256", "version", "commit", "tree_sha256"}
 DISTRIBUTION_DIRS = {".claude-plugin", ".codex-plugin", ".cursor-plugin", "agents", "commands", "hosts", "opencode", "reference", "scripts", "skills", "templates", "workflows"}
 DISTRIBUTION_FILES = {"AGENTS.md", "CLAUDE.md", "LICENSE", "NOTICE", "PLUGIN_USAGE.md", "README.md", "README.zh-CN.md", "SKILL.md", "THIRD_PARTY_NOTICES.md", ".gitignore", "package.json"}
-OPENCODE_RUNTIME_FILES = {"opencode/index.ts", "opencode/core.ts"}
+OPENCODE_RUNTIME_FILES = {
+    "opencode/index.ts", "opencode/core.ts",
+    "opencode/project-checks.ts", "opencode/ut-state.ts",
+}
 EXCLUDED_PARTS = {".git", ".env", ".cursor", ".claude", ".codex", ".agents", ".aws", "output", "temp", "node_modules", "__pycache__", ".pytest_cache", ".venv", "venv"}
 MAX_ARCHIVE_BYTES = 256 * 1024 * 1024
 MAX_FILE_BYTES = 32 * 1024 * 1024

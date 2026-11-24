@@ -42,7 +42,8 @@ class LiteWorkflowCliTest(unittest.TestCase):
             check=True,
         )
         subprocess.run(
-            ["git", "-C", str(self.repo), "commit", "--allow-empty", "-qm", "initial"],
+            ["git", "-C", str(self.repo), "-c", "core.hooksPath=/dev/null",
+             "commit", "--allow-empty", "-qm", "initial"],
             check=True,
         )
         self.feature = "checkout"
@@ -1112,6 +1113,92 @@ must_fix_rounds: {must_fix_rounds}
         self.assertEqual("in_progress", resumable["repair_state"]["status"])
         self.assertTrue(second["resumed"])
         self.assertEqual(first["repair_revision"], second["repair_revision"])
+
+    def test_bug_fix_fresh_process_resume_preserves_baseline_and_invalidates_old_approve(self) -> None:
+        self.write_spec(status="ready")
+        self.write_tasks(status="ready", rows="| T-01 | First | AC-01 | — | pending |")
+        preexisting = self.repo / "user-notes.txt"
+        preexisting.write_text("Synthetic user-owned preexisting work.\n")
+        self.run_cli("bind-apply", "--feature", self.feature)
+        spec_path = self.feature_dir / "spec.md"
+        tasks_path = self.feature_dir / "tasks.md"
+        spec_path.write_text(spec_path.read_text().replace("status: ready", "status: implemented"))
+        tasks_path.write_text(tasks_path.read_text().replace("status: ready", "status: completed")
+                              .replace("| pending |", "| completed |"))
+        self.write_evidence()
+        evidence = self.feature_dir / "verify-report.md"
+        original_evidence = evidence.read_bytes()
+        state_dir = self.repo / ".helixharness/workflow" / self.feature
+        baseline_before = json.loads((state_dir / "apply-state.json").read_text())
+        old_review = (state_dir / "review-state.json").read_bytes()
+        self.assertTrue(baseline_before["apply_baseline_manifest"])
+        begin_args = (
+            "begin-repair", "--feature", self.feature, "--repair-key", "a" * 64,
+            "--source-sha256", "b" * 64, "--repair-kind", "implementation_regression",
+            "--expected-spec-receipt", workflow.spec_receipt(spec_path.read_text()),
+            "--expected-tasks-receipt", workflow.artifact_receipt(tasks_path.read_text()),
+        )
+        begun = json.loads(self.run_cli(*begin_args).stdout)
+        resumed = json.loads(self.run_cli(*begin_args).stdout)
+        self.assertFalse(begun["resumed"])
+        self.assertTrue(resumed["resumed"])
+        self.assertEqual(1, resumed["repair_revision"])
+        editing = json.loads(self.run_cli("repair-preflight", "--feature", self.feature).stdout)
+        self.assertEqual("in_progress", editing["repair_state"]["status"])
+        spec_path.write_text(
+            spec_path.read_text().replace("status: implemented\n", "status: implemented\nrepair_revision: 1\n")
+            + "\n## Repair Revisions\n\n"
+            + "| Revision | Repair Key | Kind | Source SHA-256 | Summary |\n"
+            + "|---|---|---|---|---|\n"
+            + f"| R-01 | {'a' * 64} | implementation_regression | {'b' * 64} | Repair original behavior |\n"
+        )
+        tasks_path.write_text(
+            tasks_path.read_text().replace("| ID | Task |", "| ID | Revision | Task |")
+            .replace("|---|---|---|---|---|", "|---|---|---|---|---|---|")
+            .replace("| T-01 | First |", "| T-01 | R-00 | First |")
+            + "| T-02 | R-01 | Repair behavior | AC-01 | T-01 | pending |\n"
+        )
+        facts = json.loads(self.run_cli(
+            "validate-tasks", "--feature", self.feature, "--stage", "propose", "--repair-key", "a" * 64
+        ).stdout)
+        rebind_args = (
+            "repair-rebind", "--feature", self.feature, "--repair-key", "a" * 64,
+            "--expected-spec-receipt", facts["spec_receipt_sha256"],
+            "--expected-tasks-receipt", facts["tasks_receipt_sha256"],
+        )
+        first_rebind = json.loads(self.run_cli(*rebind_args).stdout)
+        before_resume = {p: p.read_bytes() for p in self.repo.rglob("*") if p.is_file()}
+        for _ in range(2):
+            # Each Router/preflight/rebind call runs in a new Python process.
+            route = subprocess.run([
+                sys.executable, str(PLUGIN_ROOT / "scripts/workflow_router.py"),
+                "--repo-root", str(self.repo), "route", "--command", "bug-fix",
+                "--arguments=" + self.feature, "--arguments-mode", "auto",
+            ], check=True, capture_output=True, text=True)
+            routed = json.loads(route.stdout)
+            self.assertEqual("repair_feature", routed["action"])
+            self.assertEqual(self.feature, routed["workflow_arguments"])
+            bound = json.loads(self.run_cli("repair-preflight", "--feature", self.feature).stdout)
+            self.assertEqual("bound", bound["repair_state"]["status"])
+            self.assertEqual(1, bound["repair_state"]["repair_revision"])
+            self.assertEqual("a" * 64, bound["repair_state"]["repair_key"])
+            self.assertEqual(first_rebind, json.loads(self.run_cli(*rebind_args).stdout))
+        self.assertEqual(before_resume, {p: p.read_bytes() for p in self.repo.rglob("*") if p.is_file()})
+        baseline_after = json.loads((state_dir / "apply-state.json").read_text())
+        for key in ("apply_baseline_head", "apply_baseline_manifest", "apply_baseline_sha256"):
+            self.assertEqual(baseline_before[key], baseline_after[key], key)
+        self.assertFalse((state_dir / "review-state.json").exists())
+        self.assertEqual(old_review, (state_dir / "review-state.r1.invalidated.json").read_bytes())
+        self.assertEqual(original_evidence, evidence.read_bytes())
+        self.assertEqual(1, len(workflow.repair_rows(spec_path.read_text())))
+        self.assertEqual(["completed", "pending"], [row["status"] for row in workflow.task_rows(tasks_path.read_text())])
+        self.assertEqual("T-02", json.loads(self.validate("apply").stdout)["next_task"])
+        spec_path.write_text(spec_path.read_text().replace("status: applying", "status: implemented"))
+        tasks_path.write_text(tasks_path.read_text().replace("status: applying", "status: completed")
+                              .replace("| pending |", "| completed |"))
+        stale_approve = self.run_cli("archive-preflight", "--feature", self.feature, check=False)
+        self.assertNotEqual(0, stale_approve.returncode)
+        self.assertIn("invalid spec_receipt_sha256", stale_approve.stderr)
 
     def test_repair_revision_is_a_critical_frontmatter_field(self) -> None:
         self.write_spec(status="applying")

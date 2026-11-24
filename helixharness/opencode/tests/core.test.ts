@@ -89,8 +89,8 @@ describe("plugin resources", () => {
     );
     expect(plugin.capabilities.command_surface).toBe("native");
     expect(plugin.capabilities.subagents).toBe("native");
-    expect(plugin.capabilities.telemetry).toBe("unsupported");
-    expect(plugin.capabilities.plugin_update).toBe("unsupported");
+    expect(plugin.capabilities.telemetry).toBe("emulated");
+    expect(plugin.capabilities.plugin_update).toBe("emulated");
   });
 
   test("maps disable-model-invocation to OpenCode autoinvoke=false", () => {
@@ -122,7 +122,7 @@ describe("rendering", () => {
     expect(text).toContain("repo_root: `/repo`");
     expect(text).toContain("`helix-<agent>`");
     expect(text).toContain("`workflow_transition` is `inline`");
-    expect(text).toContain("`update_plan` has no native OpenCode plan tool");
+    expect(text).toContain("`update_plan` is emulated by `scripts/task_plan.py");
     expect(text).toContain("HelixHarness 公共命令唯一契约");
     expect(text).toContain("--arguments='--feature demo'");
   });

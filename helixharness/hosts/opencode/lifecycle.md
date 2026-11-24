@@ -9,11 +9,14 @@ OpenCode 不需要 plugin hook manifest。`opencode/index.ts` 的 `setup` 在插
   阶段完成。
 - `session_events`、`session_end`、`stop_hook` 和 `failure_hook` 声明为 `unsupported`，不得
   虚构事件或模拟清理。
-- 项目 hooks 由 `project-hooks.json` 独立声明为 `unsupported`；Init 不创建 `.opencode/`
-  设置或替代 hook 文件。
-- `telemetry=unsupported`：统计关闭不改变工作流完成门禁，脚本返回 `unsupported_host` 后继续
-  业务。
-- 插件更新由 OpenCode 的插件管理完成；`plugin_update=unsupported` 时 `/helix:update` 只返回
-  `continue_silently`，不调用其他宿主的安装命令。
+- 项目设置 hooks 仍由 `project-hooks.json` 声明为 `unsupported`；Init 不创建 `.opencode/`
+  设置。`project_checks=emulated` 通过原生 `execute.after` 在 write/edit/patch 成功后运行已有
+  invariant/spec-sync 巡检；错误作为反馈，不撤销编辑、不自动完成或失败一个业务阶段。
+- `telemetry=emulated`：仅明确授权后记录阶段账本和工作流轨迹，可经已有异步队列提交；不读取原始
+  会话，未采集指标保持未知。统计关闭或异常均不改变工作流完成门禁。
+- `plugin_update=emulated`：`/helix:update` 复用既有授权协议，对有明确 upstream 的干净源码
+  安装执行锁定 commit 的快进更新；本地修改、游离版本或不受管理的包安装不自动处理。
 - 修改插件源码或局部依赖后按 OpenCode 要求重启服务或重新加载会话；更新后新开会话确认九个
   `helix:*` 命令、`helix-*` 方法 Skill 和子任务角色可见。
+
+任务进度由 `scripts/task_plan.py` 对 canonical `tasks.md` 原子更新；完整边界见[能力适配](capabilities.md)。

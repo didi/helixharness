@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -968,6 +969,160 @@ repos:
             workspace.workspace_archive_preflight(
                 self.workspace, "cross-repo"
             )
+
+    def test_apply_recovery_skips_verified_implemented_repo(self) -> None:
+        self._write_overview(status="applying")
+        self._make_repo_archive_ready("api")
+        self._write_repo_feature("web")
+
+        result = workspace.workspace_execution_plan(self.workspace, "cross-repo", "apply")
+
+        self.assertEqual(["web"], [job["repo"] for job in result["jobs"]])
+        self.assertEqual([["web"]], result["batches"])
+        self.assertEqual("ready", result["repo_results"]["api"]["archive_state"])
+        self.assertEqual(["api"], result["jobs"][0]["depends_on"])
+
+    def test_apply_recovery_dispatches_invalid_evidence_for_single_apply_repair(self) -> None:
+        self._write_overview(status="applying")
+        self._make_repo_archive_ready("api")
+        self._write_repo_feature("web")
+        evidence = self.workspace / "api/docs/specs/active/cross-repo/verify-report.md"
+        evidence.write_text(evidence.read_text().replace("spec_verdict: APPROVE", "spec_verdict: REJECT"))
+
+        result = workspace.workspace_execution_plan(self.workspace, "cross-repo", "apply")
+        self.assertEqual(["api", "web"], [job["repo"] for job in result["jobs"]])
+        self.assertEqual("workflows/single/apply.md", result["jobs"][0]["expected_workflow"])
+
+    def test_apply_recovery_dispatches_missing_evidence_without_resetting_tasks(self) -> None:
+        self._write_overview(status="applying")
+        self._make_repo_archive_ready("api")
+        self._write_repo_feature("web")
+        directory = self.workspace / "api/docs/specs/active/cross-repo"
+        (directory / "verify-report.md").unlink()
+        before = (directory / "tasks.md").read_bytes()
+
+        result = workspace.workspace_execution_plan(self.workspace, "cross-repo", "apply")
+
+        self.assertEqual(["api", "web"], [job["repo"] for job in result["jobs"]])
+        self.assertEqual(before, (directory / "tasks.md").read_bytes())
+        self.assertEqual(None, result["repo_results"]["api"]["next_task"])
+
+    def test_apply_recovery_cannot_rebuild_missing_original_baseline(self) -> None:
+        self._write_overview(status="applying")
+        self._make_repo_archive_ready("api")
+        self._write_repo_feature("web")
+        state = self.workspace / "api/.helixharness/workflow/cross-repo/apply-state.json"
+        state.unlink()
+
+        with self.assertRaisesRegex(workspace.WorkspaceError, "Apply state"):
+            workspace.workspace_execution_plan(self.workspace, "cross-repo", "apply")
+        self.assertFalse(state.exists())
+
+    def test_archive_recovery_skips_validated_completed_repo(self) -> None:
+        self._write_overview(status="implemented")
+        self._make_repo_archive_ready("api")
+        self._move_repo_to_completed("web")
+
+        result = workspace.workspace_execution_plan(self.workspace, "cross-repo", "archive")
+
+        self.assertEqual(["api"], [job["repo"] for job in result["jobs"]])
+        self.assertEqual([["api"]], result["batches"])
+        self.assertEqual("completed", result["repo_results"]["web"]["archive_state"])
+
+    def test_archive_recovery_with_all_children_completed_has_no_jobs(self) -> None:
+        self._write_overview(status="implemented")
+        self._move_repo_to_completed("api")
+        self._move_repo_to_completed("web")
+
+        result = workspace.workspace_archive_preflight(self.workspace, "cross-repo")
+
+        self.assertTrue(result["ready"])
+        self.assertEqual([], result["jobs"])
+        self.assertEqual([], result["batches"])
+
+    def _plan_in_fresh_process(self, command: str) -> dict:
+        result = subprocess.run([
+            sys.executable, str(PLUGIN_ROOT / "scripts/workspace.py"),
+            "--workspace-root", str(self.workspace), "workspace-plan",
+            "--feature", "cross-repo", "--command", command,
+        ], check=True, capture_output=True, text=True)
+        return json.loads(result.stdout)
+
+    def test_new_process_recovers_only_pending_work_without_rewriting_state(self) -> None:
+        self._write_overview(status="applying")
+        self._make_repo_archive_ready("api")
+        self._make_repo_archive_ready("web")
+        spec = self.workspace / "web/docs/specs/active/cross-repo/spec.md"
+        spec.write_text(spec.read_text().replace("status: implemented", "status: applying"))
+        tasks = spec.with_name("tasks.md")
+        original_tasks = tasks.read_text().replace("status: completed", "status: applying")
+
+        for unfinished_status in ("pending", "in_progress"):
+            with self.subTest(unfinished_status=unfinished_status):
+                tasks.write_text(original_tasks + f"| T-02 | Resume local slice | {unfinished_status} |\n")
+                before = {str(p.relative_to(self.workspace)): p.read_bytes()
+                          for p in self.workspace.rglob("*") if p.is_file()}
+                first = self._plan_in_fresh_process("apply")
+                second = self._plan_in_fresh_process("apply")
+
+                self.assertEqual(first, second)
+                self.assertEqual(["web"], [job["repo"] for job in second["jobs"]])
+                self.assertEqual([["web"]], second["batches"])
+                self.assertEqual("T-02", second["repo_results"]["web"]["next_task"])
+                self.assertEqual(["T-02"] if unfinished_status == "in_progress" else [],
+                                 second["repo_results"]["web"]["in_progress_tasks"])
+                self.assertEqual(before, {str(p.relative_to(self.workspace)): p.read_bytes()
+                                          for p in self.workspace.rglob("*") if p.is_file()})
+                self.assertEqual(["completed", unfinished_status],
+                                 [row["status"] for row in workflow.task_rows(tasks.read_text())])
+                serialized = json.dumps(second)
+                for native_field in ("child_id", "session_id", "agent_id", "handle"):
+                    self.assertNotIn(f'"{native_field}"', serialized)
+
+    def test_read_repo_replanning_preserves_business_files_and_local_artifacts(self) -> None:
+        self._write_overview()
+        overview = self.workspace / "docs/specs/active/cross-repo/spec.md"
+        overview.write_text(overview.read_text().replace("| web | write |", "| web | read |"))
+        self._write_repo_feature("api")
+        self._write_repo_feature("web")
+        business_file = self.workspace / "web/consumer.py"
+        business_file.write_text("# Synthetic existing consumer\nVALUE = 1\n")
+        before = {str(p.relative_to(self.workspace)): p.read_bytes()
+                  for p in self.workspace.rglob("*") if p.is_file()}
+
+        plan = self._plan_in_fresh_process("apply")
+
+        read_job = next(job for job in plan["jobs"] if job["repo"] == "web")
+        self.assertEqual("read", read_job["mode"])
+        self.assertEqual(before, {str(p.relative_to(self.workspace)): p.read_bytes()
+                                  for p in self.workspace.rglob("*") if p.is_file()})
+
+    def test_read_repo_recovery_dispatches_drift_for_single_apply_review(self) -> None:
+        self._write_overview(status="applying")
+        overview = self.workspace / "docs/specs/active/cross-repo/spec.md"
+        overview.write_text(overview.read_text().replace("| web | write |", "| web | read |"))
+        self._make_repo_archive_ready("api")
+        self._make_repo_archive_ready("web")
+        business_file = self.workspace / "web/consumer.py"
+        business_file.write_text("# Synthetic unexpected business change\nVALUE = 2\n")
+        before = business_file.read_bytes()
+
+        result = workspace.workspace_execution_plan(self.workspace, "cross-repo", "apply")
+
+        self.assertEqual(["web"], [job["repo"] for job in result["jobs"]])
+        self.assertEqual("read", result["jobs"][0]["mode"])
+        self.assertEqual("workflows/single/apply.md", result["jobs"][0]["expected_workflow"])
+        self.assertEqual(before, business_file.read_bytes())
+
+    def test_propose_recovery_removes_skipped_repos_from_batches(self) -> None:
+        self._write_overview()
+        self._write_repo_feature("api")
+
+        plan = self._plan_in_fresh_process("propose")
+
+        self.assertEqual(["web"], [job["repo"] for job in plan["jobs"]])
+        self.assertEqual([["web"]], plan["batches"])
+        self.assertIn("api", plan["repo_results"])
 
 
 if __name__ == "__main__":

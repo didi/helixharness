@@ -147,4 +147,5 @@ function main() {
   printFallback(markdown, reportPath)
 }
 
-main()
+if (require.main === module) main()
+module.exports = { extractJson }

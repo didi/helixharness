@@ -10,10 +10,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { guardUtStateWrite, type UtWriteEvent } from "./ut-state.ts";
+import { runProjectChecks } from "./project-checks.ts";
 
 export const HOST_ID = "opencode";
 export const HOST_API_VERSION = "1.1";
 export const PLUGIN_ID = "helixharness";
+export const SESSION_ID_TOKEN = "@@HELIXHARNESS_SESSION_ID@@";
 export const REPO_ROOT_TOKEN = "@@HELIXHARNESS_REPO_ROOT@@";
 export const WORKER_AGENT_ID = "helix-worker";
 
@@ -95,7 +98,16 @@ export interface LoadedPlugin {
   capabilities: Record<string, string>;
 }
 
+interface NativePreflight {
+  registeredTools: string[] | null;
+  toolCatalog: "available" | "unavailable";
+  sessionMoveApi: "available" | "unavailable";
+  delegationDepth: "unknown";
+}
+
 export interface HostContext {
+  nativePreflight?: NativePreflight;
+  sessionId?: string;
   canonicalHostId: string;
   pluginRoot: string;
   repoRoot?: string;
@@ -142,7 +154,27 @@ export interface ToolAfterEvent {
   tool: string;
   sessionID: string;
   status: "completed" | "error";
+  input?: unknown;
+  id?: string;
   result?: { content?: string | ReadonlyArray<ToolContent> };
+}
+
+export type SessionBindingHook = "context" | "compaction" | "generate" | "title";
+
+interface RequestTextPart {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+}
+
+export interface SessionBindingEvent {
+  sessionID: string;
+  system: Array<{ text: string; [key: string]: unknown }>;
+  messages: Array<{
+    role: string;
+    content: string | ReadonlyArray<RequestTextPart>;
+    [key: string]: unknown;
+  }>;
 }
 
 /**
@@ -184,12 +216,20 @@ export interface PluginContext {
     ): Promise<unknown>;
   };
   tool?: {
+    list?(input: { sessionID: string }): Promise<ReadonlyArray<{ id?: string; name?: string }>>;
+    hook(name: "execute.before", callback: (event: UtWriteEvent) => Promise<void> | void): Promise<unknown>;
     hook(
       name: "execute.after",
       callback: (event: ToolAfterEvent) => Promise<void> | void,
     ): Promise<unknown>;
   };
   session: {
+    move?: unknown;
+    hook?(
+      name: SessionBindingHook,
+      callback: (event: SessionBindingEvent) => Promise<void> | void,
+    ): Promise<unknown>;
+    hook?(name: "experimental.idle", callback: (event: { sessionID: string; background: ReadonlyArray<unknown> }) => Promise<void> | void): Promise<unknown>;
     get(input: { sessionID: string }): Promise<{ location?: { directory?: string } }>;
     prompt(input: {
       sessionID: string;
@@ -225,6 +265,28 @@ function assertInside(root: string, candidate: string, label: string): string {
     return resolved;
   }
   throw new Error(`${label} escapes the plugin root: ${resolved}`);
+}
+
+/** Check both boundaries before reading a file or enumerating a directory. */
+function resolvePluginPath(root: string, candidate: string, label: string): string {
+  const lexical = assertInside(root, candidate, label);
+  let resolved: string;
+  try {
+    resolved = realpath(lexical);
+  } catch {
+    throw new Error(`${label} does not exist or cannot be resolved: ${lexical}`);
+  }
+  return assertInside(root, resolved, label);
+}
+
+function requirePluginFile(root: string, candidate: string, label: string): string {
+  return requireFile(resolvePluginPath(root, candidate, label), label);
+}
+
+function requirePluginDirectory(root: string, candidate: string, label: string): string {
+  const resolved = resolvePluginPath(root, candidate, label);
+  if (!fs.statSync(resolved).isDirectory()) throw new Error(`${label} is not a directory`);
+  return resolved;
 }
 
 function requireFile(filePath: string, label: string): string {
@@ -305,8 +367,9 @@ export function loadManifest(pluginRoot: string): {
   resources: Record<string, string>;
 } {
   const root = realpath(pluginRoot);
-  const manifestPath = path.join(root, "hosts", HOST_ID, "host.json");
-  requireFile(manifestPath, "OpenCode host manifest");
+  const manifestPath = requirePluginFile(
+    root, path.join(root, "hosts", HOST_ID, "host.json"), "OpenCode host manifest",
+  );
   const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8")) as HostManifest;
   if (manifest.host_id !== HOST_ID) {
     throw new Error(
@@ -337,8 +400,7 @@ export function loadManifest(pluginRoot: string): {
     if (!target || path.isAbsolute(target)) {
       throw new Error(`Invalid OpenCode resource adapter: ${name}`);
     }
-    const resolved = assertInside(root, path.join(root, target), `OpenCode resource ${name}`);
-    resources[name] = requireFile(resolved, `OpenCode resource ${name}`);
+    resources[name] = requirePluginFile(root, path.join(root, target), `OpenCode resource ${name}`);
   }
 
   for (const name of REQUIRED_RESOURCE_ADAPTERS) {
@@ -353,8 +415,8 @@ export function loadManifest(pluginRoot: string): {
 export function loadCommands(pluginRoot: string): CommandSource[] {
   const root = realpath(pluginRoot);
   return COMMAND_NAMES.map((name) => {
-    const filePath = requireFile(
-      path.join(root, "commands", `${name}.md`),
+    const filePath = requirePluginFile(
+      root, path.join(root, "commands", `${name}.md`),
       `HelixHarness command ${name}`,
     );
     const document = parseMarkdown(fs.readFileSync(filePath, "utf8"), filePath);
@@ -369,16 +431,20 @@ export function loadCommands(pluginRoot: string): CommandSource[] {
 
 export function loadSkills(pluginRoot: string): SkillSource[] {
   const root = realpath(pluginRoot);
-  const skillsRoot = path.join(root, "skills");
+  const skillsRoot = requirePluginDirectory(root, path.join(root, "skills"), "HelixHarness skills");
   const entries = fs
     .readdirSync(skillsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
   const skills: SkillSource[] = [];
   for (const directory of entries) {
-    const filePath = path.join(skillsRoot, directory, "SKILL.md");
-    if (!fs.existsSync(filePath)) continue;
+    const skillDirectory = resolvePluginPath(root, path.join(skillsRoot, directory), `HelixHarness skill ${directory}`);
+    if (!fs.statSync(skillDirectory).isDirectory()) continue;
+    const candidate = path.join(skillDirectory, "SKILL.md");
+    // A missing optional Skill is fine; a dangling link is an invalid resource.
+    if (!fs.lstatSync(candidate, { throwIfNoEntry: false })) continue;
+    const filePath = requirePluginFile(root, candidate, `HelixHarness skill ${directory}`);
     const document = parseMarkdown(fs.readFileSync(filePath, "utf8"), filePath);
     const description =
       typeof document.frontmatter.description === "string" &&
@@ -398,14 +464,14 @@ export function loadSkills(pluginRoot: string): SkillSource[] {
 
 export function loadAgents(pluginRoot: string): AgentSource[] {
   const root = realpath(pluginRoot);
-  const agentsRoot = path.join(root, "agents");
+  const agentsRoot = requirePluginDirectory(root, path.join(root, "agents"), "HelixHarness agents");
   const files = fs
     .readdirSync(agentsRoot, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
+    .filter((entry) => (entry.isFile() || entry.isSymbolicLink()) && entry.name.endsWith(".md"))
     .map((entry) => entry.name)
     .sort((left, right) => left.localeCompare(right));
   return files.map((file) => {
-    const filePath = path.join(agentsRoot, file);
+    const filePath = requirePluginFile(root, path.join(agentsRoot, file), `HelixHarness agent ${file}`);
     const document = parseMarkdown(fs.readFileSync(filePath, "utf8"), filePath);
     const agentName = file.slice(0, -".md".length);
     const description =
@@ -439,8 +505,10 @@ export function loadPluginResources(pluginRoot: string = pluginRootFromModule())
 export function hostContextFor(
   plugin: LoadedPlugin,
   repoRoot?: string,
+  sessionId?: string,
 ): HostContext {
   return {
+    sessionId,
     canonicalHostId: plugin.manifest.host_id,
     pluginRoot: plugin.pluginRoot,
     repoRoot,
@@ -480,7 +548,16 @@ export function renderHostContext(context: HostContext): string {
   if (context.repoRoot) {
     lines.push(`- repo_root: \`${context.repoRoot}\``);
   }
+  if (context.sessionId) lines.push(`- native_session_id: \`${context.sessionId}\``);
   lines.push(`- host_manifest: \`${context.hostManifest}\``);
+  if (context.nativePreflight) {
+    const observed = context.nativePreflight;
+    lines.push(`- native_tool_catalog: \`${observed.toolCatalog}\``);
+    lines.push(`- registered_native_tools: \`${JSON.stringify(observed.registeredTools)}\``);
+    lines.push(`- native_session_move_api: \`${observed.sessionMoveApi}\``);
+    lines.push(`- native_delegation_depth: \`${observed.delegationDepth}\``);
+  }
+
   lines.push("", "## Capabilities", "", ...renderCapabilities(context.capabilities));
   lines.push("", "## Resolved resources", "", ...renderResources(context.resources));
   lines.push(
@@ -494,10 +571,11 @@ export function renderHostContext(context: HostContext): string {
     "- `spawn_job` uses the native `subagent` tool. Preserve the resolved `delegation_policy` from the command's Dispatch Contract. Generic `leaf` jobs use `general`; generic `may_delegate` jobs use `helix-worker` (currently Workspace Apply RepoJobs). Registered Init and UT roles use `helix-<agent>` and remain leaves.",
     "- Follow the exposed native `subagent` schema for execution and waiting; do not assume every OpenCode V2 release supports a foreground/background selector. `wait_job` waits for a real completed result or the native background-completion notice, then validates the returned result and artifacts. A returned `sessionID` alone is not completion.",
     "- `ask_user` uses the native `question` tool and waits for a real answer.",
-    "- `update_plan` has no native OpenCode plan tool; update the current Feature `tasks.md` instead.",
+    "- `update_plan` is emulated by `scripts/task_plan.py --repo-root <repo_root> --feature <feature> show` and `update --task <T-NN> --status <pending|in_progress|blocked|completed> --expected-receipt <receipt_sha256>`. Use the same canonical tasks.md; dependency and receipt failures require a fresh read. This progress update never substitutes for stage verification.",
     "- `workflow_transition` is `inline`: execute the routed workflow body in this same session instead of recursively invoking another slash command.",
-    "- `stage_finish` calls the HelixHarness lifecycle scripts from the command body. OpenCode telemetry is `unsupported`, so telemetry steps return `unsupported_host` and business work continues.",
-    "- OpenCode plugin update is `unsupported`; `/helix:update` reports `continue_silently` and the user updates through OpenCode plugin management.",
+    "- `stage_finish` calls the HelixHarness lifecycle scripts from the command body. Telemetry uses the existing explicit-consent protocol and records stage facts only; no native transcript or token usage is collected. Invoke the bound plugin's telemetry scripts by absolute path; native shell hooks bind the real session ID and directory to that subprocess, without changing process-global environment.",
+    "- Successful native write/edit/patch notifications run existing project invariant/spec-sync linters when installed. Failure feedback does not undo edits or complete stages; shell-based changes still require the explicit workflow checks.",
+    "- `/helix:update` uses the existing check/prepare/decide/install consent protocol for clean source checkouts with an explicit Git upstream. Targets are immutable commits and installation is fast-forward only. Dirty/detached/unregistered package copies are not modified. Restart OpenCode after an update.",
     "",
     "Follow `resources.runtime`, `resources.subagent_protocol`, `resources.workflow_transition`, `resources.ut`, `resources.project_config`, `resources.project_hooks` and `resources.telemetry_protocol` for the complete host contract.",
   );
@@ -567,7 +645,7 @@ export function buildCommandPrompt(
 }
 
 export function buildSkillContent(skill: SkillSource, plugin: LoadedPlugin): string {
-  const context = hostContextFor(plugin, REPO_ROOT_TOKEN);
+  const context = hostContextFor(plugin, REPO_ROOT_TOKEN, SESSION_ID_TOKEN);
   return [
     renderHostContext(context),
     "",
@@ -616,32 +694,41 @@ export function buildWorkerSystem(plugin: LoadedPlugin): string {
 export function replaceRepoRootToken(
   content: string,
   repoRoot: string,
+  sessionId?: string,
 ): string {
-  return content.replaceAll(REPO_ROOT_TOKEN, () => repoRoot);
+  const bound = content.replaceAll(REPO_ROOT_TOKEN, () => repoRoot);
+  return sessionId === undefined ? bound : bound.replaceAll(SESSION_ID_TOKEN, () => sessionId);
+}
+
+function bindOwnedSkillText(text: string, skillTexts: ReadonlyArray<string>, repoRoot: string, sessionId: string): string {
+  return skillTexts.reduce(
+    (result, skill) => result.replaceAll(skill, () => replaceRepoRootToken(skill, repoRoot, sessionId)), text,
+  );
+}
+
+function hasOwnedSkillResult(result: ToolAfterEvent["result"], skillTexts: ReadonlyArray<string>): boolean {
+  const owns = (text: string) => skillTexts.some(skill => text.includes(skill));
+  const content = result?.content;
+  if (typeof content === "string") return owns(content);
+  return content?.some(item => item.type === "text" && typeof item.text === "string" && owns(item.text)) ?? false;
 }
 
 function replaceToolResultContent(
   result: ToolAfterEvent["result"],
   repoRoot: string,
+  sessionId: string,
+  skillTexts: ReadonlyArray<string>,
 ): void {
   if (!result || result.content === undefined) return;
   if (typeof result.content === "string") {
-    result.content = replaceRepoRootToken(result.content, repoRoot);
+    result.content = bindOwnedSkillText(result.content, skillTexts, repoRoot, sessionId);
     return;
   }
   result.content = result.content.map((item) =>
     item.type === "text" && item.text !== undefined
-      ? { ...item, text: replaceRepoRootToken(item.text, repoRoot) }
+      ? { ...item, text: bindOwnedSkillText(item.text, skillTexts, repoRoot, sessionId) }
       : item,
   );
-}
-
-function hasRepoRootToken(result: ToolAfterEvent["result"]): boolean {
-  const content = result?.content;
-  if (typeof content === "string") return content.includes(REPO_ROOT_TOKEN);
-  return content?.some(
-    (item) => item.type === "text" && item.text?.includes(REPO_ROOT_TOKEN),
-  ) ?? false;
 }
 
 type RepoRootErrorCode = "repo_root_lookup_failed" | "repo_root_invalid";
@@ -675,6 +762,57 @@ async function resolveRepoRoot(
   }
 }
 
+/** Observe registration only. This is not a permission/depth or execution probe. */
+async function observeNativePreflight(ctx: PluginContext, sessionID: string): Promise<NativePreflight> {
+  const result: NativePreflight = {
+    registeredTools: null, toolCatalog: "unavailable",
+    sessionMoveApi: typeof ctx.session.move === "function" ? "available" : "unavailable",
+    delegationDepth: "unknown",
+  };
+  if (typeof ctx.tool?.list !== "function") return result;
+  try {
+    const tools = await ctx.tool.list({ sessionID });
+    if (!Array.isArray(tools) || tools.some(tool => !tool || typeof tool.id !== "string" || !tool.id)) return result;
+    const allowed = new Set(["read", "write", "edit", "patch", "shell", "question", "skill", "subagent", "opencode_session_move"]);
+    result.registeredTools = [...new Set(tools.map(tool => tool.id).filter((id): id is string => typeof id === "string" && allowed.has(id)))].sort();
+    result.toolCatalog = "available";
+  } catch { /* Native config/error bodies can contain private values; keep only availability. */ }
+  return result;
+}
+
+/** Bind only this installation's registered Skill bodies, never user literals. */
+async function bindSkillRequest(
+  ctx: PluginContext,
+  event: SessionBindingEvent,
+  skillTexts: ReadonlyArray<string>,
+): Promise<void> {
+  const owns = (text: string) => text.includes(REPO_ROOT_TOKEN) && skillTexts.some(skill => text.includes(skill));
+  const eligible = (message: SessionBindingEvent["messages"][number]) =>
+    message.role === "user" || message.role === "system";
+  const containsSkill = event.system.some(part => owns(part.text)) || event.messages.some(message =>
+    eligible(message) && (typeof message.content === "string"
+      ? owns(message.content)
+      : message.content.some(part => part.type === "text" && typeof part.text === "string" && owns(part.text))),
+  );
+  if (!containsSkill) return;
+
+  // Do not mutate the projected source messages or reuse another request's root.
+  // Throwing aborts delivery if lookup or directory validation fails.
+  const repoRoot = await resolveRepoRoot(ctx, event.sessionID);
+  const bind = (text: string) => bindOwnedSkillText(text, skillTexts, repoRoot, event.sessionID);
+  event.system = event.system.map(part => owns(part.text) ? { ...part, text: bind(part.text) } : part);
+  event.messages = event.messages.map(message => {
+    if (!eligible(message)) return message;
+    if (typeof message.content === "string") {
+      return owns(message.content) ? { ...message, content: bind(message.content) } : message;
+    }
+    return { ...message, content: message.content.map(part =>
+      part.type === "text" && typeof part.text === "string" && owns(part.text)
+        ? { ...part, text: bind(part.text) } : part,
+    ) };
+  });
+}
+
 /**
  * Registers every HelixHarness command, method skill and subagent role with an
  * OpenCode plugin context. Commands execute the canonical `commands/*.md`
@@ -687,21 +825,44 @@ export async function registerHelixHarness(
 ): Promise<void> {
   const plugin = loadPluginResources(options.pluginRoot ?? pluginRootFromModule());
 
-  // Skill content is not safe to expose until the session-binding hook exists.
-  if (!ctx.tool || typeof ctx.tool.hook !== "function") {
+  // Neither tool results nor mentions may be exposed without their binding hooks.
+  if (!ctx.tool || typeof ctx.tool.hook !== "function" || typeof ctx.session.hook !== "function") {
     throw new Error("repo_root_hook_unavailable: Session directory binding is required.");
   }
+  const skillTexts = [...new Set(plugin.skills.map(skill => buildSkillContent(skill, plugin).trimEnd()))];
   await ctx.tool.hook("execute.after", async (event) => {
-    if (event.tool !== "skill" || event.status !== "completed" || !hasRepoRootToken(event.result)) return;
+    await runProjectChecks(event, plugin.pluginRoot, () => resolveRepoRoot(ctx, event.sessionID));
+    if (event.tool !== "skill" || event.status !== "completed" || !hasOwnedSkillResult(event.result, skillTexts)) return;
     try {
       const repoRoot = await resolveRepoRoot(ctx, event.sessionID);
-      replaceToolResultContent(event.result, repoRoot);
+      replaceToolResultContent(event.result, repoRoot, event.sessionID, skillTexts);
     } catch (error) {
       const failure = error instanceof RepoRootError
         ? error
         : new RepoRootError("repo_root_invalid");
       event.result = { content: `BLOCKED: ${failure.message}` };
     }
+  });
+
+  const utSessions = new Set<string>();
+
+  // Publication checks run before native write/edit can expose partial UT state.
+  await ctx.tool.hook("execute.before", async event => {
+    await guardUtStateWrite(event, () => resolveRepoRoot(ctx, event.sessionID), utSessions.has(event.sessionID) || event.agent === "helix-unit-test-worker");
+    const input = event.input as { command?: unknown } | undefined;
+    if (event.tool === "shell" && typeof input?.command === "string" &&
+        input.command.includes(plugin.pluginRoot) && /(?:metrics|telemetry_consent|telemetryctl)\.py\b/.test(input.command)) {
+      const root = await resolveRepoRoot(ctx, event.sessionID);
+      input.command = `export HELIXHARNESS_SESSION_ID=${shellQuote(event.sessionID)} HELIXHARNESS_SESSION_CWD=${shellQuote(root)};\n${input.command}`;
+    }
+  });
+
+  for (const hook of ["context", "compaction", "generate", "title"] as const) {
+    await ctx.session.hook(hook, event => bindSkillRequest(ctx, event, skillTexts));
+  }
+
+  await ctx.session.hook("experimental.idle", event => {
+    if (event.background.length === 0) utSessions.delete(event.sessionID);
   });
 
   await ctx.command.transform((editor) => {
@@ -711,21 +872,36 @@ export async function registerHelixHarness(
         description: command.description,
         async execute(input) {
           const repoRoot = await resolveRepoRoot(ctx, input.sessionID);
-          const context = hostContextFor(plugin, repoRoot);
+          const context = hostContextFor(plugin, repoRoot, input.sessionID);
+          if (["init", "propose", "apply", "archive", "ut", "bug-fix"].includes(command.name)) {
+            context.nativePreflight = await observeNativePreflight(ctx, input.sessionID);
+            if (context.nativePreflight.toolCatalog === "available") {
+              const missing = ["read", "shell"].filter(name => !context.nativePreflight!.registeredTools!.includes(name));
+              if (missing.length) throw new Error(`opencode_preflight_tools_unavailable: ${missing.join(",")}`);
+            }
+          }
           const text = buildCommandPrompt(
             command,
             context,
             input.prompt.text ?? "",
           );
-          await ctx.session.prompt({
-            sessionID: input.sessionID,
-            text,
-            ...(input.prompt.files ? { files: input.prompt.files } : {}),
-            ...(input.prompt.agents ? { agents: input.prompt.agents } : {}),
-            ...(input.prompt.skills ? { skills: input.prompt.skills } : {}),
-            metadata: { "helixharness.command": command.name },
-            ...(input.delivery ? { delivery: input.delivery } : {}),
-          });
+          const wasUt = utSessions.has(input.sessionID);
+          if (command.name === "ut") utSessions.add(input.sessionID);
+          else utSessions.delete(input.sessionID);
+          try {
+            await ctx.session.prompt({
+              sessionID: input.sessionID,
+              text,
+              ...(input.prompt.files ? { files: input.prompt.files } : {}),
+              ...(input.prompt.agents ? { agents: input.prompt.agents } : {}),
+              ...(input.prompt.skills ? { skills: input.prompt.skills } : {}),
+              metadata: { "helixharness.command": command.name },
+              ...(input.delivery ? { delivery: input.delivery } : {}),
+            });
+          } catch (error) {
+            if (wasUt) utSessions.add(input.sessionID); else utSessions.delete(input.sessionID);
+            throw error;
+          }
         },
       });
     }

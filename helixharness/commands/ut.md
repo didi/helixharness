@@ -20,6 +20,8 @@ description: "单元测试生成与维护命令。基于知识库和活跃需求
 $ARGUMENTS
 ```
 
+> **工件门禁**：首次写入 UT 文件前完整读取 `reference/ut-artifact-protocol.md`。所有状态初始化/更新通过绑定插件的 `scripts/ut_artifacts.py` 原子发布；分类记录及缺陷汇总由该脚本生成，不由模型自由计数或直接覆盖。
+
 ## 参数说明
 
 > 本命令支持两种入口：**显式参数入口**（`--packages` 与 `--concurrency` 一次给齐）和**交互补全入口**。
@@ -257,7 +259,7 @@ Phase 0-1：项目完整知识库加载
 
 #### 4.1.5 检查项目测试基础设施
 
-**推导项目名**：当前工作目录 basename，替换特殊字符为 `-`，转小写
+**推导项目名**：当前工作目录 basename 转小写，再将 `[a-z0-9._-]` 之外的字符逐个替换为 `-`；与 `ut_artifacts.py` 的证据根解析一致
 **全新开始时**：清理跨平台临时目录中的残留 worker 目录（保留共享缓存）
 
 检查内容：项目类型、测试框架、Lombok 配置、测试目录结构、覆盖率配置
@@ -265,15 +267,35 @@ Phase 0-1：项目完整知识库加载
 #### 4.1.6 预编译主项目（所有模块）
 
 **强制执行**：无论任何执行模式，进入 Phase 1 前必须确保主项目已预编译
-**继续执行/增量补充快速路径**：验证编译产物目录存在，存在则跳过，否则重新编译
+全新开始、继续执行和增量补充每轮都必须调用当前构建工具核验源码新鲜度；旧产物目录存在
+不能证明新增包或改动源码已经编译，不得据此跳过构建。
 
 **目标**：预编译所有模块主源码，避免每个 worker 重复编译；**同时提前发现并解决Java版本等环境级问题**，确保worker启动后环境可用。
 
-**只编译主源码，不编译测试**：
-- Gradle：`./gradlew clean classes --no-daemon --no-parallel --no-watch-fs -q`（如无 wrapper 则使用 `gradle`）
-- Maven：`./mvnw clean compile --batch-mode -q`（如无 wrapper 则使用 `mvn`）
+执行确定性门禁（只编译主源码，不编译测试）：
 
-验证：检查 `build/classes/java/main` 或 `target/classes` 目录存在
+```bash
+{helix_python} "{plugin_root}/scripts/ut_precompile.py" --repo-root "{MainProjectPath}"
+```
+
+脚本从根 `build.gradle(.kts)` / `settings.gradle(.kts)` 或 `pom.xml` 确定构建工具，优先执行主项目
+绝对路径 wrapper，无 wrapper 才使用当前环境的系统工具；不复制或修改 wrapper、构建配置和业务源码。
+Gradle 每次执行 `classes --no-daemon --no-parallel --no-watch-fs -q`，Maven 每次执行
+`compile --batch-mode -q`，由构建工具检查源码、依赖和构建配置的新鲜度；不执行 `clean`，
+保留已有测试源码和运行产物。必须同时检查命令退出码和实际 `build/classes/{java,kotlin,groovy}/main` /
+`target/classes` 输出目录。无额外参数时只校验根项目的标准输出，JSON 标记
+`class_directory_scope=standard_root_only`，不递归搜索示例、历史目录或猜测活跃模块。
+多模块或自定义布局时，父流程从当前已读取的构建配置和项目结构确认本次活跃模块及其实际 main 输出，
+为每个所需输出追加一个 `--class-directory "{repo-relative-or-absolute-directory}"`；
+例如 `--class-directory "api/target/classes" --class-directory "service/target/classes"`。
+脚本要求这些明确指定的目录全部位于项目根内、不经过符号链接且在构建成功后存在，
+以 `class_directory_scope=explicit` 返回。无法确认活跃模块/实际输出时停止，不递归搜到旧目录后继续，
+也不声称已自动核验所有模块覆盖。只把本轮 JSON 的 `class_directories` 实际列表传给 worker。
+
+只有本轮脚本退出码为 0 且 JSON `status=compile_ready`、`ready=true` 才能进入新 worker 派发。
+`ready=false`、非零退出、构建工具缺失/冲突或输出目录缺失时，保留 `stdout` / `stderr` 诊断并停止；
+不得启动新 worker，不得复用旧 class 目录掩盖编译失败，也不修改业务源码或构建配置来绕过门禁。
+主源码编译就绪不是测试通过；所有原有 worker 测试、覆盖率和 Phase 2-5 统一验证仍须执行。
 
 **关键责任**：
 - Phase 0 预编译是确保 worker 环境可用的第一道防线
@@ -514,9 +536,12 @@ Phase 0-1：项目完整知识库加载
 
 | 分支 | 操作 |
 |------|------|
-| **继续执行** | 确保目录存在，验证主项目编译产物存在（缺失则重新执行 §4.1.6 预编译），托管权限，验证已有文件完整性，确定下一个 Worker ID |
-| **全新开始** | 确保目录存在，会话文件已创建，初始化共享经验库；仅 `child_locked_append` 按 §7 确保锁目录不存在，`parent_finalize` 不检查、不创建、不删除锁。初始化空主结果文件，初始化任务队列，执行 §4.1.6 预编译，托管权限 |
-| **增量补充** | 确保目录存在，验证主项目编译产物存在（缺失则重新执行 §4.1.6 预编译），托管权限，验证已有文件完整性，确定下一个 Worker ID |
+| **继续执行** | 确保目录存在，复用本轮 §4.1.6 `compile_ready` 回执，托管权限，验证已有文件完整性，确定下一个 Worker ID |
+| **全新开始** | 确保目录存在，会话文件已创建，初始化共享经验库；仅 `child_locked_append` 按 §7 确保锁目录不存在，`parent_finalize` 不检查、不创建、不删除锁。初始化空主结果文件，初始化任务队列，复用本轮 §4.1.6 `compile_ready` 回执，托管权限 |
+| **增量补充** | 确保目录存在，复用本轮 §4.1.6 `compile_ready` 回执，托管权限，验证已有文件完整性，确定下一个 Worker ID |
+
+本轮回执缺失、或预编译之后源码/依赖/构建配置发生变化时，先重新执行 §4.1.6；
+上下文恢复不能只检查旧 class 目录，新 worker 启动前仍须有当前输入的编译就绪事实。
 
 **关键**：权限托管必须执行（见 §5）
 
@@ -649,7 +674,8 @@ Agent(
 - 主项目路径：{MainProjectPath}
 - 系统临时目录：{系统临时目录的绝对路径}
 - Worker 临时目录：{WorkerTempPath}（父流程解析的 `{系统临时目录}/{ProjectName}/worker-{ID}/` 绝对路径）
-- 主项目编译产物路径：{MainProjectPath}/build/classes/java/main 或 {MainProjectPath}/target/classes
+- 本轮主项目预编译回执：{ut_precompile.py 的 compile_ready JSON，含实际命令与退出码}
+- 主项目编译产物路径：{回执 class_directories 中的实际绝对路径列表，含子模块}
 - 共享经验库路径：docs/specs/active/{feature}/unittest-experience.md
 - 共享经验库锁目录：docs/specs/active/{feature}/unittest-experience.lock（`child_locked_append` 使用；
   `parent_finalize` 只把它列为 forbidden scope，不检查、不创建、不删除）
@@ -716,16 +742,16 @@ Agent(
 #### 4.3.4 Phase 2-4：汇总所有 worker 输出
 
 **执行步骤（单线程）**：
-1. **先收集缺陷文件**：按 Worker ID 顺序检查 `worker-{ID}-defects.md`，存在则读取并暂存
+1. **先收集分类记录**：按 Worker ID 读取 `worker-{ID}-findings.json` 和脚本生成的 `worker-{ID}-defects.md`；新 worker 无观察也要求空 observations JSON。旧会话/超时代写缺少分类时按 `reference/ut-artifact-protocol.md` 保留原记录并标为分类未核验，counts=null，不能算零；JSON 损坏/身份不合法，或 result 与有效分类均不存在时阻断，不能以模型手写缺陷数替代。
 2. **再收集结果文件**：按 Worker ID 顺序读取所有 `worker-{ID}-result.md`
 3. **超时结果核验**：对队列中 `备注` 含 `timeout` 的任务，重新读取 result 文件首行，如 worker 已覆盖为成功/失败，以 worker 最新结果为准，并通过原子写协议更新队列中对应行的状态为 `completed` 或 `failed`，清除 `备注` 中的 `timeout`；即使仍为超时，也要检查 defects.md 是否存在
 4. **重试记录去重**：对存在重试关系的任务（队列 `备注` 列含 `retry:N|orig:W{ID}`），按类名分组：
    - 同一类存在多条记录时，仅保留最终态的任务结果进入主文件（优先级：`completed` > `failed`）
    - 被去重的行在队列 `备注` 中追加 `（已归档）`，不在主结果文件中重复出现
    - Worker 输出文件（result + defects）均按最终态 Worker ID 引用，原始失败 Worker 的文件在归档步骤中一并处理
-5. 汇总写入：将去重后的结果和缺陷汇总写入主文件
+5. 汇总写入：按 `reference/ut-artifact-protocol.md` 对去重后的最终 Worker ID 运行 `ut_artifacts.py aggregate`，在临时证据清理前生成主分类报告；results/summary 的缺陷/风险/建议三类数字取其返回 counts，分别统计，不混算。其他主文件通过 `ut_artifacts.py write` 原子发布。
 6. 经验库校验：`child_locked_append` 读取 `unittest-experience.md` 并统计本次已追加经验；`parent_finalize` 先校验各 worker final 的有界经验候选，再由父流程串行、去重、原子合并后统计
-7. 归档 worker 文件：将已汇总的 worker 文件（含被去重的原始失败文件）重命名为 `archived-worker-*.md`
+7. 归档 worker 文件：将已汇总的 worker 文件（含被去重的原始失败文件）重命名为 `archived-worker-*.md`；同时归档对应 `worker-*-findings.json`，保留扩展名
 8. `child_locked_append` 按 §7 清理符合条件的残留锁目录（使用跨平台删除方式）；`parent_finalize` 不检查、不创建、不删除任何经验锁
 
 #### 4.3.5 Phase 2-5：主项目统一验证（串行）
@@ -814,7 +840,7 @@ ownership 可验证的配置或临时授权，不删除用户已有配置，并�
 2. 再 `mv` 原子重命名为目标文件名
 3. 如目标文件已存在，根据场景决定是跳过还是覆盖
 
-**适用文件**：`unittest-queue.md`、`unittest-session.md`、`worker-{ID}-result.md`（ut.md 超时代写时）、主结果文件
+**适用文件**：`unittest-queue.md`、`unittest-session.md`、共享经验、`worker-{ID}-result.md`（含 ut.md 超时代写）、所有主结果报告。包括首次空表和最后完成状态，统一按 `reference/ut-artifact-protocol.md` 的 `ut_artifacts.py write` 发布；分类 JSON/defects 用 findings/aggregate 生成。不能只对队列或经验库执行。
 
 ### 6.3 任务状态机
 
