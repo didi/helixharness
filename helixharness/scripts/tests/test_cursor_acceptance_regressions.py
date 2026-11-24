@@ -14,6 +14,7 @@ import sys
 import unittest
 from pathlib import Path
 
+import env_sandbox
 import test_workspace
 
 PLUGIN = Path(__file__).resolve().parents[2]
@@ -29,7 +30,8 @@ class CursorWorkspaceDispatchRegressionTest(unittest.TestCase):
         self.repo = self.fixture.workspace.resolve()
         self.fixture._write_overview()
         self.env = {
-            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            **env_sandbox.boot_vars(),
+            "PATH": env_sandbox.search_path(),
             "PYTHONDONTWRITEBYTECODE": "1",
             "PYTHONIOENCODING": "utf-8",
             "GIT_CONFIG_GLOBAL": os.devnull,

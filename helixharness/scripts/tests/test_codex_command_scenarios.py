@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import env_sandbox
 import test_workflow
 import validate_init_outputs
 
@@ -34,7 +35,8 @@ class CodexCommandScenariosTest(unittest.TestCase):
         self.repo.mkdir()
         self.state = self.root / "entry snapshots"
         self.env = {
-            "PATH": f"{Path(sys.executable).parent}{os.pathsep}{os.defpath}",
+            **env_sandbox.boot_vars(),
+            "PATH": env_sandbox.search_path(),
             "TMPDIR": str(self.root),
             "PYTHONIOENCODING": "utf-8",
             "PYTHONDONTWRITEBYTECODE": "1",

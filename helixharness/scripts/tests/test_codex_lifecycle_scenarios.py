@@ -17,6 +17,8 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import env_sandbox
+
 PLUGIN = Path(__file__).resolve().parents[2]
 THREAD_ONE = "0195f651-0000-7000-8000-000000000001"
 THREAD_TWO = "0195f651-0000-7000-8000-000000000002"
@@ -35,6 +37,7 @@ class CodexLifecycleScenariosTest(unittest.TestCase):
         (self.telemetry / "config.json").write_text('{"endpoint": ""}')
         # Allowlist avoids inheriting native session bindings or credentials.
         self.env = {
+            **env_sandbox.boot_vars(),
             "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", ""),
             "PYTHONDONTWRITEBYTECODE": "1",
             "CODEX_HOME": str(self.codex),

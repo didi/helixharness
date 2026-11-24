@@ -14,6 +14,7 @@ from unittest.mock import Mock, patch
 
 import reporting_config
 from host_runtime import HostRegistry
+import env_sandbox
 from telemetry_hosts.cursor import record_hook
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +29,7 @@ class CursorHookFastPathTest(unittest.TestCase):
         self.payload = {'conversation_id': 'synthetic-fastpath', 'workspace_roots': [str(self.home)],
                         'hook_event_name': 'postToolUse', 'tool_use_id': 'synthetic-call', 'tool_name': 'Shell'}
         self.env = {'PATH': os.defpath, 'PYTHONDONTWRITEBYTECODE': '1',
+                    **env_sandbox.boot_vars(),
                     'HELIXHARNESS_TELEMETRY_HOME': str(self.home / 'telemetry'),
                     'HELIXHARNESS_CURSOR_HOME': str(self.home / 'cursor'),
                     'HELIXHARNESS_FEEDBACK_HOME': str(self.home / 'feedback'),

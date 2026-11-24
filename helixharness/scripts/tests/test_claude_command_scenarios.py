@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import env_sandbox
 import test_workflow
 import validate_init_outputs
 import workflow
@@ -38,7 +39,8 @@ class ClaudeCommandScenariosTest(unittest.TestCase):
         self.repo = self.root / "synthetic project 中文 空格"
         self.repo.mkdir()
         self.env = {
-            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            **env_sandbox.boot_vars(),
+            "PATH": env_sandbox.search_path(),
             "TMPDIR": str(self.root), "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
             "CODEX_HOME": str(self.root / "codex"), "CLAUDE_CONFIG_DIR": str(self.root / "claude"),
             "HELIXHARNESS_CURSOR_HOME": str(self.root / "cursor"),

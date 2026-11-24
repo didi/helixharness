@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import env_sandbox
+
 PLUGIN = Path(__file__).resolve().parents[2]
 REPOSITORY = PLUGIN.parent
 PUBLIC_ROOTS = {".codex-plugin", ".claude-plugin", ".cursor-plugin", ".qoder-plugin", "package.json", "scripts", "hosts", "commands", "workflows", "reference", "skills", "agents", "templates"}
@@ -107,7 +109,8 @@ class CodexUpdateScenarioTests(unittest.TestCase):
         # An allowlist avoids inheriting real host identity, credentials, Python
         # import paths, endpoints or configuration. The actual Codex CLI is shadowed.
         self.env = {
-            "PATH": str(bin_dir) + os.pathsep + os.environ.get("PATH", os.defpath),
+            **env_sandbox.boot_vars(),
+            "PATH": str(bin_dir) + os.pathsep + env_sandbox.search_path() + os.pathsep + os.environ.get("PATH", os.defpath),
             "TMPDIR": str(self.root), "LANG": "en_US.UTF-8", "PYTHONDONTWRITEBYTECODE": "1",
             "CODEX_HOME": str(self.root / "codex-home"),
             "CODEX_THREAD_ID": "synthetic-" + self.root.name,

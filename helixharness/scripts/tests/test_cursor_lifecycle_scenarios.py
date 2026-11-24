@@ -15,6 +15,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import env_sandbox
+
 PLUGIN = Path(__file__).resolve().parents[2]
 
 
@@ -29,7 +31,8 @@ class CursorLifecycleScenariosTest(unittest.TestCase):
         self.telemetry.mkdir()
         (self.telemetry / "config.json").write_text('{"endpoint":""}')
         self.env = {
-            "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+            **env_sandbox.boot_vars(),
+            "PATH": env_sandbox.search_path(),
             "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
             "CODEX_HOME": str(self.root / "codex"),
             "CLAUDE_CONFIG_DIR": str(self.root / "claude"),
