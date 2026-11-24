@@ -134,18 +134,29 @@ def check_text(text: str, expected: str) -> None:
         raise GuidanceError("init_guidance_outdated_or_incorrect")
 
 
+def _block_like(sample: str, expected: str) -> str:
+    """Render the managed block with the line endings the surrounding bytes use.
+
+    check_text tolerates CRLF, so writing LF back over a CRLF block would report a
+    change on every Init and rewrite a Windows editor's bytes each time.
+    """
+    return expected.replace("\n", "\r\n") if "\r\n" in sample else expected
+
+
 def merge_text(text: str, expected: str, mode: str) -> str:
     span = _managed_span(text)
     if span is not None:
         if _command_headings(text[:span[0]] + text[span[1]:]):
             raise GuidanceError("init_guidance_custom_commands_conflict")
+        result = text[:span[0]] + _block_like(text[span[0]:span[1]], expected) + text[span[1]:]
     else:
         span = _legacy_span(text, mode)
-    if span is not None:
-        result = text[:span[0]] + expected + text[span[1]:]
-    else:
-        separator = "" if not text or text.endswith("\n\n") else "\n" if text.endswith("\n") else "\n\n"
-        result = text + separator + expected + "\n"
+        if span is not None:
+            result = text[:span[0]] + _block_like(text[span[0]:span[1]], expected) + text[span[1]:]
+        else:
+            newline = "\r\n" if "\r\n" in text else "\n"
+            separator = "" if not text or text.endswith(newline * 2) else newline if text.endswith(newline) else newline * 2
+            result = text + separator + _block_like(text, expected) + newline
     check_text(result, expected)
     return result
 

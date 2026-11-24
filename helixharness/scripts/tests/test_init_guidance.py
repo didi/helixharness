@@ -234,6 +234,23 @@ class InitGuidanceTest(unittest.TestCase):
         self.assertEqual(entry.read_bytes(), b"newer user content\n")
         self.assertEqual({p.name for p in self.repo.iterdir()}, {"AGENTS.md"})
 
+    def test_crlf_entry_is_left_untouched_and_stays_idempotent(self):
+        # Windows editors save AGENTS.md with CRLF. check_text tolerates that, so a
+        # merge must not answer "changed" by rewriting the block back to LF.
+        for platform in ("cursor", "codex", "claude-code"):
+            with self.subTest(platform=platform):
+                entry = self.repo / ("CLAUDE.md" if platform == "claude-code" else "AGENTS.md")
+                entry.write_bytes(self.template("service").replace("\n", "\r\n").encode())
+                before = entry.read_bytes()
+                self.assertFalse(self.cli(platform, "service")["changed"])
+                self.assertEqual(entry.read_bytes(), before)
+                self.assertEqual(self.cli(platform, "service", "check")["status"], "pass")
+                entry.write_bytes("# 用户规则\r\n\r\n正文\r\n".encode())
+                self.assertTrue(self.cli(platform, "service")["changed"])
+                merged = entry.read_bytes()
+                self.assertEqual(merged.count(b"\n"), merged.count(b"\r\n"))
+                self.assertFalse(self.cli(platform, "service")["changed"])
+
     def test_entry_permissions_and_render_without_filesystem_mutation(self):
         entry = self.repo / "AGENTS.md"
         entry.write_text("user rules\n")
