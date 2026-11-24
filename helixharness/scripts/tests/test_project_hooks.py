@@ -9,9 +9,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from host_runtime.project_hooks import ProjectHooks
-from project_hooks_cli import project_hooks
+from project_hooks_cli import _parse_posix_command, _parse_windows_command, project_hooks
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def hook_argv(command: str) -> list[str]:
+    """Argv of a self-generated hook command, whichever shell shape the host wrote."""
+    return _parse_windows_command(command) or _parse_posix_command(command) or []
 
 
 class ProjectHooksTest(unittest.TestCase):
@@ -216,10 +221,8 @@ class ProjectHooksTest(unittest.TestCase):
 
     def test_qoder_collapse_removes_version_dir_duplicates(self):
         """Under linter_flag policy, entries differing only in --repo-root collapse."""
-        from project_hooks_cli import _parse_posix_command, _parse_windows_command, project_hooks
-
         def linter_name(command: str) -> str | None:
-            argv = _parse_windows_command(command) or _parse_posix_command(command)
+            argv = hook_argv(command)
             if not argv or "--linter" not in argv:
                 return None
             idx = argv.index("--linter")
@@ -441,11 +444,13 @@ class FlatProjectHooksTest(unittest.TestCase):
                     handlers = document["hooks"]["afterFileEdit"]
                     self.assertEqual(4, len(handlers))
                     self.assertEqual(23, handlers[0]["timeout"])
-                    self.assertIn("project_linter.py", handlers[0]["command"])
+                    self.assertTrue(any(Path(part).name == "project_linter.py"
+                                        for part in hook_argv(handlers[0]["command"])),
+                                    handlers[0]["command"])
                     self.assertEqual(custom, handlers[1])
                     self.assertEqual(scoped, handlers[2])
                     self.assertEqual([{"command": "echo keep-stop"}], document["hooks"]["stop"])
-            self.assertNotIn("Python 'old'", handlers[0]["command"])
+            self.assertEqual(new_python, hook_argv(handlers[0]["command"])[0])
 
     def test_flat_target_symlink_cannot_escape_project(self):
         with tempfile.TemporaryDirectory() as directory:

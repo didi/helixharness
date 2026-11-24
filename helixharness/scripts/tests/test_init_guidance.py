@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -241,7 +242,9 @@ class InitGuidanceTest(unittest.TestCase):
         self.assertIn("/helix-bug-fix", rendered["block"])
         self.assertEqual(entry.read_text(), "user rules\n")
         self.cli()
-        self.assertEqual(entry.stat().st_mode & 0o777, 0o640)
+        if os.name != "nt":
+            # Windows records only the read-only bit, so a preserved mode is unprovable there.
+            self.assertEqual(entry.stat().st_mode & 0o777, 0o640)
 
 
 if __name__ == "__main__":

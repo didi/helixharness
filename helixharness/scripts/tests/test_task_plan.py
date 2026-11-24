@@ -43,7 +43,9 @@ class TaskPlanTest(unittest.TestCase):
         os.chmod(self.file, 0o640)
         update_task(self.repo, "demo", "T-01", "in_progress", self.receipt())
         self.assertEqual(self.file.read_text(), TEXT.replace("— | pending", "— | in_progress"))
-        self.assertEqual(self.file.stat().st_mode & 0o777, 0o640)
+        if os.name != "nt":
+            # Windows records only the read-only bit, so a preserved mode is unprovable there.
+            self.assertEqual(self.file.stat().st_mode & 0o777, 0o640)
         update_task(self.repo, "demo", "T-01", "completed", self.receipt())
         self.assertEqual(inspect_plan(self.repo, "demo")["next_task"], "T-02")
 

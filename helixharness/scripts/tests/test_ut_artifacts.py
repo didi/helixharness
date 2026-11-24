@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -141,6 +142,7 @@ class UtArtifactsTest(unittest.TestCase):
     def test_configuration_is_not_a_mechanical_code_reference(self):
         (self.repo/'settings.json').write_text('synthetic setting')
         self.assertEqual(self.findings(1,[self.observation(basis='mechanical',mechanical_kind='data_corruption',code_ref={'path':'settings.json','quote':'synthetic setting'})])['counts']['confirmed_defect'],0)
+    @unittest.skipIf(os.name == 'nt', 'Windows models only the read-only bit')
     def test_existing_posix_modes_survive_all_publication_paths(self):
         import stat
         for mode in (0o600,0o640,0o750):
@@ -174,9 +176,11 @@ class UtArtifactsTest(unittest.TestCase):
         target=self.directory/'unittest-session.md';target.write_text('private');target.chmod(0o600)
         with patch('atomic_files.os.replace',side_effect=OSError('synthetic failure')):
             with self.assertRaises(OSError):ut.publish_state(self.repo,'sample',target.name,self.stage(target.name,'replacement'))
-        self.assertEqual(target.read_text(),'private');self.assertEqual(stat.S_IMODE(target.stat().st_mode),0o600)
+        self.assertEqual(target.read_text(),'private')
         name='unittest-summary.md';ut.publish_state(self.repo,'sample',name,self.stage(name,'new'))
-        self.assertEqual(stat.S_IMODE((self.directory/name).stat().st_mode),0o644)
+        if os.name != 'nt':
+            self.assertEqual(stat.S_IMODE(target.stat().st_mode),0o600)
+            self.assertEqual(stat.S_IMODE((self.directory/name).stat().st_mode),0o644)
     def test_active_timeout_never_inherits_archived_worker_generation(self):
         self.findings(1,[])
         for suffix in ('findings.json','defects.md'):

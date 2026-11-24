@@ -326,7 +326,9 @@ class CursorLifecycleScenariosTest(unittest.TestCase):
                     self.assertIn("claude-code", draft["item"]["transcript_stats"]["reason"])
                 path = Path(draft["draft_path"])
                 self.assertEqual(path.parent, self.root / "feedback/drafts")
-                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+                if os.name != "nt":
+                    # Windows records only the read-only bit, so 0600 is unprovable there.
+                    self.assertEqual(path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(before, self.files(self.repo))
         self.assertFalse((self.root / "feedback/outbox").exists())
 
