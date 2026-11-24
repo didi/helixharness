@@ -12,8 +12,14 @@ import re
 import tempfile
 from urllib.parse import urlsplit
 
+import atomic_files
 import eval_json
 from update_hosts.base import BoundedCommandRunner
+
+if os.name == "nt":
+    import msvcrt
+else:
+    import fcntl
 
 KEY = "helixharness-marketplace/helix"
 MISSING = {"absent": True}
@@ -54,11 +60,7 @@ def atomic(path, value):
             stream.flush()
             os.fsync(stream.fileno())
         os.replace(name, path)
-        descriptor = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        atomic_files.fsync_directory(path.parent)
     finally:
         if os.path.exists(name):
             os.unlink(name)
@@ -143,13 +145,29 @@ class ProjectInstall:
 
     @contextmanager
     def locked(self):
-        # Scope is the tested macOS/Linux desktop channel.
-        import fcntl
         safe(self.state).mkdir(parents=True, exist_ok=True)
         lock = safe(self.state / "lock")
-        with lock.open("a") as stream:
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            yield
+        with lock.open("a+b") as stream:
+            if os.name == "nt":
+                # msvcrt locks a byte range and refuses to lock past end of file,
+                # so the handle needs one byte before it can be held exclusively.
+                stream.seek(0, os.SEEK_END)
+                if not stream.tell():
+                    stream.write(b"\0")
+                    stream.flush()
+                stream.seek(0)
+                msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)
+                try:
+                    yield
+                finally:
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(stream, fcntl.LOCK_UN)
 
     def configuration(self):
         value = read(self.settings)
@@ -233,11 +251,7 @@ class ProjectInstall:
             if not config and not record["settings_existed"]:
                 self.settings.unlink(missing_ok=True)
                 if self.settings.parent.exists():
-                    fd = os.open(self.settings.parent, os.O_RDONLY)
-                    try:
-                        os.fsync(fd)
-                    finally:
-                        os.close(fd)
+                    atomic_files.fsync_directory(self.settings.parent)
             else:
                 atomic(self.settings, config)
             atomic(self.receipt, {**record, "phase": "restored"})

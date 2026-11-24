@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+import atomic_files
 import eval_json
 from source_binding import guard_source
 from update_hosts import (
@@ -381,12 +382,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        if os.name != "nt":
-            parent_fd = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(parent_fd)
-            finally:
-                os.close(parent_fd)
+        atomic_files.fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temp_name)
@@ -396,12 +392,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
 
 def _durable_unlink(path: Path) -> None:
     path.unlink()
-    if os.name != "nt":
-        parent_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(parent_fd)
-        finally:
-            os.close(parent_fd)
+    atomic_files.fsync_directory(path.parent)
 
 
 @contextmanager

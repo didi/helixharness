@@ -20,6 +20,7 @@ from typing import Any, Iterator
 from urllib.parse import unquote, urlparse
 
 from telemetry_hosts import get_host_adapter, normalize_host_id, supported_host_ids
+import atomic_files
 import eval_json
 from telemetry_async import endpoint_skip
 
@@ -313,12 +314,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        if os.name != "nt":
-            directory_fd = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        atomic_files.fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temp_name)
