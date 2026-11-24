@@ -16,12 +16,19 @@ import test_workflow as workflow_fixture
 class StatusObservationTest(unittest.TestCase):
     def setUp(self):
         # The shared fixture creates only a temporary synthetic Git history.
-        # Never invoke a developer's global commit hooks from this regression.
+        # Never invoke a developer's global commit hooks from this regression,
+        # and stop git from writing transient files (objects/maintenance.lock,
+        # gc.pid) into .git during the observation window — the equality check
+        # in observe() treats any repo-side delta as a regression.
         count = int(os.environ.get('GIT_CONFIG_COUNT', '0'))
         git_env = mock.patch.dict(os.environ, {
-            'GIT_CONFIG_COUNT': str(count + 1),
+            'GIT_CONFIG_COUNT': str(count + 3),
             f'GIT_CONFIG_KEY_{count}': 'core.hooksPath',
             f'GIT_CONFIG_VALUE_{count}': os.devnull,
+            f'GIT_CONFIG_KEY_{count + 1}': 'gc.auto',
+            f'GIT_CONFIG_VALUE_{count + 1}': '0',
+            f'GIT_CONFIG_KEY_{count + 2}': 'maintenance.auto',
+            f'GIT_CONFIG_VALUE_{count + 2}': '0',
         })
         git_env.start()
         self.addCleanup(git_env.stop)
