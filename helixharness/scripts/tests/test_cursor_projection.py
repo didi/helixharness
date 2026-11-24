@@ -17,6 +17,7 @@ PLUGIN = SCRIPTS.parent
 sys.path.insert(0, str(SCRIPTS))
 
 import cursor_skill_projection as projection  # noqa: E402
+import env_sandbox  # noqa: E402
 
 
 class CursorProjectionTests(unittest.TestCase):
@@ -209,7 +210,7 @@ class CursorProjectionTests(unittest.TestCase):
             [sys.executable, str(SCRIPTS / "cursor_skill_projection.py"), "--root", str(isolated),
              "--resolve-entry", "hosts/cursor/skills/helix-d-d2c/SKILL.md"],
             capture_output=True, text=True, check=False, timeout=10,
-            env={"PATH": os.environ.get("PATH", "")},
+            env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", "")},
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["canonical"], "skills/d-d2c/SKILL.md")
@@ -287,9 +288,9 @@ class CursorD2CGateTests(unittest.TestCase):
              "--repo-root", str(self.root), "--page-dir", self.page, "--started-at", self.started,
              "--action", action, *extra],
             cwd=self.root, capture_output=True, text=True, check=False, timeout=10,
-            env={"PATH": os.environ.get("PATH", "")},
+            env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", "")},
         )
-        self.assertEqual(result.stderr, "")
+        self.assertEqual(result.stderr, "", f"node stderr: {result.stderr[:400]!r}")
         return result.returncode, json.loads(result.stdout)
 
     def test_incomplete_workflow_cannot_stop_or_ask(self) -> None:
@@ -380,7 +381,7 @@ class CursorD2CGateTests(unittest.TestCase):
             [shutil.which("node"), str(PLUGIN / "skills/d-d2c/scripts/d2c-workflow-checkpoint.cjs"),
              "--page-dir", self.page, *arguments],
             cwd=self.root, capture_output=True, text=True, check=False, timeout=10,
-            env={"PATH": os.environ.get("PATH", "")},
+            env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", "")},
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.state = json.loads(self.state_file.read_text(encoding="utf-8"))
