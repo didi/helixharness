@@ -216,13 +216,23 @@ class ProjectHooksTest(unittest.TestCase):
 
     def test_qoder_collapse_removes_version_dir_duplicates(self):
         """Under linter_flag policy, entries differing only in --repo-root collapse."""
-        from project_hooks_cli import project_hooks
+        from project_hooks_cli import _parse_posix_command, _parse_windows_command, project_hooks
+
+        def linter_name(command: str) -> str | None:
+            argv = _parse_windows_command(command) or _parse_posix_command(command)
+            if not argv or "--linter" not in argv:
+                return None
+            idx = argv.index("--linter")
+            return argv[idx + 1] if idx + 1 < len(argv) else None
 
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
             target = repo / ".qoder/settings.json"
             target.parent.mkdir()
-            # Simulate stale entries from two different plugin versions
+            # Simulate stale entries from two different plugin versions.
+            # Paths use sys.executable (absolute on every OS) and forward-slash
+            # script/repo paths — shlex.split keeps them literal so the merge
+            # recognizes the same shape on Windows as on POSIX runners.
             stale = {
                 "hooks": {
                     "PostToolUse": [
@@ -260,15 +270,8 @@ class ProjectHooksTest(unittest.TestCase):
             handlers = merged["hooks"]["PostToolUse"][0]["hooks"]
             # Should collapse to 2 handlers (one per linter)
             self.assertEqual(2, len(handlers))
-            # Check that both linters are present
-            linter_names = set()
-            for handler in handlers:
-                command = handler["command"]
-                if "--linter invariant-check" in command:
-                    linter_names.add("invariant-check")
-                elif "--linter spec-sync-check" in command:
-                    linter_names.add("spec-sync-check")
-            self.assertEqual({"invariant-check", "spec-sync-check"}, linter_names)
+            self.assertEqual({"invariant-check", "spec-sync-check"},
+                             {linter_name(handler["command"]) for handler in handlers})
 
     def test_qoder_check_warns_by_default_fails_with_strict(self):
         """Under warn policy, check returns warnings; --strict makes it fail."""
