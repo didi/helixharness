@@ -6,11 +6,11 @@
 >
 > Your team's engineering DNA, carried into AI development.
 
-**HelixHarness helps your team build its own AI coding harness on Codex, Claude Code, Cursor and [OpenCode (macOS Stable)](docs/opencode-testing.md).** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
+**HelixHarness helps your team build its own AI coding harness on Codex, Claude Code, Cursor, [OpenCode (macOS Stable)](docs/opencode-testing.md) and [Qoder](helixharness/hosts/qoder/installer.md).** It brings your business knowledge, engineering rules and development workflow into the agent's work—from requirements through implementation, tests, review and archive. Verified lessons stay with the project, ready for the next feature.
 
 Start with the plugin. When you want to improve the harness itself, the optional **helixharness-platform** lets maintainers observe usage, compare framework versions and evaluate candidate improvements before adopting them.
 
-**9 commands · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](docs/opencode-testing.md) · Single repo / multi-repo Workspace · Apache-2.0**
+**9 commands · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](docs/opencode-testing.md) / [Qoder](helixharness/hosts/qoder/installer.md) · Single repo / multi-repo Workspace · Apache-2.0**
 
 [Quick start](#quick-start) · [The name](#the-story-behind-the-name) · [Why HelixHarness](#why-helixharness) · [Framework iteration platform](#a-platform-for-iterating-on-helixharness) · [User guide](docs/user-guide.md)
 
@@ -63,11 +63,11 @@ Knowledge accumulates as **reviewable repository documents**. You control what b
 
 ### 1. Install the plugin
 
-Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (macOS, 2.3.2; see the [support matrix](docs/opencode-testing.md)). Make sure the host is signed in or has its model configuration set up and is working normally.
+Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor, OpenCode installation (macOS, 2.3.2; see the [support matrix](docs/opencode-testing.md)) or Qoder Desktop / CLI. Make sure the host is signed in or has its model configuration set up and is working normally.
 
 For macOS and native Windows setup, interpreter detection and host-specific requirements, see [platform support](docs/platform-support.md). Windows Codex uses PowerShell; Windows Claude Code uses Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
 
-After the repository is public, install Codex and Claude Code plugins with the terminal commands below. Cursor uses the marketplace UI described afterward. These routes do not require a manual source clone:
+After the repository is public, install Codex and Claude Code plugins with the terminal commands below. Cursor uses the marketplace UI described afterward. Qoder installs through a locally built ZIP because it has no marketplace CLI. These marketplace routes do not require a manual source clone:
 
 ```bash
 # Codex
@@ -85,6 +85,8 @@ Cursor users install `helix` from their Cursor marketplace through **Customize �
 
 OpenCode installation was verified with 2.3.2: clone this repository and configure the absolute `helixharness/` subdirectory in `opencode.json(c)`. Follow the [local-directory installation steps](docs/installation.md#opencode-local-directory-installation-verified-with-232); this repository is not installed with native `plugin add`.
 
+**Qoder:** Qoder's App install tool only consumes a plugin ZIP, so build one locally and install it. Clone the repository, run `python3 scripts/package_qoder_plugin.py` inside `helixharness/` to produce `dist/helix-<version>.zip`, then pick that ZIP in Qoder's **Extensions → Install local plugin** panel (or ask the assistant to call `qoder-settings.install_extension`). Open a new session afterwards — plugin manifests, skills, agents and hooks load at session start. Qoder has no marketplace CLI, so `/helix:update` is `unsupported`; upgrades reinstall a new ZIP. See the [Qoder installer](helixharness/hosts/qoder/installer.md) for packaging details, capability boundaries and acceptance checks.
+
 **OpenCode Stable support (macOS, 2.3.2):** See the [support matrix](docs/opencode-testing.md) for the current source candidate’s scope and boundaries. OpenCode 2.2.2 and 2.3.0 have automated compatibility coverage only.
 
 The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles. Commands, native `skill` tool results, Skill mentions and native Skill activation bind the requesting session's repository. Unbound Skill content is blocked when session lookup or directory validation fails. On 2026-11-20, OpenCode 2.3.2 with DeepSeek completed one synthetic single-repository Init → Propose → Apply → Archive lifecycle, with operator confirmations and a controlled contract amendment. On 2026-11-23, OpenCode 2.3.2 with DeepSeek also completed assisted synthetic two-repository Workspace and standalone UT runs; UT classification validation and protected atomic publication were subsequently fixed and passed a fresh real-model UT run without corrective operator prompts. [Targeted real-model tests on synthetic Workspaces](helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23) also verified native Apply and partial Archive cancellation followed by fresh-session recovery, plus dependent-dispatch blocking after an injected native context-hook failure. Full production-project acceptance, unattended protocol compliance and full TUI/desktop UI acceptance remain outstanding; see [targeted terminal UI acceptance](helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23) for the tested scope. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
@@ -99,9 +101,9 @@ The root marketplace installs the `helixharness/` plugin, not the platform. For 
 
 The product name is **HelixHarness**; its plugin ID and command namespace are **`helix`**.
 
-Open a new agent session in the **application repository** you want to develop. On Claude Code, Codex and Cursor, review the plugin hooks through the host's native interface; OpenCode registers its surfaces from the plugin package. Then enter the commands for your host in the conversation.
+Open a new agent session in the **application repository** you want to develop. On Claude Code, Codex, Cursor and Qoder, review the plugin hooks through the host's native interface; OpenCode registers its surfaces from the plugin package. Then enter the commands for your host in the conversation.
 
-Codex / Claude Code / OpenCode:
+Codex / Claude Code / OpenCode / Qoder:
 
 ```text
 /helix:init
@@ -115,7 +117,7 @@ Cursor:
 /helix-propose task-filter ./requirements/task-filter.md --loop
 ```
 
-Cursor uses `/helix-<command>` throughout; Codex, Claude Code and OpenCode use `/helix:<command>`. Command arguments and workflows are the same.
+Cursor uses `/helix-<command>` throughout; Codex, Claude Code, OpenCode and Qoder use `/helix:<command>`. On Qoder the nine entries come from the plugin's `hosts/qoder/skills/` thin entries rather than a native command surface, but the invocation text and arguments are the same.
 
 Use the [self-contained task-filter example](examples/README.md) to get a starter project, requirement and acceptance check. `--loop` runs Propose → Apply → Archive, pausing for decisions or blockers. It does not publish or deploy your code.
 
@@ -222,10 +224,10 @@ Report community bugs through [GitHub Issues](https://github.com/didi/helixharne
 
 Two planned directions will help more teams shape HelixHarness around their development practices:
 
-- **More coding agents.** Extend support to more hosts beyond Codex, Claude Code, Cursor and [OpenCode (macOS Stable)](docs/opencode-testing.md) so teams can use HelixHarness with more of their preferred tools.
+- **More coding agents.** Extend support to more hosts beyond Codex, Claude Code, Cursor, [OpenCode (macOS Stable)](docs/opencode-testing.md) and [Qoder](helixharness/hosts/qoder/installer.md) so teams can use HelixHarness with more of their preferred tools.
 - **Configurable workflows.** Let teams configure workflow stages and their order to fit their development process.
 
-These are planned capabilities. The source supports Codex, Claude Code and Cursor, plus [OpenCode within its macOS Stable scope](docs/opencode-testing.md), using the Propose → Apply → Archive workflow. Cursor native-client acceptance is tracked separately from automated contract tests. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
+These are planned capabilities. The source supports Codex, Claude Code and Cursor, plus [OpenCode within its macOS Stable scope](docs/opencode-testing.md) and [Qoder through local ZIP installation](helixharness/hosts/qoder/installer.md), using the Propose → Apply → Archive workflow. Cursor native-client acceptance is tracked separately from automated contract tests. Share concrete use cases through the [contribution guide](CONTRIBUTING.md) to help shape these directions.
 
 ## Documentation and contribution
 

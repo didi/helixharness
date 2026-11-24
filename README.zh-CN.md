@@ -6,11 +6,11 @@
 >
 > 为适配而生，为进化而设计。让团队的工程 DNA，融入 AI 研发。
 
-**HelixHarness 帮助团队在 Codex、Claude Code、Cursor 与 [OpenCode（macOS Stable）](docs/opencode-testing.md)上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
+**HelixHarness 帮助团队在 Codex、Claude Code、Cursor、[OpenCode（macOS Stable）](docs/opencode-testing.md) 与 [Qoder](helixharness/hosts/qoder/installer.md) 上构建专属的 AI Coding Harness。** 将你的业务知识、工程规范与研发工作流带入 Agent 的工作过程，从需求分析、实现、测试、评审到归档，让 AI 按团队的方式开展研发，并将经验证的经验留在项目中，供下一个需求复用。
 
 从插件开始即可。当你希望改进 Harness 本身时，可选的 **helixharness-platform** 帮助框架维护者观测使用过程、对比框架版本，并在采纳候选改进前验证效果。
 
-**9 个命令 · Codex / Claude Code / Cursor / [OpenCode（macOS Stable）](docs/opencode-testing.md) · 单仓 / 多仓 Workspace · Apache-2.0**
+**9 个命令 · Codex / Claude Code / Cursor / [OpenCode（macOS Stable）](docs/opencode-testing.md) / [Qoder](helixharness/hosts/qoder/installer.md) · 单仓 / 多仓 Workspace · Apache-2.0**
 
 [快速开始](#快速开始) · [命名故事](#名字背后的故事) · [框架亮点](#框架亮点) · [框架迭代平台](#围绕-helixharness-框架的迭代平台) · [使用指南](docs/user-guide.zh-CN.md)
 
@@ -63,11 +63,11 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 ### 1. 安装插件
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor 或 OpenCode（macOS、2.3.2；见[支持矩阵](docs/opencode-testing.md)）。先确保宿主已完成登录或模型配置，能够正常使用。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](docs/opencode-testing.md)）或 Qoder Desktop / CLI。先确保宿主已完成登录或模型配置，能够正常使用。
 
 macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。Cursor 实机验收目前覆盖 macOS，Windows Cursor 不在本期已验证范围。
 
-仓库公开后，Codex 和 Claude Code 使用下方终端命令，Cursor 使用随后说明的市场界面安装；这些方式无需先手动克隆源码：
+仓库公开后，Codex 和 Claude Code 使用下方终端命令，Cursor 使用随后说明的市场界面安装，Qoder 使用随后说明的本地 ZIP 安装流程；市场安装方式无需先手动克隆源码：
 
 ```bash
 # Codex
@@ -85,6 +85,8 @@ Cursor 用户通过 **Customize → helix → Install** 从市场安装，随后
 
 OpenCode 安装已在 2.3.2 验证：克隆本仓库后，在 `opencode.json(c)` 中配置 `helixharness/` 子目录的绝对路径。详见[本地目录安装步骤](docs/installation.md#opencode-local-directory-installation-verified-with-232)；本仓库不使用原生 `plugin add` 安装。
 
+**Qoder：** Qoder 的安装工具只消费插件 ZIP，需要先本地打包再安装。克隆本仓库后，在 `helixharness/` 内运行 `python3 scripts/package_qoder_plugin.py` 生成 `dist/helix-<version>.zip`，在 Qoder **扩展 → 安装本地插件** 面板选择该 ZIP（或让会话调用 `qoder-settings.install_extension`）。安装完成后须新开会话——插件清单、skills、agents 与 hook 都在会话启动时装载。Qoder 没有等价 marketplace CLI，`/helix:update` 声明为 `unsupported`，升级需重装新版 ZIP。打包细节、能力边界与验收清单见 [Qoder 安装说明](helixharness/hosts/qoder/installer.md)。
+
 **OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](docs/opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 
 插件注册原生 `helix:<command>` 命令、`helix-<skill>` 方法 Skill 和 `helix-<agent>` 角色。命令、原生 `skill` 工具结果、Skill mention 与原生 Skill 激活均按请求会话绑定仓库目录；会话查询或目录校验失败时阻断未绑定的 Skill 正文。2026-11-20 已在 OpenCode 2.3.2 + DeepSeek 上完成一次合成单仓 Init → Propose → Apply → Archive 真实模型闭环，包含操作者确认和一次受控合同修订；2026-11-23 又完成了 OpenCode 2.3.2 + DeepSeek 的操作者辅助合成双仓 Workspace 与独立 UT 验证；后续已修复 UT 分类校验与原子发布保护，并通过无纠正提醒的真实模型复验。[合成 Workspace 的专项真实模型验证](helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23)还覆盖了 Apply 与部分 Archive 原生取消后新会话恢复，以及注入原生 context hook 故障后阻断依赖派发。完整生产业务项目、无人干预时的协议遵守与完整 TUI/桌面 UI 验收仍未完成；已覆盖范围见[定向终端 UI 验收](helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23)。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker`，需要 `experimental.subagent_depth >= 2`；独立 reviewer 保持只读 leaf。深度不足时阻塞该 RepoJob，不得绕过评审。
@@ -97,9 +99,9 @@ OpenCode 适配使用原生工具和会话 Hook，但未提供等价的 SessionS
 
 ### 2. 完成一个小需求
 
-在要开发的**业务仓库**新开 Agent 会话，Claude Code、Codex 和 Cursor 通过宿主原生界面审阅插件 hooks；OpenCode 由插件包注册入口。然后在对话中输入对应宿主的命令。
+在要开发的**业务仓库**新开 Agent 会话，Claude Code、Codex、Cursor 与 Qoder 通过宿主原生界面审阅插件 hooks；OpenCode 由插件包注册入口。然后在对话中输入对应宿主的命令。
 
-Codex / Claude Code / OpenCode：
+Codex / Claude Code / OpenCode / Qoder：
 
 ```text
 /helix:init
@@ -113,7 +115,7 @@ Cursor：
 /helix-propose task-filter ./requirements/task-filter.md --loop
 ```
 
-Cursor 全部使用 `/helix-<command>`，Codex、Claude Code 和 OpenCode 使用 `/helix:<command>`；命令参数和工作流相同。
+Cursor 全部使用 `/helix-<command>`，Codex、Claude Code、OpenCode 与 Qoder 使用 `/helix:<command>`；命令参数和工作流相同。Qoder 的九个入口来自插件 `hosts/qoder/skills/` 下的薄入口，而不是宿主原生命令面，但输入形式和参数一致。
 
 [任务筛选示例](examples/README.md)提供起始项目、需求和独立验收脚本，可直接跟着操作。`--loop` 串联 Propose → Apply → Archive，遇到需要决策的问题或阻断时暂停，不包含代码发布或部署。
 
@@ -220,10 +222,10 @@ python -m web_ui.demo --port 7860
 
 接下来计划围绕两个方向，让更多团队按自己的研发方式使用 HelixHarness：
 
-- **支持更多 Coding Agent**：在 Codex、Claude Code、Cursor 与 [OpenCode（macOS Stable）](docs/opencode-testing.md)的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
+- **支持更多 Coding Agent**：在 Codex、Claude Code、Cursor、[OpenCode（macOS Stable）](docs/opencode-testing.md) 与 [Qoder](helixharness/hosts/qoder/installer.md) 的基础上继续扩展宿主适配，让团队能在更多熟悉的工具中使用 HelixHarness。
 - **支持工作流配置**：允许团队配置工作流阶段及其顺序，适配自身的研发流程。
 
-以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，另提供 [OpenCode macOS Stable 支持](docs/opencode-testing.md)，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
+以上为规划方向。当前源码支持 Codex、Claude Code 和 Cursor，另提供 [OpenCode macOS Stable 支持](docs/opencode-testing.md) 与 [Qoder 本地 ZIP 安装](helixharness/hosts/qoder/installer.md)，采用 Propose → Apply → Archive 工作流。Cursor 原生客户端验收与自动化合同测试分别记录。欢迎通过[贡献指南](CONTRIBUTING.md)分享具体使用场景，帮助完善这些方向。
 
 ## 文档与贡献
 
