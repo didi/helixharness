@@ -1,11 +1,12 @@
 """Scrubbed subprocess environments that still boot Python on every platform.
 
 Host scenario fixtures deliberately clear the ambient environment so a developer's
-tooling cannot make a case pass. Three facts about Windows break a naive scrub:
+tooling cannot make a case pass. Four facts about Windows break a naive scrub:
 a child `python.exe` aborts in `_Py_HashRandomization_Init` unless `SystemRoot` is
 present, `os.defpath` has no Git install directory so `git` and `sh` — which the
-fixtures themselves execute — cannot be resolved, and a scrubbed environment has no
-home directory for `Path.home()` to fall back on.
+fixtures themselves execute — cannot be resolved and neither can the `powershell.exe`
+a merged Windows hook command starts with, and a scrubbed environment has no home
+directory for `Path.home()` to fall back on.
 """
 
 from __future__ import annotations
@@ -77,9 +78,25 @@ def cli_stub(path: Path, body: str) -> Path:
     return path
 
 
+def powershell_dirs() -> list[str]:
+    """Directory holding `powershell.exe`, which shipped Windows hook commands start with.
+
+    A scrubbed PATH can only keep `System32`, and PowerShell lives two levels
+    deeper, so a fixture that runs the merged Windows command cannot even start
+    the launcher a real user terminal always finds.
+    """
+    if os.name != "nt":
+        return []
+    root = os.environ.get("SystemRoot") or os.environ.get("windir")
+    if not root:
+        return []
+    candidate = Path(root) / "System32" / "WindowsPowerShell" / "v1.0"
+    return [str(candidate)] if (candidate / "powershell.exe").is_file() else []
+
+
 def search_path() -> str:
     """Minimal PATH: the test interpreter, the fixture binaries, the platform defaults."""
-    parts = [str(Path(sys.executable).parent), *toolchain_dirs(), os.defpath]
+    parts = [str(Path(sys.executable).parent), *toolchain_dirs(), *powershell_dirs(), os.defpath]
     seen, ordered = set(), []
     for part in parts:
         if part and part not in seen:

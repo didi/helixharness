@@ -57,7 +57,8 @@ class CursorHookFastPathTest(unittest.TestCase):
                 if event == 'beforeSubmitPrompt':
                     context = actual.pop('additional_context')
                     self.assertIn('HELIXHARNESS_CURSOR_CONVERSATION_ID=synthetic-fastpath', context)
-                    self.assertIn(str(self.home), context)
+                    # The roots travel as shlex-quoted JSON, so a Windows path is doubled.
+                    self.assertIn(json.dumps(str(self.home))[1:-1], context)
                     self.assertLessEqual(len(context.encode()), 8192)
                 self.assertEqual(expected, actual)
         self.assertEqual([], list(self.home.iterdir()))
@@ -139,7 +140,7 @@ class CursorHookFastPathTest(unittest.TestCase):
         self.assertEqual(1, discover.call_count)
         result = json.loads(output.getvalue())
         self.assertEqual(str(ROOT), result['env']['HELIXHARNESS_BOUND_PLUGIN_ROOT'])
-        self.assertIn('require &&', result['additional_context'])
+        self.assertIn('require &&' if os.name != 'nt' else 'runtime_preflight', result['additional_context'])
 
 
 if __name__ == '__main__':

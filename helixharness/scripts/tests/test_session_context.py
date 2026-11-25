@@ -85,8 +85,8 @@ class SessionContextTest(unittest.TestCase):
                 output = json.loads(self.run_hook(json.dumps(payload)).stdout)["hookSpecificOutput"]
                 self.assertEqual(output["hookEventName"], payload["hook_event_name"])
                 context = output["additionalContext"]
-                self.assertIn(str(ROOT / "scripts/host_runtime_cli.py"), context)
-                self.assertIn(str(ROOT / "reference/runtime-preflight.md"), context)
+                for fragment in ("scripts/host_runtime_cli.py", "reference/runtime-preflight.md"):
+                    self.assertIn(json.dumps(str(ROOT / fragment))[1:-1], context)
                 self.assertIn('"resolved_resources"', context)
                 self.assertNotIn("permissionDecision", output)
 

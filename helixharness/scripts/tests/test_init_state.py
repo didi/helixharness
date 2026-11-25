@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from project_hooks_cli import project_hooks
+from project_linter import git_bash
 
 PLUGIN = Path(__file__).resolve().parents[2]
 SPEC = importlib.util.find_spec("init_state")
@@ -216,7 +217,10 @@ class InitStateTest(unittest.TestCase):
         (self.repo / "pom.xml").write_text("<project/>\n")
         protocol = (PLUGIN / "reference/project-type-detection.md").read_text()
         script = protocol.split("```bash\n", 1)[1].split("```", 1)[0]
-        process = subprocess.run(["bash", "-c", script], cwd=self.repo,
+        shell = git_bash()
+        if shell is None:
+            self.skipTest("the documented detection example needs a POSIX shell")
+        process = subprocess.run([shell, "-c", script], cwd=self.repo,
                                  text=True, capture_output=True, timeout=10)
         self.assertEqual(process.returncode, 0, process.stdout + process.stderr)
         self.assertEqual(self.state()["bootstrapStatus"], "pending")
