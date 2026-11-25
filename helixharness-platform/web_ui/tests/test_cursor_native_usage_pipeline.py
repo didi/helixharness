@@ -36,7 +36,7 @@ telemetry.mkdir()
 def run(arguments, *, payload=None, env=None):
     result = subprocess.run(list(map(str, arguments)), cwd=repo, env=env,
         input=json.dumps(payload) if payload is not None else None,
-        capture_output=True, text=True, check=False, timeout=30)
+        capture_output=True, text=True, encoding="utf-8", check=False, timeout=30)
     assert result.returncode == 0, result.stdout + result.stderr
     return json.loads(result.stdout) if result.stdout.strip() else None
 def cli(script, *args, env=None):
@@ -91,6 +91,10 @@ print(json.dumps({"repo":str(repo), "ledger":ledger, "supplement":envelope["supp
     tool_dirs = [str(Path(sys.executable).parent), *dict.fromkeys(str(Path(tool).parent) for tool in tools)]
     environment = {
         "PATH": os.pathsep.join([*tool_dirs, os.defpath]),
+        # Same Windows boot variables the plugin suite carries for a scrubbed
+        # fixture (scripts/tests/env_sandbox.py): without them a child `python.exe`
+        # aborts in `_Py_HashRandomization_Init` before it can answer the caller.
+        **{key: os.environ[key] for key in ("SystemRoot", "COMSPEC", "PATHEXT") if key in os.environ},
         "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
         "TMPDIR": str(root), "CURSOR_PLUGIN_ROOT": plugin.as_posix(),
         "CODEX_HOME": str(root / "codex"), "CLAUDE_CONFIG_DIR": str(root / "claude"),
@@ -104,7 +108,7 @@ print(json.dumps({"repo":str(repo), "ledger":ledger, "supplement":envelope["supp
     result = subprocess.run(
         [sys.executable, "-I", "-c", code], cwd=root, env=environment,
         input=json.dumps([str(plugin), str(root), native_usage]),
-        capture_output=True, text=True, check=False, timeout=60,
+        capture_output=True, text=True, encoding="utf-8", check=False, timeout=60,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     artifacts = json.loads(result.stdout)
