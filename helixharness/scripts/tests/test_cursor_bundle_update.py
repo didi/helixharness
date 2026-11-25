@@ -140,7 +140,8 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
                         shutil.copytree(plugin, damaged)
                         (damaged / "opencode" / missing).unlink()
                         process = subprocess.run([BUN, str(PLUGIN / "opencode/tests/managed-bundle-probe.ts"), str(damaged), str(workspace), "setup"],
-                            cwd=workspace, env={"PATH": os.environ.get("PATH", ""), "HOME": str(workspace), "NODE_PATH": ""},
+                            cwd=workspace, env={**env_sandbox.boot_vars(), **env_sandbox.home_vars(workspace),
+                                                 "PATH": os.environ.get("PATH", ""), "NODE_PATH": ""},
                             capture_output=True, text=True, timeout=15)
                         self.assertNotEqual(process.returncode, 0)
                         self.assertIn(missing, process.stderr)

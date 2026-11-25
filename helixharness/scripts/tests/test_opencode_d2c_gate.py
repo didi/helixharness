@@ -12,6 +12,8 @@ import unittest
 import zlib
 from datetime import datetime, timedelta, timezone
 
+import env_sandbox
+
 
 PLUGIN = Path(__file__).resolve().parents[2]
 GATE = PLUGIN / "hosts/opencode/d2c_gate.cjs"
@@ -58,7 +60,7 @@ class OpenCodeD2CGateTests(unittest.TestCase):
         if session is not None:
             args += ["--session-id", session]
         result = subprocess.run(args + list(extra), cwd=self.root, capture_output=True,
-                                text=True, timeout=10, env={"PATH": os.environ.get("PATH", "")})
+                                text=True, timeout=10, env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", "")})
         self.assertEqual(result.stderr, "", result.stderr)
         return result.returncode, json.loads(result.stdout)
 
@@ -336,7 +338,7 @@ class OpenCodeD2CGateTests(unittest.TestCase):
                                  "--repo-root", str(self.root), "--page-dir", self.page, "--started-at", self.started,
                                  "--session-id", "synthetic-native-session", "--action", "stop"],
                                 cwd=self.root, capture_output=True, text=True, timeout=10,
-                                env={"PATH": os.environ.get("PATH", ""), "TEST_OUTSIDE": str(outside), "TEST_OBSERVED": str(observed)})
+                                env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", ""), "TEST_OUTSIDE": str(outside), "TEST_OBSERVED": str(observed)})
         self.assertEqual(result.returncode, 2, result.stdout)
         self.assertFalse(observed.exists(), "external source was read before the rejection")
 
@@ -417,7 +419,7 @@ class OpenCodeD2CGateTests(unittest.TestCase):
                                  "--url", "http://localhost/synthetic", "--page-dir", str(self.page_dir),
                                  "--out", str(self.round_dir), "--scope", "synthetic-scope", "--wait", "0"],
                                 cwd=self.root, capture_output=True, text=True, timeout=10,
-                                env={"PATH": os.environ.get("PATH", "")})
+                                env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", "")})
         self.assertEqual(result.returncode, 0, (result.stdout, result.stderr))
         path = self.round_dir / "vertical-diff.json"
         original = path.read_bytes()
@@ -483,7 +485,7 @@ class OpenCodeD2CGateTests(unittest.TestCase):
         args = [shutil.which("node"), "--require", str(preload), str(GATE), "--repo-root", str(self.root),
                 "--page-dir", self.page, "--started-at", self.started, "--action", "claim", "--session-id", "first-native-session"]
         first = subprocess.Popen(args, cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                 env={"PATH": os.environ.get("PATH", ""), "TEST_ARRIVED": str(arrived), "TEST_RELEASE": str(release)})
+                                 env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", ""), "TEST_ARRIVED": str(arrived), "TEST_RELEASE": str(release)})
         try:
             deadline = time.monotonic() + 5
             while not arrived.exists() and time.monotonic() < deadline:
@@ -544,7 +546,7 @@ class OpenCodeD2CGateTests(unittest.TestCase):
         first = subprocess.Popen([shutil.which("node"), "--require", str(preload), str(checkpoint),
                                   "--page-dir", self.page, "--pause", "user-cancelled", "--reason", "synthetic-first-operation"],
                                  cwd=self.root, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                 env={"PATH": os.environ.get("PATH", ""), "TEST_ARRIVED": str(arrived), "TEST_RELEASE": str(release)})
+                                 env={**env_sandbox.boot_vars(), "PATH": os.environ.get("PATH", ""), "TEST_ARRIVED": str(arrived), "TEST_RELEASE": str(release)})
         try:
             deadline = time.monotonic() + 5
             while not arrived.exists() and time.monotonic() < deadline:
