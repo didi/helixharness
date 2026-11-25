@@ -532,8 +532,12 @@ service 的 `--knowledge` 导入分支在此验证导入产物后，才补做 St
   `{helix_python} "{plugin_root}/scripts/project_hooks_cli.py" --repo-root {repo_root} --platform {canonical_host_id} merge`。
 - `owner=bootstrap` 时由 bootstrap 按原有宿主写入权限执行同一 `merge` 命令；父流程不得绕过宿主配置权限。
 - 两种 owner 均由父流程执行同一路径的 `check`，核对实际 settings 的必需 hook、去重与 JSON 结构；
-  `settings_file=null` 时工具返回明确 skipped。任何缺失、冲突或检查失败均报告
-  `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，不得报告 Init 完成。
+  `settings_file=null` 时工具返回明确 skipped。`check` 的严格程度按当前 Host Kit 的
+  `resources.project_hooks.stale_binding_policy.check` 分档：默认 `fail` 时缺失或重复即抛
+  `project_hooks_missing_or_duplicated`；`warn` 时同样条件返回 `warnings` 数组而不阻断，Init 继续
+  把 warnings 原样输出给用户，除非用户显式要求严格模式（`--strict`）才升级为 BLOCKED。任何冲突、
+  坏 JSON 或非形状匹配的重复仍报告 `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，
+  不得报告 Init 完成。
 
 绿地额外验收：`project-context.md` 必须明确 `project-mode: greenfield`，未知事实保留 TODO。
 此时仍保留 pending 状态，完成下方统计门禁后再进入 Step 4；bootstrap 不写本模式的 state。

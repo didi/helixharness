@@ -76,11 +76,13 @@ handler，没有重启也没有新开会话，所以验收项目 hooks 不必换
   实测一份把 linter 路径钉在 `.../helix/1.1.0/` 的配置连续 26 次以 exit 1 失败（`missing project linter
   invariant-check; rerun /helix:init`），整个会话里模型一次都没看到这句话。验收 guardrail 必须去读转录里的
   hook 记录，不能以“会话没报错”当作 hook 正常工作的证据。
-- 更新插件后重跑 Init 不会清掉旧 handler（实测）：merge 认“自己的旧命令”的条件是 `argv[1:]` 与新命令完全相等，
-  而其中同时包含版本目录和 resolve 之后的 repo-root，任一变化就认不出来。把 1.1.0 生成的 handler 交给 1.2.5
-  合并，结果是 4 个 handler：新的两个指向 1.2.5，旧的两个仍指向已删除的 1.1.0 并每次静默失败。macOS 上同一
-  目录写成 `/tmp/...` 会被规范成 `/private/tmp/...`，所以换一种路径写法也会触发同样的重复。结论：更新插件后
-  重新 Init，并检查 `.qoder/settings.json` 里有没有仍指向旧版本目录的条目，动手删掉。
+- 更新插件后重跑 Init 会自动收敛陈旧 handler：本宿主的 `hosts/qoder/project-hooks.json` 声明
+  `stale_binding_policy = { recognize: linter_flag, merge: collapse, check: warn }`。merge 按
+  `--linter <name>` 加脚本路径尾部的形状认领自生成命令，同一 linter 的重复项只保留第一条并把
+  `command` 改写为当前版本；`check` 默认把仍存在的缺失或重复降级为 `warnings` 返回而不阻断 Init，
+  需要严格阻断时传 `--strict`。macOS 上同一目录写成 `/tmp/...` 会被规范成 `/private/tmp/...`
+  的情况也一并被折叠，不再需要人工清理。1.1.0 之前遗留的手动删条目步骤可以跳过；如果仍看到
+  指向已卸载版本目录的 handler，说明它形状没被识别（例如自定义 flag），此时才需要用户确认。
 - 根 `skills/` 中声明 `disable-model-invocation: true` 的方法 Skill 不进入模型可见列表，属预期行为；
   验收按“可见数 ≤ 声明数 − 抑制数”核对，不得据此判定装载失败。实测 1.2.0 会话给出上限那一侧：8 个根方法
   Skill 加 9 个薄入口共 17 个声明，3 个声明抑制，可见 `helix:` 条目 14 个。但同一个验收判据在 1.2.1 会话里
