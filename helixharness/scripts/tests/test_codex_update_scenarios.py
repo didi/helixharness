@@ -103,9 +103,7 @@ class CodexUpdateScenarioTests(unittest.TestCase):
         }))
         bin_dir = self.root / "bin"
         bin_dir.mkdir()
-        stub = bin_dir / "codex"
-        stub.write_text("#!" + sys.executable + "\n" + NATIVE_STUB)
-        stub.chmod(0o700)
+        env_sandbox.cli_stub(bin_dir / "codex", NATIVE_STUB)
         # An allowlist avoids inheriting real host identity, credentials, Python
         # import paths, endpoints or configuration. The actual Codex CLI is shadowed.
         self.env = {

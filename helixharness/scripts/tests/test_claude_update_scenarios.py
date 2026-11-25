@@ -12,6 +12,7 @@ import subprocess
 import sys
 import unittest
 
+import env_sandbox
 import test_codex_update_scenarios as fixtures
 
 NATIVE_STUB = r'''
@@ -74,9 +75,7 @@ class ClaudeUpdateScenarioTests(unittest.TestCase):
     def setUp(self):
         fixtures.CodexUpdateScenarioTests.setUp(self)
         self.native(scope_versions={"user": "1.0.0"}, repo_root=str(self.repo))
-        stub = self.root / "bin/claude"
-        stub.write_text("#!" + sys.executable + "\n" + NATIVE_STUB)
-        stub.chmod(0o700)
+        env_sandbox.cli_stub(self.root / "bin/claude", NATIVE_STUB)
         self.env.pop("CODEX_THREAD_ID")
         self.env["CLAUDE_PLUGIN_ROOT"] = str(self.plugin)
         self.env["CLAUDE_PROJECT_DIR"] = str(self.repo)

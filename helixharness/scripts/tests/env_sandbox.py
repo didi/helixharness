@@ -61,6 +61,22 @@ def home_vars(home: Path | str) -> dict[str, str]:
     return {"HOME": value, "USERPROFILE": value}
 
 
+def cli_stub(path: Path, body: str) -> Path:
+    """Write a fixture host CLI that the platform can actually start.
+
+    POSIX honours the shebang line, and the update hosts resolve bare command
+    names through `shutil.which`. Windows CreateProcess only appends `.exe`, so
+    a shebang-only stub is invisible there: the host command fails to start and
+    the version cache is never written. The `.cmd` wrapper is what PATHEXT finds.
+    """
+    path.write_text("#!" + sys.executable + "\n" + body, encoding="utf-8")
+    path.chmod(0o700)
+    if os.name == "nt":
+        wrapper = path.parent / (path.name + ".cmd")
+        wrapper.write_text('@"' + sys.executable + '" "' + str(path) + '" %*\n', encoding="utf-8")
+    return path
+
+
 def search_path() -> str:
     """Minimal PATH: the test interpreter, the fixture binaries, the platform defaults."""
     parts = [str(Path(sys.executable).parent), *toolchain_dirs(), os.defpath]
