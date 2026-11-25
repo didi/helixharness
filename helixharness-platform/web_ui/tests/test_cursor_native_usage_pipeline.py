@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -80,10 +81,18 @@ assert cli("telemetry_collector.py", "--repo-root", repo)["collected"] == 0
 ledger = json.loads((repo / "docs/eval/native-cursor/eval-log.json").read_text())
 print(json.dumps({"repo":str(repo), "ledger":ledger, "supplement":envelope["supplement"]}))
 '''
+    # The staged script shells out to real `git` and runs Cursor's native hook
+    # command, which is `sh …hook_bootstrap.sh`. `os.defpath` carries both on POSIX,
+    # but on Windows Git for Windows keeps them outside it, so a scrubbed PATH must
+    # add their directories explicitly or the launcher dies with WinError 2.
+    tools = [shutil.which(name) for name in ("git", "sh")]
+    if any(tool is None for tool in tools):
+        pytest.skip("cross-package acceptance needs the real `git` and the `sh` hook launcher")
+    tool_dirs = [str(Path(sys.executable).parent), *dict.fromkeys(str(Path(tool).parent) for tool in tools)]
     environment = {
-        "PATH": str(Path(sys.executable).parent) + os.pathsep + os.defpath,
+        "PATH": os.pathsep.join([*tool_dirs, os.defpath]),
         "PYTHONDONTWRITEBYTECODE": "1", "PYTHONIOENCODING": "utf-8",
-        "TMPDIR": str(root), "CURSOR_PLUGIN_ROOT": str(plugin),
+        "TMPDIR": str(root), "CURSOR_PLUGIN_ROOT": plugin.as_posix(),
         "CODEX_HOME": str(root / "codex"), "CLAUDE_CONFIG_DIR": str(root / "claude"),
         "HELIXHARNESS_CURSOR_HOME": str(root / "cursor"),
         "HELIXHARNESS_TELEMETRY_HOME": str(root / "telemetry"),
