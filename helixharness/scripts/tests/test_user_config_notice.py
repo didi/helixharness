@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import env_sandbox
 import telemetry_consent
 import user_config
 
@@ -30,7 +31,7 @@ class UserConfigNoticeTest(unittest.TestCase):
         self.home = self.root / 'home'
         self.home.mkdir()
         patch = mock.patch.dict(os.environ, {
-            'HOME': str(self.home), 'CODEX_HOME': str(self.home / 'codex'),
+            **env_sandbox.home_vars(self.home), 'CODEX_HOME': str(self.home / 'codex'),
             'CLAUDE_CONFIG_DIR': str(self.home / 'claude'),
             'HELIXHARNESS_CURSOR_HOME': str(self.home / 'cursor'),
             'HELIXHARNESS_TELEMETRY_HOME': str(self.home / 'telemetry'),

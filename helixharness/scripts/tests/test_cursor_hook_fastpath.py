@@ -116,7 +116,7 @@ class CursorHookFastPathTest(unittest.TestCase):
                 home = self.home / relative
                 home.mkdir(parents=True)
                 (home / 'config.json').write_text(json.dumps({'endpoint': endpoint}))
-                env = {**self.env, 'HOME': str(self.home)}
+                env = {**self.env, **env_sandbox.home_vars(self.home)}
                 if override is None:
                     env.pop('HELIXHARNESS_TELEMETRY_HOME')
                 else:

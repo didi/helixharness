@@ -112,6 +112,7 @@ class CodexUpdateScenarioTests(unittest.TestCase):
             **env_sandbox.boot_vars(),
             "PATH": str(bin_dir) + os.pathsep + env_sandbox.search_path() + os.pathsep + os.environ.get("PATH", os.defpath),
             "TMPDIR": str(self.root), "LANG": "en_US.UTF-8", "PYTHONDONTWRITEBYTECODE": "1",
+            **env_sandbox.home_vars(self.root / "user-home"),
             "CODEX_HOME": str(self.root / "codex-home"),
             "CODEX_THREAD_ID": "synthetic-" + self.root.name,
             "CLAUDE_CONFIG_DIR": str(self.root / "claude-home"),

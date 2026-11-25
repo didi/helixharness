@@ -1,10 +1,11 @@
 """Scrubbed subprocess environments that still boot Python on every platform.
 
 Host scenario fixtures deliberately clear the ambient environment so a developer's
-tooling cannot make a case pass. Two facts about Windows break a naive scrub:
+tooling cannot make a case pass. Three facts about Windows break a naive scrub:
 a child `python.exe` aborts in `_Py_HashRandomization_Init` unless `SystemRoot` is
-present, and `os.defpath` has no Git install directory, so `git` and `sh` — which
-the fixtures themselves execute — cannot be resolved.
+present, `os.defpath` has no Git install directory so `git` and `sh` — which the
+fixtures themselves execute — cannot be resolved, and a scrubbed environment has no
+home directory for `Path.home()` to fall back on.
 """
 
 from __future__ import annotations
@@ -46,6 +47,18 @@ def toolchain_dirs() -> list[str]:
             break
         current = current.parent
     return directories
+
+
+def home_vars(home: Path | str) -> dict[str, str]:
+    """Environment entries that point `Path.home()` at `home`.
+
+    Windows `expanduser` reads `USERPROFILE` and never falls back to `HOME`, so a
+    sandboxed home needs both keys: with only `HOME` set, `Path.home()` raises
+    `Could not determine home directory`, while an unset `HOME` silently resolves
+    to the developer's real home through the password database.
+    """
+    value = str(home)
+    return {"HOME": value, "USERPROFILE": value}
 
 
 def search_path() -> str:

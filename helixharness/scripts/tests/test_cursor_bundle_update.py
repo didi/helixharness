@@ -11,6 +11,7 @@ import tempfile
 import unittest
 from pathlib import Path, PurePosixPath
 
+import env_sandbox
 from update_hosts.cursor import _distributed
 
 
@@ -46,7 +47,7 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
 
     def _probe(self, plugin, workspace, mode):
         environment = {key: os.environ[key] for key in ("PATH", "TMPDIR", "LANG", "SystemRoot", "HELIXHARNESS_OPENCODE_BIN") if key in os.environ}
-        environment.update({"HOME": str(workspace), "NODE_PATH": ""})
+        environment.update({**env_sandbox.home_vars(workspace), "NODE_PATH": ""})
         result = subprocess.run([BUN, str(PLUGIN / "opencode/tests/managed-bundle-probe.ts"), str(plugin), str(workspace), mode],
                                 cwd=workspace, env=environment, capture_output=True, text=True, timeout=60)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
