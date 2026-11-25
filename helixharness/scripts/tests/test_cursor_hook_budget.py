@@ -96,18 +96,27 @@ class CursorHookBudgetTest(unittest.TestCase):
         cache.parent.mkdir(parents=True)
         anchor = os.open(self.root, os.O_RDONLY)
         fcntl.flock(anchor, fcntl.LOCK_EX)
-        waiting = threading.Event()
         outcomes = []
         deadlines = []
+        owners = []
         acquire = consent._acquire_read_lock
+        budget = 0.2
         def observed(fd, deadline):
             deadlines.append(deadline)
-            waiting.set()
+            if len(deadlines) == 1:
+                # Publish and hold the new lock file, then hand the anchor over, all
+                # before the first wait begins. A main-thread transition raced the hook
+                # deadline on a busy runner and lost, so the second attempt never
+                # happened and the reused deadline was never observed.
+                owner = cache.with_suffix(".json.lock").open("w")
+                fcntl.flock(owner, fcntl.LOCK_EX)
+                owners.append(owner)
+                fcntl.flock(anchor, fcntl.LOCK_UN)
             return acquire(fd, deadline)
         begin = time.monotonic()
         def reader():
             try:
-                with consent._cache_lock(cache, deadline=begin + 0.16):
+                with consent._cache_lock(cache, deadline=begin + budget):
                     outcomes.append("unexpected acquisition")
             except consent.ConsentError:
                 outcomes.append("deadline")
@@ -115,18 +124,17 @@ class CursorHookBudgetTest(unittest.TestCase):
             with patch.object(consent, "_acquire_read_lock", observed):
                 thread = threading.Thread(target=reader)
                 thread.start()
-                self.assertTrue(waiting.wait(1))
-                time.sleep(0.04)
-                with cache.with_suffix(".json.lock").open("w") as owner:
-                    fcntl.flock(owner, fcntl.LOCK_EX)
-                    fcntl.flock(anchor, fcntl.LOCK_UN)
-                    thread.join(1)
+                thread.join(2)
             self.assertFalse(thread.is_alive())
             self.assertEqual(["deadline"], outcomes)
             self.assertEqual(2, len(deadlines))
             self.assertEqual(1, len(set(deadlines)))
-            self.assertLess(time.monotonic() - begin, 0.4)
+            # The wait must stop at the hook budget; the slack absorbs thread
+            # scheduling, which this case does not measure.
+            self.assertLess(time.monotonic() - begin, budget + 0.4)
         finally:
+            for owner in owners:
+                owner.close()
             os.close(anchor)
 
     def test_windows_lock_preserves_default_timeout_and_tighter_hook_deadline(self):
