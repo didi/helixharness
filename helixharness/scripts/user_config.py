@@ -12,6 +12,7 @@ from typing import Any
 import reporting_config
 import telemetry_consent
 from atomic_files import atomic_write_text
+from cli_stdio import configure_utf8_stdio
 from telemetry_hosts import get_host_adapter, normalize_host_id
 
 
@@ -135,6 +136,7 @@ def set_consent(repo: Path, platform: str, scope: str, mode: str, *, user_confir
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo-root', required=True)
     parser.add_argument('--platform', required=True)

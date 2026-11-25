@@ -17,6 +17,7 @@ from typing import Any, Iterator
 
 import atomic_files
 import eval_json
+from cli_stdio import configure_utf8_stdio
 from source_binding import guard_source
 from update_hosts import (
     MARKETPLACE,
@@ -1466,6 +1467,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     guard_source(Path(__file__).resolve().parent.parent)
     args = _parser().parse_args()
     try:
