@@ -13,8 +13,13 @@ def configure_utf8_stdio() -> None:
     these CLIs echo installation paths with `ensure_ascii=False`, a legacy Windows
     code page cannot encode CJK, and the host then receives a traceback instead of
     the JSON it parses.
+
+    `surrogateescape` covers the mirror case on a POSIX C locale, where the path
+    arrives as argv bytes that the filesystem encoding could not decode: re-encoding
+    the surrogates returns those original bytes, so the caller reads back exactly what
+    it passed. A strict encoder would raise on them instead.
     """
     for stream in (sys.stdout, sys.stderr):
         reconfigure = getattr(stream, "reconfigure", None)
         if reconfigure is not None:
-            reconfigure(encoding="utf-8", errors="strict")
+            reconfigure(encoding="utf-8", errors="surrogateescape")
