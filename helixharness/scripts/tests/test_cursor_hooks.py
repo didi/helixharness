@@ -150,6 +150,7 @@ class CursorHooksTest(unittest.TestCase):
             self.assertEqual(2, len(native["hooks"]["afterFileEdit"]))
 
 
+@unittest.skipIf(os.name == "nt", "POSIX launcher fixtures; native coverage in test_windows_runtime")
 class CursorHookBootstrapTest(unittest.TestCase):
     def test_hook_and_command_preflight_agree_on_python_boundary(self):
         for version, ready in (((3, 8, 0), False), ((3, 9, 6), False), ((3, 10, 0), True), ((3, 12, 0), True)):

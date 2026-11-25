@@ -37,9 +37,16 @@ class StartupPreflightGateTests(unittest.TestCase):
             shutil.copyfile(ROOT / "scripts" / name, self.plugin / "scripts" / name)
         self.bin = self.base / "bin"
         self.bin.mkdir()
-        (self.bin / "sh").symlink_to("/bin/sh")
-        (self.bin / "dirname").symlink_to("/usr/bin/dirname")
         self.marker = self.base / "resolver-called"
+        self.shell, dirname = shutil.which("sh"), shutil.which("dirname")
+        # Linking sh and dirname into an otherwise empty bin directory is how
+        # this fixture isolates PATH. Windows has no such isolated runtime: MSYS
+        # only starts from its own directory, which also ships a real git and
+        # python3 that these cases remove on purpose.
+        self.posix_ready = os.name != "nt" and bool(self.shell and dirname)
+        if self.posix_ready:
+            (self.bin / "sh").symlink_to(self.shell)
+            (self.bin / "dirname").symlink_to(dirname)
         self.env = {"PATH": str(self.bin), "SYNTHETIC_RESOLVER_CALL": str(self.marker)}
         self.registry = HostRegistry.discover(ROOT / "hosts")
 
@@ -68,9 +75,14 @@ class StartupPreflightGateTests(unittest.TestCase):
         self.assertEqual(1, len(commands))
         return commands[0]
 
+    def require_posix_shell(self) -> None:
+        if not self.posix_ready:
+            self.skipTest("this case runs the emitted sh preflight line under a sandboxed PATH")
+
     def run_command(self, host: str):
+        self.require_posix_shell()
         return subprocess.run(
-            ["/bin/sh", "-c", self.command(host)], env=self.env,
+            [self.shell, "-c", self.command(host)], env=self.env,
             text=True, capture_output=True, timeout=10,
         )
 
@@ -118,8 +130,9 @@ class StartupPreflightGateTests(unittest.TestCase):
         self.assert_blocked_all_hosts("ready", "missing")
 
     def test_windows_claude_bash_gate_blocks_failures_and_accepts_crlf(self):
-        # Synthetic Windows selection executed by a real POSIX shell. Native
-        # Git Bash path/argv behavior is covered separately on Windows CI.
+        # Synthetic Windows selection executed by a real POSIX shell. Only the
+        # generated Windows command text is asserted natively below; executing
+        # it under Git Bash is not covered anywhere, and this case skips there.
         with patch("lifecycle_service.os", SimpleNamespace(name="nt")):
             for version, git, code in (("3.12.0\r", True, 0), ("3.9.6\r", True, 2),
                                        ("broken\r", True, 2), (None, True, 2),
@@ -133,11 +146,12 @@ class StartupPreflightGateTests(unittest.TestCase):
                     self.assertEqual(code == 0, self.marker.exists())
 
     def test_check_keeps_diagnostic_exit_contract_while_require_gates(self):
+        self.require_posix_shell()
         self.runtimes(python=None, git=False)
         outputs = []
         for action, exit_code in (("check", 0), ("require", 2)):
             result = subprocess.run(
-                ["/bin/sh", str(self.plugin / "scripts/runtime_preflight.sh"), action],
+                [self.shell, str(self.plugin / "scripts/runtime_preflight.sh"), action],
                 env=self.env, text=True, capture_output=True, timeout=10,
             )
             self.assertEqual(exit_code, result.returncode)
@@ -157,12 +171,13 @@ class StartupPreflightGateTests(unittest.TestCase):
         self.assertNotIn("require &&", context)
 
     def test_ready_guard_runs_real_resolver_with_each_original_host_contract(self):
+        self.require_posix_shell()
         for host in ("cursor", "claude-code", "codex"):
             with self.subTest(host=host):
                 context = startup_context_text(self.registry.require(host))
                 command = next(line for line in context.splitlines() if line.startswith("sh "))
                 env = {**os.environ, "PATH": str(Path(sys.executable).parent) + os.pathsep + os.environ.get("PATH", "")}
-                result = subprocess.run(["/bin/sh", "-c", command], env=env, text=True, capture_output=True, timeout=10)
+                result = subprocess.run([self.shell, "-c", command], env=env, text=True, capture_output=True, timeout=10)
                 self.assertEqual(0, result.returncode, result.stderr)
                 decoder = json.JSONDecoder()
                 check, offset = decoder.raw_decode(result.stdout)
@@ -190,7 +205,10 @@ class CursorMultilineInputTests(unittest.TestCase):
                 "route", "--command", "propose", "--arguments=" + argument, "--arguments-mode", "auto",
             ])
             env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-            result = subprocess.run(["/bin/sh", "-c", command], cwd=repo, env=env,
+            shell = shutil.which("sh")
+            if shell is None:
+                self.skipTest("argv fidelity is only proved through a real shell")
+            result = subprocess.run([shell, "-c", command], cwd=repo, env=env,
                                     text=True, capture_output=True, timeout=10)
             self.assertEqual(0, result.returncode, result.stderr)
             routed = json.loads(result.stdout)
