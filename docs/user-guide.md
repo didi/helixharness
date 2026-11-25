@@ -4,7 +4,7 @@
 
 Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
 
-**A development workflow for Codex, Claude Code, Cursor and [OpenCode (macOS Stable)](opencode-testing.md), with a companion platform for usage dashboards, version evaluation and evolution.**
+**A development workflow for Codex, Claude Code, Cursor, [OpenCode (macOS Stable)](opencode-testing.md) and [Qoder](../helixharness/hosts/qoder/installer.md), with a companion platform for usage dashboards, version evaluation and evolution.**
 
 Take a requirement through to a verified code change: define the scope, break it into tasks, implement, test, review, and archive the result. HelixHarness gives your coding agent a reusable workflow. Requirements and progress stay in the repository so you can inspect them and resume unfinished work.
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ Tests + code review + verification evidence
 ```
 
-**9 public commands · 3 core stages · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) · Single repo / multi-repo Workspace · Apache-2.0**
+**9 public commands · 3 core stages · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) / [Qoder](../helixharness/hosts/qoder/installer.md) · Single repo / multi-repo Workspace · Apache-2.0**
 
 Install **HelixHarness** for everyday development. Add **helixharness-platform** to observe usage and evaluate or improve **the HelixHarness framework itself**. Scenario results provide evidence about framework behavior; this is not a general business-code grading service.
 
@@ -49,16 +49,16 @@ Install **HelixHarness** for everyday development. Add **helixharness-platform**
 
 | Use case | Requirements |
 | --- | --- |
-| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code, Cursor or OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) that is signed in or has its model configuration set up and works normally |
+| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code, Cursor, OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) or Qoder Desktop / CLI that is signed in or has its model configuration set up and works normally |
 | Platform demo or usage dashboard | Python 3.10+, Git, and the platform's `server` dependencies |
 | Real version evaluation | Platform dependencies, a working Codex execution environment, model credentials, accessible Git repositories, and the build/test tools required by each Case |
 | Frontend previews and visual verification | Your project's Node.js, package manager, and browser tools; configure design services as needed |
 
-The terminal examples below use Bash / Zsh. Codex/Claude Code marketplace installation does not require a manual clone. The OpenCode 2.3.2 route below uses a source clone and local-directory configuration; running the platform or developing the plugin also requires a source checkout.
+The terminal examples below use Bash / Zsh. Codex/Claude Code marketplace installation does not require a manual clone. The OpenCode 2.3.2 route below uses a source clone and local-directory configuration; running the platform or developing the plugin also requires a source checkout. The Qoder route below needs a source checkout too, because that App has no marketplace CLI.
 
 ### 1. Install the Plugin
 
-After the repository is public, use the terminal commands below for Codex/Claude Code or the marketplace UI for Cursor. For testing before publication or modifying the plugin, use [developer installation from local source](installation.md#developer-installation).
+After the repository is public, use the terminal commands below for Codex/Claude Code, the marketplace UI for Cursor, or the plugin ZIP you build from a checkout for Qoder. For testing before publication or modifying the plugin, use [developer installation from local source](installation.md#developer-installation).
 
 **Codex**
 
@@ -92,9 +92,15 @@ After installation, open a new agent session in the application repository you w
 
 Install `helix` through **Customize → helix → Install** after the release repository is available in your Cursor marketplace. Use the [marketplace setup and optional installation paths](installation.md#cursor-preview) for administrator setup, fixed-source configuration or managed Local installation. Reload the window and open a new Agent. Cursor's nine `/helix-{command}` Skills use the same arguments and business gates as the `/helix:*` examples below. Statistics require consent and current-session identity and may be partial. Native marketplace updates are managed by Cursor; `/helix-update` supports registered managed-local installations. See [support and verification boundaries](cursor-testing.md).
 
+**Qoder**
+
+Build the plugin ZIP from a checkout: run `python3 scripts/package_qoder_plugin.py` in the plugin directory, then use **Extensions → Install local plugin** in the App and pick `dist/helix-<version>.zip`, or ask the assistant to install that absolute path with the App installation tool. Packaging scope and the two install entries are described in [Qoder](installation.md#qoder); the full capability boundaries are in the [Qoder install contract](../helixharness/hosts/qoder/installer.md).
+
+Review and trust the plugin hooks in the App, then open a new session: the manifest, skills, agents and plugin hooks load at session start, and a session that was already open keeps the plugin root it bound earlier. Qoder exposes the nine public entries as `helix:<command>` skills instead of slash commands, so the `/helix:*` examples below are invoked through those entries. The nine commands use the same arguments and business gates. Statistics reporting is not wired up for this host. Reinstalling a newer ZIP is the only upgrade path, and `/helix:update` returns a blocked status.
+
 ### 2. Build Your First Feature
 
-Enter commands **in your coding agent's conversation**, not in a terminal shell. The examples below use the Codex / Claude Code / OpenCode prefix `/helix:`. In Cursor, replace that prefix with `/helix-`, keeping the command name and arguments unchanged; for example, `/helix:init` becomes `/helix-init`, and `/helix:bug-fix` becomes `/helix-bug-fix`.
+Enter commands **in your coding agent's conversation**, not in a terminal shell. The examples below use the Codex / Claude Code / OpenCode prefix `/helix:`. In Cursor, replace that prefix with `/helix-`, keeping the command name and arguments unchanged; for example, `/helix:init` becomes `/helix-init`, and `/helix:bug-fix` becomes `/helix-bug-fix`. In Qoder, keep the name unchanged but invoke it through the `helix:<command>` skill entry rather than the slash-command menu.
 
 Initialize your application repository:
 
@@ -102,7 +108,7 @@ Initialize your application repository:
 /helix:init
 ```
 
-Claude Code, Codex and Cursor initialization writes project documentation and host project settings. OpenCode merges `AGENTS.md` without creating `.opencode/` settings or project hooks. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. Check the initialization result before starting a requirement.
+Claude Code, Codex, Cursor and Qoder initialization writes project documentation and host project settings. OpenCode merges `AGENTS.md` without creating `.opencode/` settings or project hooks. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. Check the initialization result before starting a requirement.
 
 Create a small, concrete requirement:
 
@@ -165,7 +171,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | Project | Who it is for | What it does | Where it runs |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) sessions and application repositories |
+| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) / Qoder sessions and application repositories |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | Maintainers observing and improving the HelixHarness framework | Usage dashboards, version evaluation and evolution | A separate Python web service and evaluation Workers |
 
 ```mermaid
@@ -194,7 +200,7 @@ Keep three directories distinct: **HelixHarness plugin source**, **application r
 
 ## Commands
 
-There are nine public commands. `--loop` is an option on `propose`. The examples use `/helix:` for Codex / Claude Code / OpenCode; in Cursor, use the `/helix-` prefix with the same arguments.
+There are nine public commands. `--loop` is an option on `propose`. The examples use `/helix:` for Codex / Claude Code / OpenCode; in Cursor, use the `/helix-` prefix with the same arguments; in Qoder, use the same names as the `helix:<command>` skill entries.
 
 | Command | Purpose | Example |
 | --- | --- | --- |
@@ -416,7 +422,7 @@ Paths below are relative to your platform's base URL:
 
 ### Model Configuration
 
-For everyday plugin use, configure models in Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md). The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
+For everyday plugin use, configure models in Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) or Qoder. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
 
 See [`helixharness-platform/.env.example`](../helixharness-platform/.env.example) for the template. The service reads **process environment variables and does not automatically load `.env.example`**. Inject real values into the environments running both the web service and Workers.
 
@@ -628,7 +634,7 @@ The repository contains two independently installable projects:
 ├── helixharness/
 │   ├── commands/       # Nine public command entrypoints
 │   ├── workflows/      # single/ execution and workspace/ coordination
-│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode (macOS Stable) adapters
+│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode (macOS Stable) / Qoder adapters
 │   ├── skills/         # Reusable workflow methods
 │   └── scripts/        # Routing, artifact validation, and telemetry
 └── helixharness-platform/
@@ -651,7 +657,7 @@ The repository contains two independently installable projects:
 | [`systematic-debugging`](../helixharness/skills/systematic-debugging/SKILL.md) | Reproduce failures, test hypotheses, identify causes, and verify fixes | Standalone, explicitly invoked by the user |
 | [`feedback`](../helixharness/skills/feedback/SKILL.md) | Submit HelixHarness usage issues | Standalone; requires a running platform and configured destination |
 
-Codex and Cursor each install these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly; OpenCode registers the same root files as `helix-<name>` method skills. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
+Codex and Cursor each install these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly; OpenCode registers the same root files as `helix-<name>` method skills; Qoder declares both skill roots in `.qoder-plugin/plugin.json`, so it sees these eight method skills plus nine `helix:<command>` entry skills. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
 
 `git-diff-impact` requires no Init, active feature, or platform service. For example: “Use HelixHarness git-diff-impact to analyze uncommitted changes, --no-save.” You may instead specify two commits or branches and optional `--req` / `--design` documents. Markdown reports default to `diff-impact-reports/`; `--out` selects another location. The skill does not fix code or change review verdicts.
 

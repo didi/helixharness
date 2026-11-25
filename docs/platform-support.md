@@ -9,6 +9,7 @@ HelixHarness 面向 macOS、原生 Windows 与 Linux，要求 Python 3.10+、Git
 | Codex plugin / 插件 | POSIX preflight and hooks | PowerShell preflight; Codex `commandWindows` hooks |
 | Claude Code plugin / 插件 | Bash hooks | Git for Windows Bash; set `CLAUDE_CODE_GIT_BASH_PATH` if auto-discovery fails |
 | Cursor plugin / 插件 | POSIX entrypoints; native acceptance on macOS, managed Local updates on macOS/Linux / POSIX 入口；macOS 实机验收，macOS/Linux 托管 Local 更新 | Outside this release's verified scope / 不在本期已验证范围 |
+| Qoder plugin / 插件 | Plugin ZIP installed by the App; POSIX `sh` SessionStart hook; native acceptance on macOS / 由 App 安装插件 ZIP；POSIX `sh` SessionStart hook；macOS 实机验收 | Host Kit contract tests run in the CI matrix; no native Windows acceptance yet, and only the POSIX hook launcher exists / Host Kit 契约测试已进入 CI 矩阵；尚未完成 Windows 实机验收，且仅有 POSIX hook 启动器 |
 | Project linters / 项目检查 | Python scripts | Same Python scripts; legacy `.sh` scripts require Git Bash |
 | Platform Web, Demo, eval / 平台 | Python service | Same Python service, PowerShell environment syntax |
 | Scheduled usage sync / 定时同步 | crontab | Task Scheduler, current user logged in; cron matching in Python |

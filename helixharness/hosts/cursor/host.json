@@ -13,7 +13,8 @@
       "Automatic plugin updates require a Helix-managed local installation on macOS/Linux. Marketplace-managed or unregistered copies are not modified.",
       "D2C uses an explicit checkpoint gate; no native skill-scoped Stop or user-question hook is claimed. An owner-bound completion requires the real current session identity; missing identity cannot be bypassed.",
       "sessionEnd delivery/execution is best effort. Explicit consent revocation cleans this repository; a later sessionStart retries scoped cleanup while consent remains disabled. Closing a window does not guarantee cleanup.",
-      "Pinned native project installation is supported on the tested desktop build. Native automatic updates are unsupported; check provides current-installation facts and manual steps without consuming managed-local authorization. Statistics may remain partial."
+      "Pinned native project installation is supported on the tested desktop build. Native automatic updates are unsupported; check provides current-installation facts and manual steps without consuming managed-local authorization. Statistics may remain partial.",
+      "Native Windows Cursor has no recorded acceptance session, so the POSIX sh hook launcher and the shell-quoted HELIXHARNESS_* identity prefix have no Windows evidence base; an unapplied prefix only skips statistics."
     ]
   },
   "capabilities": {

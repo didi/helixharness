@@ -65,7 +65,7 @@ Knowledge 与 Harness 通过索引引导上下文加载，Specs 保存每个需�
 
 需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](docs/opencode-testing.md)）或 Qoder Desktop / CLI。先确保宿主已完成登录或模型配置，能够正常使用。
 
-macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。Cursor 实机验收目前覆盖 macOS，Windows Cursor 不在本期已验证范围。
+macOS 与原生 Windows 的依赖、解释器探测及宿主要求见[跨平台说明](docs/platform-support.md)。Windows Codex 使用 PowerShell；Windows Claude Code 使用 Git for Windows Bash。Cursor 实机验收目前覆盖 macOS，Windows Cursor 不在本期已验证范围。Qoder 的 Host Kit 契约测试已进入 CI 矩阵，但 Qoder App 尚未完成 Windows 实机验收，且只提供 POSIX hook 启动器。
 
 仓库公开后，Codex 和 Claude Code 使用下方终端命令，Cursor 使用随后说明的市场界面安装，Qoder 使用随后说明的本地 ZIP 安装流程；市场安装方式无需先手动克隆源码：
 

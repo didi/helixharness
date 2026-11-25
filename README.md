@@ -65,7 +65,7 @@ Knowledge accumulates as **reviewable repository documents**. You control what b
 
 Requirements: Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor, OpenCode installation (macOS, 2.3.2; see the [support matrix](docs/opencode-testing.md)) or Qoder Desktop / CLI. Make sure the host is signed in or has its model configuration set up and is working normally.
 
-For macOS and native Windows setup, interpreter detection and host-specific requirements, see [platform support](docs/platform-support.md). Windows Codex uses PowerShell; Windows Claude Code uses Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
+For macOS and native Windows setup, interpreter detection and host-specific requirements, see [platform support](docs/platform-support.md). Windows Codex uses PowerShell; Windows Claude Code uses Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope. Qoder's Host Kit contract tests run in the CI matrix, but the Qoder App has no Windows acceptance yet and only the POSIX hook launcher exists.
 
 After the repository is public, install Codex and Claude Code plugins with the terminal commands below. Cursor uses the marketplace UI described afterward. Qoder installs through a locally built ZIP because it has no marketplace CLI. These marketplace routes do not require a manual source clone:
 

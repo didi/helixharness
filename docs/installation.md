@@ -6,7 +6,7 @@
 
 Python 3.10+, Git and a plugin-capable Codex, Claude Code, Cursor, OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) or Qoder Desktop / CLI are required. Make sure the host is signed in or has its model configuration set up and is working normally. The platform is optional. Cursor desktop support follows the release scope and limitations below; Qoder installs through a locally built plugin ZIP because the App has no marketplace CLI.
 
-The shared runtime supports macOS, native Windows and Linux; see [platform support and verification](platform-support.md). Windows Codex uses the PowerShell entrypoint, while Claude Code hooks require Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope.
+The shared runtime supports macOS, native Windows and Linux; see [platform support and verification](platform-support.md). Windows Codex uses the PowerShell entrypoint, while Claude Code hooks require Git for Windows Bash. Cursor native acceptance currently covers macOS; Windows Cursor is outside this release's verified scope. Qoder's Host Kit contract tests run in the CI matrix, but the Qoder App has no Windows acceptance yet and only the POSIX hook launcher exists.
 
 Unless marked PowerShell, the examples use Bash/Zsh. `didi/helixharness` is the planned public repository; remote commands become usable after its publication. For testing before publication or modifying the plugin, use [developer installation](#developer-installation).
 
@@ -174,7 +174,7 @@ Use the host's plugin management to uninstall `helix@helixharness-marketplace`; 
 
 ## 中文说明
 
-需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](opencode-testing.md)）或 Qoder。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)，Qoder 使用上面的 [Qoder 本地 ZIP 安装流程](#qoder)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。
+需要 Python 3.10+、Git，以及支持插件的 Codex、Claude Code、Cursor、OpenCode（macOS、2.3.2；见[支持矩阵](opencode-testing.md)）或 Qoder。Cursor 使用上面的 [Cursor 独立安装流程](#cursor-preview)，Qoder 使用上面的 [Qoder 本地 ZIP 安装流程](#qoder)。先确保宿主已完成登录或模型配置，能够正常使用。平台不是安装插件的前置条件。共享运行时的 Windows 支持不代表 Windows Cursor 已完成验收；Cursor 实机验收目前覆盖 macOS。Qoder 的 Host Kit 契约测试已进入 CI 矩阵，但 Qoder App 尚未完成 Windows 实机验收，且只提供 POSIX hook 启动器。
 
 **OpenCode Stable 支持（macOS、2.3.2）：** 当前源码候选的支持范围与边界见[支持矩阵](opencode-testing.md)。OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。
 
