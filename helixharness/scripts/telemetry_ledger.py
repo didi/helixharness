@@ -19,6 +19,7 @@ from typing import Any, Iterator
 
 from telemetry_hosts import get_host_adapter, normalize_host_id
 from git_target import resolve_target_branch
+from cli_stdio import configure_utf8_stdio
 
 
 def _plugin_version() -> str:
@@ -1058,6 +1059,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     repo = Path(args.repo_root).expanduser().resolve()
     try:

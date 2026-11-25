@@ -108,7 +108,8 @@ class CursorIntegrationTest(unittest.TestCase):
         manifest = HostRegistry.discover(PLUGIN / 'hosts').require('cursor')
         projection = load_command_projection(manifest)
         resources = {'hosts/cursor/host.json', 'scripts/host_runtime_cli.py',
-                     'scripts/source_binding.py', 'scripts/eval_json.py'}
+                     'scripts/source_binding.py', 'scripts/eval_json.py',
+                     'scripts/cli_stdio.py'}
         resources.update(str(p.relative_to(PLUGIN)) for p in (PLUGIN / 'scripts/host_runtime').glob('*.py'))
         resources.update(str(manifest.resolve_resource_adapter(key).relative_to(PLUGIN))
                          for key in manifest.adapters if manifest.adapter_reference(key).kind == 'resource')

@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cli_stdio import configure_utf8_stdio  # noqa: E402
 from host_runtime import HostRegistry  # noqa: E402
 from lifecycle_service import handle_event, startup_context  # noqa: E402
 
@@ -34,6 +35,7 @@ def persist_environment(payload: dict) -> None:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     try:
         payload = json.load(sys.stdin)
         if not isinstance(payload, dict):

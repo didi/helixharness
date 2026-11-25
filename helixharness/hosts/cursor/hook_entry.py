@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cli_stdio import configure_utf8_stdio  # noqa: E402
 from telemetry_hosts.cursor import HOOK_EVENTS, HOOK_BUDGET_SECONDS, native_identity, native_identity_fields, record_hook  # noqa: E402
 
 EVENTS = {"sessionStart": "SessionStart", "sessionEnd": "SessionEnd"}
@@ -59,6 +60,7 @@ def _spawn_cleanup(workspaces: list[str]) -> None:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     deadline = time.monotonic() + HOOK_BUDGET_SECONDS
     try:
         raw = sys.stdin.read(4 * 1024 * 1024 + 1)

@@ -14,6 +14,7 @@ from typing import Any
 from workflow import ReviewScopeDrift, WorkflowError, archive_preflight, feature_name, frontmatter, read_regular
 from workflow_target import WorkflowTargetError, resolve_workflow_target
 from workspace import WorkspaceError, workspace_archive_preflight, workspace_revision_context
+from cli_stdio import configure_utf8_stdio
 
 PUBLIC_COMMANDS = ('propose', 'apply', 'archive', 'bug-fix')
 
@@ -268,6 +269,7 @@ def route(repo: Path, *, command: str, feature: str | None = None,
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     guard_source(Path(__file__).resolve().parent.parent)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo-root', required=True)

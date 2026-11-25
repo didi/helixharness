@@ -8,6 +8,7 @@ host loses the result entirely.
 
 from __future__ import annotations
 
+import ast
 import json
 import os
 import subprocess
@@ -79,6 +80,60 @@ class LegacyCodePageCliTest(unittest.TestCase):
     def test_user_config_answers_a_legacy_caller_with_utf8_json(self) -> None:
         payload = self.run_cli("user_config.py")
         self.assertTrue(payload["read_only"])
+
+
+def _non_ascii_json_prints(node: ast.AST) -> list[int]:
+    """Line numbers of `print(...)` calls that serialize non-ASCII JSON."""
+    lines = []
+    for call in ast.walk(node):
+        if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                and call.func.id == "print"):
+            continue
+        nested = (inner for inner in ast.walk(call) if isinstance(inner, ast.Call)
+                  and any(keyword.arg == "ensure_ascii"
+                          and isinstance(keyword.value, ast.Constant)
+                          and keyword.value.value is False for keyword in inner.keywords))
+        if next(nested, None) is not None:
+            lines.append(call.lineno)
+    return lines
+
+
+class Utf8GuardCoverageTest(unittest.TestCase):
+    """Coverage rule: a JSON entry that prints non-ASCII guards its own streams.
+
+    The failing CLIs are only reachable one platform at a time, so a behaviour test
+    per entry would still leave the next unguarded `print` to surface as a Windows
+    only defect. This rule keeps the whole contract in one place.
+    """
+
+    def test_every_non_ascii_json_entry_calls_the_guard_first(self) -> None:
+        findings = []
+        for root in (PLUGIN_ROOT / "scripts", PLUGIN_ROOT / "hosts"):
+            for path in sorted(root.rglob("*.py")):
+                if "tests" in path.parts or path.name == "cli_stdio.py":
+                    continue
+                main = next((node for node in ast.parse(path.read_text(encoding="utf-8")).body
+                             if isinstance(node, ast.FunctionDef) and node.name == "main"), None)
+                if main is None:
+                    continue
+                prints = _non_ascii_json_prints(main)
+                if not prints:
+                    continue
+                guarded = [node.lineno for node in ast.walk(main)
+                           if isinstance(node, ast.Call)
+                           and getattr(node.func, "id", None) == "configure_utf8_stdio"]
+                if not guarded:
+                    findings.append(f"{path.relative_to(PLUGIN_ROOT)}:{min(prints)} unguarded")
+                elif min(guarded) > min(prints):
+                    findings.append(f"{path.relative_to(PLUGIN_ROOT)}:{min(prints)} guard after print")
+        self.assertEqual([], findings)
+
+    def test_installed_runtime_snapshot_carries_the_guard(self) -> None:
+        # The telemetry runtime copies an explicit file list and runs it with
+        # `python -I`, so a guarded entry inside that snapshot needs the module there.
+        import telemetry_async
+
+        self.assertIn("cli_stdio.py", telemetry_async.RUNTIME_FILES)
 
 
 if __name__ == "__main__":

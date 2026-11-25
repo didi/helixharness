@@ -1402,7 +1402,7 @@ def install(
                     _atomic_write(authorization_path, failed)
                 completed = authorization["completed_steps"]
                 raise UpdateError(
-                    f"plugin update step failed: {step.step_id}; completed steps: {completed}"
+                    f"plugin update step failed: {step.step_id}: {exc}; completed steps: {completed}"
                 ) from exc
             if step.command:
                 executed.append(list(step.command))

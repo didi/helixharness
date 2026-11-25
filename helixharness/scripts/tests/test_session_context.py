@@ -85,8 +85,10 @@ class SessionContextTest(unittest.TestCase):
                 output = json.loads(self.run_hook(json.dumps(payload)).stdout)["hookSpecificOutput"]
                 self.assertEqual(output["hookEventName"], payload["hook_event_name"])
                 context = output["additionalContext"]
-                for fragment in ("scripts/host_runtime_cli.py", "reference/runtime-preflight.md"):
-                    self.assertIn(json.dumps(str(ROOT / fragment))[1:-1], context)
+                # The guarded preflight command is POSIX shell text, so lifecycle_service
+                # normalizes its paths; the appended note names the document natively.
+                self.assertIn((ROOT / "scripts/host_runtime_cli.py").as_posix(), context)
+                self.assertIn(str(ROOT / "reference/runtime-preflight.md"), context)
                 self.assertIn('"resolved_resources"', context)
                 self.assertNotIn("permissionDecision", output)
 

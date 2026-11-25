@@ -15,6 +15,7 @@ from init_guidance import project_guidance
 from project_hooks_cli import project_hooks
 from workflow import WorkflowError
 from workspace import WorkspaceError, load_registry
+from cli_stdio import configure_utf8_stdio
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -212,6 +213,7 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parse_args()
     report = validate(args.repo_root, args.mode, args.platform, args.telemetry_mode)
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))

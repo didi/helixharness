@@ -37,9 +37,9 @@ def install():
     source = Path(state["release_root"])
     version = json.loads((source / "reference/version-policy.json").read_text())["latest_version"]
     manifest = Path(state["plugin_root"]) / ".codex-plugin/plugin.json"
-    data = json.loads(manifest.read_text())
+    data = json.loads(manifest.read_text(encoding="utf-8"))
     data["version"] = version
-    manifest.write_text(json.dumps(data))
+    manifest.write_text(json.dumps(data), encoding="utf-8")
     state["version"] = version
     state_path.write_text(json.dumps(state))
 if args == ["plugin", "list", "--json", "--marketplace", "helixharness-marketplace"]:

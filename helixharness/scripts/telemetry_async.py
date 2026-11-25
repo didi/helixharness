@@ -30,6 +30,7 @@ from xml.sax.saxutils import escape
 
 
 import reporting_config
+from cli_stdio import configure_utf8_stdio
 
 
 DEFAULT_INTERVAL_SECONDS = 600
@@ -47,6 +48,7 @@ MAX_BATCH_COMPRESSED_BYTES = 1024 * 1024
 MAX_BATCH_ITEMS = 100
 BATCH_PAUSE_SECONDS = 0.5
 RUNTIME_FILES = (
+    "cli_stdio.py",
     "eval_json.py",
     "reporting_config.py",
     "git_target.py",
@@ -1685,6 +1687,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     exit_code = 0
     if args.command == "run":

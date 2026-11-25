@@ -16,6 +16,7 @@ import telemetry_ledger as telemetry_ledger
 import telemetry_protocol as telemetry_protocol
 import telemetry_trace as telemetry_trace
 from telemetry_hosts import get_host_adapter
+from cli_stdio import configure_utf8_stdio
 
 
 MAX_TOOL_EVENTS = 20_000
@@ -523,6 +524,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     if args.entry_id:
         result: dict[str, Any] = collect_entry(Path(args.repo_root), args.entry_id, home=args.home)

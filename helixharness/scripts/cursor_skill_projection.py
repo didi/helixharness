@@ -8,6 +8,7 @@ import json
 import re
 from pathlib import Path
 from typing import Sequence
+from cli_stdio import configure_utf8_stdio
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
@@ -209,6 +210,7 @@ def check(plugin_root: Path) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=PLUGIN_ROOT)
     actions = parser.add_mutually_exclusive_group(required=True)

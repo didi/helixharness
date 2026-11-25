@@ -12,6 +12,7 @@ import shlex
 import sys
 from pathlib import Path
 from typing import Any
+from cli_stdio import configure_utf8_stdio
 
 try:
     import workflow as lifecycle
@@ -922,6 +923,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     args = parser().parse_args(argv)
     try:
         payload = args.handler(workspace_root(args.workspace_root), args)

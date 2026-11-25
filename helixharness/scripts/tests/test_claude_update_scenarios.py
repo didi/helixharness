@@ -53,9 +53,9 @@ elif len(args) == 5 and args[:4] == ["plugin", "update", "helix@helixharness-mar
         source = Path(state["release_root"])
         version = json.loads((source / "reference/version-policy.json").read_text())["latest_version"]
         manifest = Path(state["plugin_root"]) / ".claude-plugin/marketplace.json"
-        data = json.loads(manifest.read_text())
+        data = json.loads(manifest.read_text(encoding="utf-8"))
         next(item for item in data["plugins"] if item["name"] == "helix")["version"] = version
-        manifest.write_text(json.dumps(data))
+        manifest.write_text(json.dumps(data), encoding="utf-8")
         state["scope_versions"][scope] = version
         state_path.write_text(json.dumps(state))
     emit({"updated": True})

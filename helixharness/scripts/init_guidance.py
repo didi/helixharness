@@ -15,6 +15,7 @@ from pathlib import Path
 
 from host_runtime import HostContractError, HostRegistry
 from host_runtime.project_config import load_project_config
+from cli_stdio import configure_utf8_stdio
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -198,6 +199,7 @@ def project_guidance(repo: Path, platform: str, mode: str, action: str) -> dict:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--platform", required=True)

@@ -15,6 +15,7 @@ from urllib.parse import urlsplit
 import atomic_files
 import eval_json
 from update_hosts.base import BoundedCommandRunner
+from cli_stdio import configure_utf8_stdio
 
 if os.name == "nt":
     import msvcrt
@@ -38,7 +39,7 @@ def read(path):
         return {}
     if not path.is_file() or path.stat().st_size > 1024 * 1024:
         raise ValueError("configuration must be a bounded JSON file")
-    value = eval_json.loads(path.read_text())
+    value = eval_json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise ValueError("configuration must be a JSON object")
     return value
@@ -276,6 +277,7 @@ class ProjectInstall:
 
 
 def main():
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=("plan", "configure", "check", "restore"))
     parser.add_argument("--project-root", required=True)

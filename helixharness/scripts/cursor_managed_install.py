@@ -9,9 +9,11 @@ import json
 from update_hosts.base import BoundedCommandRunner, UpdateHostError
 from update_hosts.cursor import CursorUpdateAdapter
 from version_update import _read_json, _version_text
+from cli_stdio import configure_utf8_stdio
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     install = commands.add_parser("install")

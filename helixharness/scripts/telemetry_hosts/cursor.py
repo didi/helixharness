@@ -326,7 +326,7 @@ class CursorAdapter:
                 if locator.is_symlink():
                     continue
                 try:
-                    value = json.loads(locator.read_text())
+                    value = json.loads(locator.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
                     # Unreadable attribution is not evidence that a source is unused.
                     return 0

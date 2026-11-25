@@ -11,6 +11,7 @@ from pathlib import Path
 from atomic_files import atomic_write_text
 from workflow import (WorkflowError, TASK_STATUSES, _repair_lock, feature_dir,
                       frontmatter, markdown_cells, task_rows, validate_task_graph)
+from cli_stdio import configure_utf8_stdio
 
 
 def _cell_spans(line: str) -> list[tuple[int, int]]:
@@ -111,6 +112,7 @@ def update_task(repo: Path, feature: str, task: str, status: str, expected_recei
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", required=True, type=Path)
     parser.add_argument("--feature", required=True)

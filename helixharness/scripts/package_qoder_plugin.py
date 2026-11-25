@@ -28,6 +28,7 @@ import stat
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
+from cli_stdio import configure_utf8_stdio
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_RELATIVE = PurePosixPath(".qoder-plugin/plugin.json")
@@ -297,6 +298,7 @@ def verify_archive(plugin_root: Path, archive_path: Path) -> dict[str, object]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description="Package this plugin for Qoder.")
     parser.add_argument(
         "--output",

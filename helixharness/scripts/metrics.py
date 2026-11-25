@@ -21,6 +21,7 @@ import telemetry_trace as telemetry_trace
 from git_target import operation_state
 from telemetry_hosts import get_host_adapter, normalize_host_id
 from telemetry_session import SessionContextUnavailable
+from cli_stdio import configure_utf8_stdio
 
 
 STAGES = ("propose", "apply", "archive")
@@ -662,6 +663,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     repo = Path(args.repo_root).expanduser().resolve()
     try:

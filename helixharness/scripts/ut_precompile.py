@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from typing import Any
+from cli_stdio import configure_utf8_stdio
 
 
 def _output_path(root: Path, value: Path) -> Path:
@@ -94,6 +95,7 @@ def precompile(repo: Path, *, class_directories: list[Path] | None = None) -> di
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--class-directory", type=Path, action="append",

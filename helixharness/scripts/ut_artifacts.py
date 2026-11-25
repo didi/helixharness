@@ -15,6 +15,7 @@ import re
 import tempfile
 from typing import Any
 from atomic_files import atomic_write_text
+from cli_stdio import configure_utf8_stdio
 
 STATE_NAME = re.compile(r'(?:unittest-(?:queue|session|results|summary|experience)\.md|worker-[1-9][0-9]*-result\.md)\Z')
 KINDS = ('confirmed_defect', 'unconfirmed_risk', 'optional_improvement')
@@ -257,6 +258,7 @@ def aggregate_findings(repo: Path, feature: str, workers: list[int]) -> dict[str
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo-root', type=Path, required=True)
     parser.add_argument('--feature', required=True)
