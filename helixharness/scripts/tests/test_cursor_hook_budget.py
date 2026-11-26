@@ -369,7 +369,10 @@ class CursorHookBudgetIntegrationTest(unittest.TestCase):
         with patch.object(consent, "_repo_root", slow_root), self.assertRaises(ValueError):
             record_hook(payload, deadline=begin + 0.1)
         self.assertLess(time.monotonic() - begin, 0.4)
-        self.assertLess(len(calls), 5)
+        # A per-workspace deadline reset would examine every root. The shared
+        # budget may admit a few calls before expiry, and scheduling on a busy
+        # runner decides how many, so do not pin the count.
+        self.assertLess(len(calls), len(payload["workspace_roots"]))
         self.assertEqual(1, len(set(calls)))
 
     def test_cleanup_skips_newly_enabled_authorization(self):

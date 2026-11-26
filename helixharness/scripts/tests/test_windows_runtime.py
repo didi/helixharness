@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -86,6 +87,17 @@ class WindowsRuntimeTest(unittest.TestCase):
                                     capture_output=True, text=True, encoding="utf-8", timeout=20)
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertEqual(json.loads(result.stdout)["python"]["status"], "unsupported_version")
+
+    def test_hung_explicit_interpreter_is_bounded(self):
+        with tempfile.TemporaryDirectory(prefix="helix hung interpreter ") as temporary:
+            hung = Path(temporary) / "hung-python.cmd"
+            hung.write_text("@echo off\r\nping -n 30 127.0.0.1 >nul\r\necho 3.12.0\r\n", encoding="ascii")
+            begin = time.monotonic()
+            result = subprocess.run([*self.base, "exec", "--python", str(hung), "never.py"],
+                                    capture_output=True, text=True, encoding="utf-8", timeout=45)
+            self.assertLess(time.monotonic() - begin, 30)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["python"]["status"], "unusable")
 
     def test_explicit_command_name_does_not_fall_through_same_named_path_candidates(self):
         with tempfile.TemporaryDirectory(prefix="helix explicit PATH ") as temporary:
