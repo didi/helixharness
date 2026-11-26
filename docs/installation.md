@@ -129,7 +129,7 @@ cd helixharness
 python3 scripts/package_qoder_plugin.py         # produces dist/helix-<version>.zip
 ```
 
-The ZIP root is the plugin root and contains only the Qoder-facing surface: `.qoder-plugin/plugin.json`, `agents/`, `skills/`, `hosts/qoder/skills/`, `hosts/qoder/hooks.json` (copied to `hooks/hooks.json` in the package), plus `commands/`, `reference/`, `scripts/`, `templates/` and `workflows/` shared with other hosts. Codex, Claude Code, Cursor and openCode surfaces, `__pycache__` and local state are excluded. Each `agents/*.md` gets a `name` frontmatter matching the file name, because Qoder registers subagents by `name`.
+The ZIP root is the plugin root and packs only the Qoder-facing allowlist: `.qoder-plugin/plugin.json`; `agents/`; `skills/`; the Qoder Host Kit under `hosts/qoder/` (host manifest, hooks, command projection, installer contract and runtime adapters) together with `hosts/shared/` and `hosts/host-manifest-v1.schema.json`; the host-neutral `commands/`, `reference/`, `scripts/`, `templates/` and `workflows/`; and the root license, notice, README and plugin-usage files. `hosts/qoder/hooks.json` is copied to `hooks/hooks.json` in the package. Codex, Claude Code, Cursor and openCode surfaces, `__pycache__` and local state are excluded; inside a Git checkout the build also refuses untracked files under allowlisted paths and symlinks that resolve outside the plugin root. Each `agents/*.md` gets a `name` frontmatter matching the file name, because Qoder registers subagents by `name`.
 
 Install through one of:
 
@@ -147,7 +147,7 @@ cd helixharness
 python3 scripts/package_qoder_plugin.py         # 产出 dist/helix-<version>.zip
 ```
 
-ZIP 根即插件根，只包含 Qoder 表面：`.qoder-plugin/plugin.json`、`agents/`、`skills/`、`hosts/qoder/skills/`、`hosts/qoder/hooks.json`（打包时复制为 `hooks/hooks.json`），并保留与其它宿主共享的 `commands/`、`reference/`、`scripts/`、`templates/` 与 `workflows/`。Codex、Claude Code、Cursor、openCode 的表面、`__pycache__` 与本地状态都在排除之列。每个 `agents/*.md` 会被注入与文件名一致的 `name` frontmatter——Qoder 按 `name` 注册子代理角色。
+ZIP 根即插件根，只按白名单收 Qoder 表面：`.qoder-plugin/plugin.json`；`agents/`；`skills/`；`hosts/qoder/` 下的 Qoder Host Kit（宿主清单、hooks、命令投影、安装合同与运行时适配文件）以及 `hosts/shared/` 与 `hosts/host-manifest-v1.schema.json`；与其它宿主共享的 `commands/`、`reference/`、`scripts/`、`templates/` 与 `workflows/`；以及根目录的 license、notice、README 与插件使用说明文件。`hosts/qoder/hooks.json` 打包时复制为 `hooks/hooks.json`。Codex、Claude Code、Cursor、openCode 的表面、`__pycache__` 与本地状态都在排除之列；在 git 仓库内构建时，白名单路径下未纳入版本控制的文件与解析到插件根之外的符号链接会直接报错。每个 `agents/*.md` 会被注入与文件名一致的 `name` frontmatter——Qoder 按 `name` 注册子代理角色。
 
 安装方式二选一：
 
