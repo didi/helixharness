@@ -1,6 +1,6 @@
 # HelixHarness
 
-当前版本：**1.0.0**。
+当前版本：**1.1.0**。
 
 面向 Codex、Claude Code、Cursor 与 [OpenCode（macOS Stable）](../docs/opencode-testing.md)的 HelixHarness 研发工作流。通过项目约束、知识库、Spec、任务和验证证据完成研发。
 

@@ -60,6 +60,15 @@ class QoderHostContractTest(unittest.TestCase):
         self.assertEqual(self.manifest.capability("command_surface"), "emulated")
         self.assertEqual(self.manifest.capability("project_hooks"), "native")
 
+    def test_distribution_version_matches_the_formal_release(self) -> None:
+        formal = json.loads(
+            (PLUGIN_ROOT / "reference" / "version-policy.json").read_text(encoding="utf-8")
+        )["latest_version"]
+        qoder = json.loads(
+            (PLUGIN_ROOT / ".qoder-plugin" / "plugin.json").read_text(encoding="utf-8")
+        )["version"]
+        self.assertEqual(qoder, formal)
+
     def test_skill_surface_projects_thin_entries_onto_the_shared_contract(self) -> None:
         projection = load_command_projection(self.manifest)
         self.assertEqual(projection.surface, "skill")

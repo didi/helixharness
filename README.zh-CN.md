@@ -233,7 +233,7 @@ python -m web_ui.demo --port 7860
 - [完整中文指南](docs/user-guide.zh-CN.md) · [English guide](docs/user-guide.md)
 - [开发与贡献](CONTRIBUTING.md) · [社区行为准则](CODE_OF_CONDUCT.md)
 
-源码版本：**HelixHarness 1.0.0 · helixharness-platform 1.0.0**。源码中的版本号不代表 GitHub 仓库或 Release 已公开发布。
+源码版本：**HelixHarness 1.1.0 · helixharness-platform 1.0.0**。源码中的版本号不代表 GitHub 仓库或 Release 已公开发布。
 
 ## 开源协议
 

@@ -235,7 +235,7 @@ These are planned capabilities. The source supports Codex, Claude Code and Curso
 - [Complete user guide](docs/user-guide.md) · [中文指南](docs/user-guide.zh-CN.md)
 - [Development and contribution](CONTRIBUTING.md) · [Code of Conduct](CODE_OF_CONDUCT.md)
 
-Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**. Public repository and release availability are separate from the version embedded in this source copy.
+Source version: **HelixHarness 1.1.0 · helixharness-platform 1.0.0**. Public repository and release availability are separate from the version embedded in this source copy.
 
 ## License
 

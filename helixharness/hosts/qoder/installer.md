@@ -38,8 +38,8 @@ handler，没有重启也没有新开会话，所以验收项目 hooks 不必换
 ## 更新与卸载
 
 宿主未提供等价 marketplace CLI，`plugin_update` 因此声明为 `unsupported`。更新方式是重新构建并安装
-新版本 ZIP；`.qoder-plugin/plugin.json` 的 `version` 是 Qoder 分发版本，与 `hosts/codex`、
-`hosts/claude-code` 清单的版本独立递增，因为 Qoder 按 `<name>/<version>` 目录落盘，同版本覆盖不可靠。
+新版本 ZIP；`.qoder-plugin/plugin.json` 的 `version` 与正式插件版本保持一致，不单独维护 Qoder 版本号。
+Qoder 按 `<name>/<version>` 目录落盘，同版本覆盖不可靠，因此每次发布仍需先递增正式版本再打包。
 同名冲突按宿主安装工具提示处理，不得删除其他插件绕过冲突。卸载在
 `扩展 → 已安装 → 该插件 → … → 删除` 完成。插件卸载不删除业务仓库中的 `docs/harness/`、
 `docs/knowledge/`、`docs/specs/` 或业务代码。

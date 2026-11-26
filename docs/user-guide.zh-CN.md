@@ -2,7 +2,7 @@
 
 [English](user-guide.md) | **简体中文**
 
-当前版本：**HelixHarness 1.0.0 · helixharness-platform 1.0.0**。
+当前版本：**HelixHarness 1.1.0 · helixharness-platform 1.0.0**。
 
 **面向 Codex、Claude Code、Cursor、[OpenCode（macOS Stable）](opencode-testing.md) 与 [Qoder](../helixharness/hosts/qoder/installer.md) 的研发工作流，以及提供数据看板、版本评测与自进化的配套平台。**
 

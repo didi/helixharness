@@ -42,7 +42,7 @@ class FeedbackTest(unittest.TestCase):
         post.assert_not_called()
         capture.assert_not_called()
         self.assertNotIn("abcdefghijklmnopqrstuvwxyz", json.dumps(draft))
-        self.assertEqual("1.0.0", draft["item"]["document"]["plugin_version"])
+        self.assertEqual("1.1.0", draft["item"]["document"]["plugin_version"])
         self.assertEqual([], list(self.repo.iterdir()))
         if os.name != "nt":
             self.assertEqual(0o600, Path(draft["draft_path"]).stat().st_mode & 0o777)

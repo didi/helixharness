@@ -11,7 +11,7 @@
       "name": "helix",
       "description": "HelixHarness workflow plugin for Claude Code, Codex, Cursor and OpenCode (macOS 2.3.2 Stable) with commands and reusable skills",
       "source": "./helixharness",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "license": "Apache-2.0"
     }
   ]

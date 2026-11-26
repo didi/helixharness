@@ -2,7 +2,7 @@
 
 **English** | [简体中文](user-guide.zh-CN.md)
 
-Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
+Source version: **HelixHarness 1.1.0 · helixharness-platform 1.0.0**.
 
 **A development workflow for Codex, Claude Code, Cursor, [OpenCode (macOS Stable)](opencode-testing.md) and [Qoder](../helixharness/hosts/qoder/installer.md), with a companion platform for usage dashboards, version evaluation and evolution.**
 

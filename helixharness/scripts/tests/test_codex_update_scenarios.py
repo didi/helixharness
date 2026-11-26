@@ -90,6 +90,14 @@ class CodexUpdateScenarioTests(unittest.TestCase):
             destination = self.plugin / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(original, destination)
+        for manifest_path in self.plugin.glob(".*-plugin/*.json"):
+            data = json.loads(manifest_path.read_text())
+            if data.get("name") == "helix" and "version" in data:
+                data["version"] = "1.0.0"
+            for item in data.get("plugins", []):
+                if item.get("name") == "helix":
+                    item["version"] = "1.0.0"
+            manifest_path.write_text(json.dumps(data))
         self.repo = self.root / "application 空格"
         self.repo.mkdir()
         self.marketplace = self.root / "local marketplace"

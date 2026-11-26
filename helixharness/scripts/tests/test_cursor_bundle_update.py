@@ -118,8 +118,12 @@ class CursorFullBundleUpdateTests(unittest.TestCase):
                 policy_path = source / "helixharness/reference/version-policy.json"
                 policy = json.loads(policy_path.read_text())
                 policy["latest_version"] = version
-                if version != "1.0.0":
-                    policy["releases"].insert(0, {"version": version, "date": "2026-11-18", "update_type": "recommended", "title": "Synthetic installed bundle update", "changes": ["Synthetic complete distribution"], "restart_required": True})
+                policy["releases"] = [
+                    {"version": value, "date": "2026-11-18", "update_type": "recommended",
+                     "title": "Synthetic installed bundle update", "changes": ["Synthetic complete distribution"],
+                     "restart_required": True}
+                    for value in ([version, "1.0.0"] if version != "1.0.0" else [version])
+                ]
                 policy_path.write_text(json.dumps(policy, ensure_ascii=False))
                 (source / "helixharness/reference/cursor-synthetic-release.txt").write_text(version)
                 git("add", ".")
