@@ -324,6 +324,45 @@ class ProjectHooksTest(unittest.TestCase):
             self.assertEqual(42, handlers[0]["timeout"])
             self.assertEqual(user_hook["command"], handlers[0]["command"])
 
+    def test_qoder_preserves_team_linter_handler_with_extra_arguments(self):
+        """A team handler with unknown flags is kept verbatim and reported."""
+        from project_hooks_cli import project_hooks
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            target = repo / ".qoder/settings.json"
+            target.parent.mkdir()
+            team_command = (
+                f"'{sys.executable}' -X utf8 /opt/team/helix/scripts/project_linter.py "
+                "--repo-root /tmp/team --linter invariant-check --team-profile strict"
+            )
+            team_hook = {"type": "command", "command": team_command, "timeout": 42}
+            settings = {
+                "hooks": {
+                    "PostToolUse": [
+                        {"matcher": "Write|Edit|NotebookEdit", "hooks": [team_hook]}
+                    ]
+                }
+            }
+            target.write_text(json.dumps(settings))
+
+            result = project_hooks(repo, "qoder", "merge")
+
+            self.assertTrue(result["changed"])
+            self.assertTrue(
+                any("Preserved user-modified linter handler" in item
+                    for item in result["warnings"])
+            )
+            handlers = json.loads(target.read_text())["hooks"]["PostToolUse"][0]["hooks"]
+            # 团队 handler 原样保留，不被规范化改写
+            self.assertEqual(team_hook, handlers[0])
+            # 规范 handler 仍被补齐，各自一个
+            self.assertEqual(
+                {"invariant-check", "spec-sync-check"},
+                {hook_argv(handler["command"])[-1] for handler in handlers[1:]},
+            )
+            self.assertFalse(project_hooks(repo, "qoder", "merge")["changed"])
+
 
 class FlatProjectHooksTest(unittest.TestCase):
     def setUp(self):

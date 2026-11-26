@@ -59,33 +59,34 @@ def _parse_posix_command(command: str) -> list[str] | None:
 
 
 def _recognize_linter_name(argv: list[str]) -> str | None:
-    """Return the linter name if argv matches our generator shape, else None."""
-    if len(argv) < 4:
+    """Return the linter name only when argv is exactly our generator shape.
+
+    The generator emits ``<python> -X utf8 <script> [--repo-root <dir>]
+    --linter <name>``. Any extra flag or positional option — a team override
+    such as ``--team-profile strict``, for instance — disqualifies the
+    command, because rewriting it to the canonical form would drop it.
+    """
+    if len(argv) < 4 or not Path(argv[0]).is_absolute():
         return None
-    if not Path(argv[0]).is_absolute():
+    if argv[1:3] != ["-X", "utf8"]:
         return None
-    if "-X" not in argv or "utf8" not in argv:
+    if tuple(Path(argv[3]).parts[-2:]) != LINTER_SCRIPT_SUFFIX:
         return None
-    x_index = argv.index("-X")
-    if argv.index("utf8") != x_index + 1:
-        return None
-    script_path = None
-    for arg in argv:
-        parts = Path(arg).parts
-        if len(parts) >= 2 and tuple(parts[-2:]) == LINTER_SCRIPT_SUFFIX:
-            script_path = arg
-            break
-    if script_path is None:
-        return None
-    try:
-        linter_index = argv.index("--linter")
-    except ValueError:
-        return None
-    if linter_index + 1 >= len(argv):
-        return None
-    linter_name = argv[linter_index + 1]
-    if linter_name not in KNOWN_LINTERS:
-        return None
+    linter_name = None
+    repo_root_seen = False
+    index = 4
+    while index < len(argv):
+        token = argv[index]
+        if token == "--repo-root" and not repo_root_seen and index + 1 < len(argv):
+            repo_root_seen = True
+            index += 2
+        elif token == "--linter" and linter_name is None and index + 1 < len(argv):
+            if argv[index + 1] not in KNOWN_LINTERS:
+                return None
+            linter_name = argv[index + 1]
+            index += 2
+        else:
+            return None
     return linter_name
 
 
@@ -103,6 +104,28 @@ def recognize_linter_command(command: str, policy: StaleBindingPolicy) -> str | 
     if argv is None:
         return None
     return _recognize_linter_name(argv)
+
+
+def looks_like_linter_command(command: str) -> bool:
+    """True when a command references our linter script but is not canonical.
+
+    Used to warn instead of silently rewriting a handler that carries
+    arguments the generator does not know about.
+    """
+    argv = _parse_windows_command(command) or _parse_posix_command(command)
+    if argv is None:
+        return False
+    references_script = any(
+        len(Path(arg).parts) >= 2 and tuple(Path(arg).parts[-2:]) == LINTER_SCRIPT_SUFFIX
+        for arg in argv
+    )
+    return references_script and any(arg in KNOWN_LINTERS for arg in argv)
+
+
+def _warn_preserved(warnings: list[str], command: str) -> None:
+    warning = f"Preserved user-modified linter handler: {command[:80]}"
+    if warning not in warnings:
+        warnings.append(warning)
 
 
 def is_bound_linter_command(command: str, linter_args: list[str]) -> bool:
@@ -191,6 +214,10 @@ def merge_payload(
                             existing_linter_name = recognize_linter_command(old_command, policy)
                             if existing_linter_name and handler_linter_name and existing_linter_name == handler_linter_name:
                                 is_match = True
+                            elif looks_like_linter_command(old_command):
+                                # Team-specific arguments are unknown to the generator;
+                                # keep the handler verbatim so no option is dropped.
+                                _warn_preserved(warnings, old_command)
                             # Also check commandWindows under shape match
                             if not is_match and "commandWindows" in handler:
                                 old_windows = existing.get("commandWindows")
@@ -225,8 +252,11 @@ def merge_payload(
                             if "commandWindows" in handler:
                                 if linter_args and isinstance(old_windows, str) and is_bound_linter_command(old_windows, linter_args):
                                     existing["commandWindows"] = handler["commandWindows"]
-                                elif policy.recognize == "linter_flag" and isinstance(old_windows, str) and recognize_linter_command(old_windows, policy):
-                                    existing["commandWindows"] = handler["commandWindows"]
+                                elif policy.recognize == "linter_flag" and isinstance(old_windows, str):
+                                    if recognize_linter_command(old_windows, policy):
+                                        existing["commandWindows"] = handler["commandWindows"]
+                                    elif looks_like_linter_command(old_windows):
+                                        _warn_preserved(warnings, old_windows)
                             for key in ("commandWindows", "shell"):
                                 if key in handler:
                                     existing.setdefault(key, handler[key])

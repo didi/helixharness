@@ -13,8 +13,14 @@
 python3 scripts/package_qoder_plugin.py            # 产出 dist/helix-<version>.zip
 ```
 
-脚本排除 `.claude-plugin/`、`.codex-plugin/`、`hosts/claude-code/`、`hosts/codex/`、根 `SKILL.md`、
-`__pycache__` 与本地状态，把 `hosts/qoder/hooks.json` 复制到 ZIP 根 `hooks/hooks.json`，并为每个
+脚本按白名单收文件：清单与 `hooks/hooks.json`、`agents/`、`commands/`、`scripts/`、`reference/`、
+`skills/`、`templates/`、`workflows/`、`hosts/qoder/`、`hosts/shared/`、
+`hosts/host-manifest-v1.schema.json`，以及 `README.md`、`PLUGIN_USAGE.md` 与许可证文件。其他宿主表面和
+本地文件（`hosts/cursor/`、`hosts/opencode/`、`hosts/claude-code/`、`hosts/codex/`、`opencode/`、
+`package.json`、`tsconfig.json`、根 `SKILL.md`、`.claude-plugin/`、`.codex-plugin/`、`.cursor-plugin/`、
+`AGENTS.md`、`CLAUDE.md` 等）一律不收。在 git 仓库内构建时，白名单路径下未纳入版本控制的文件会直接
+报错，符号链接解析到插件根之外也会报错——本地状态不能随包发出。脚本还会把 `hosts/qoder/hooks.json`
+复制到 ZIP 根 `hooks/hooks.json`，并为每个
 `agents/*.md` 注入与文件名一致的 `name` frontmatter——Qoder 按 `name` 注册子代理角色，这是本宿主的
 分发细节，不写回共享源文件。`commands/*.md` 随包保留：它不进入宿主命令面，但它是薄入口与 Host
 Runtime 投影指向的唯一公共契约，缺少它投影就无法解析。
@@ -77,12 +83,14 @@ handler，没有重启也没有新开会话，所以验收项目 hooks 不必换
   invariant-check; rerun /helix:init`），整个会话里模型一次都没看到这句话。验收 guardrail 必须去读转录里的
   hook 记录，不能以“会话没报错”当作 hook 正常工作的证据。
 - 更新插件后重跑 Init 会自动收敛陈旧 handler：本宿主的 `hosts/qoder/project-hooks.json` 声明
-  `stale_binding_policy = { recognize: linter_flag, merge: collapse, check: warn }`。merge 按
-  `--linter <name>` 加脚本路径尾部的形状认领自生成命令，同一 linter 的重复项只保留第一条并把
-  `command` 改写为当前版本；`check` 默认把仍存在的缺失或重复降级为 `warnings` 返回而不阻断 Init，
-  需要严格阻断时传 `--strict`。macOS 上同一目录写成 `/tmp/...` 会被规范成 `/private/tmp/...`
-  的情况也一并被折叠，不再需要人工清理。1.1.0 之前遗留的手动删条目步骤可以跳过；如果仍看到
-  指向已卸载版本目录的 handler，说明它形状没被识别（例如自定义 flag），此时才需要用户确认。
+  `stale_binding_policy = { recognize: linter_flag, merge: collapse, check: warn }`。merge 只认领
+  “`<python> -X utf8 <script> --repo-root <dir> --linter <已知名称>` 且没有其他参数”的自生成命令，
+  同一 linter 的重复项只保留第一条并把 `command` 改写为当前版本；带自定义参数的 handler（例如团队
+  追加的 `--team-profile strict`）原样保留，返回 `Preserved user-modified linter handler` 告警，
+  并另外补齐当前版本的规范 handler，不会静默丢掉团队参数。`check` 默认把仍存在的缺失或重复降级为
+  `warnings` 返回而不阻断 Init，需要严格阻断时传 `--strict`。macOS 上同一目录写成 `/tmp/...` 会被
+  规范成 `/private/tmp/...` 的情况也一并被折叠，不再需要人工清理。1.1.0 之前遗留的手动删条目步骤
+  可以跳过。
 - 根 `skills/` 中声明 `disable-model-invocation: true` 的方法 Skill 不进入模型可见列表，属预期行为；
   验收按“可见数 ≤ 声明数 − 抑制数”核对，不得据此判定装载失败。实测 1.2.0 会话给出上限那一侧：8 个根方法
   Skill 加 9 个薄入口共 17 个声明，3 个声明抑制，可见 `helix:` 条目 14 个。但同一个验收判据在 1.2.1 会话里

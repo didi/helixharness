@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import tempfile
 import unittest
 import zipfile
@@ -171,6 +173,90 @@ class QoderPackagingTest(unittest.TestCase):
             header = packaged.split("---")[1]
             self.assertIn(f"name: {path.stem}", header, path.name)
 
+    def test_packaging_allowlist_covers_only_the_qoder_surface(self) -> None:
+        for relative in (
+            PurePosixPath(".qoder-plugin/plugin.json"),
+            PurePosixPath("agents/scan-api.md"),
+            PurePosixPath("commands/init.md"),
+            PurePosixPath("hosts/qoder/host.json"),
+            PurePosixPath("hosts/qoder/skills/propose/SKILL.md"),
+            PurePosixPath("hosts/shared/telemetry.md"),
+            PurePosixPath("hosts/host-manifest-v1.schema.json"),
+            PurePosixPath("reference/tool-semantics.md"),
+            PurePosixPath("scripts/package_qoder_plugin.py"),
+            PurePosixPath("skills/brainstorming/SKILL.md"),
+            PurePosixPath("templates/harness/api.md.tpl"),
+            PurePosixPath("workflows/single/apply.md"),
+            PurePosixPath("LICENSE"),
+            PurePosixPath("README.md"),
+        ):
+            self.assertTrue(packager.is_packaged(relative), str(relative))
+        for relative in (
+            PurePosixPath("AGENTS.md"),
+            PurePosixPath("CLAUDE.md"),
+            PurePosixPath(".gitignore"),
+            PurePosixPath("package.json"),
+            PurePosixPath("tsconfig.json"),
+            PurePosixPath(".cursor-plugin/marketplace.json"),
+            PurePosixPath("hosts/cursor/host.json"),
+            PurePosixPath("hosts/opencode/host.json"),
+            PurePosixPath("hosts/claude-code/host.json"),
+            PurePosixPath("hosts/codex/host.json"),
+            PurePosixPath("opencode/project-checks.ts"),
+            PurePosixPath("hooks/hooks.json"),
+            PurePosixPath("dist/helix-1.1.0.zip"),
+            PurePosixPath("scripts/__pycache__/x.pyc"),
+        ):
+            self.assertFalse(packager.is_packaged(relative), str(relative))
+
+    def _minimal_plugin_root(self, root: Path) -> None:
+        (root / ".qoder-plugin").mkdir(parents=True)
+        (root / ".qoder-plugin" / "plugin.json").write_text(
+            '{"name":"helix","version":"0.0.1"}', encoding="utf-8"
+        )
+        (root / "hosts" / "qoder").mkdir(parents=True)
+        (root / "hosts" / "qoder" / "hooks.json").write_text(
+            '{"hooks":{}}', encoding="utf-8"
+        )
+        (root / "reference").mkdir()
+
+    def test_collect_entries_rejects_symlink_escaping_the_plugin_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "plugin"
+            root.mkdir()
+            self._minimal_plugin_root(root)
+            secret = Path(directory) / "secret.txt"
+            secret.write_text("private", encoding="utf-8")
+            try:
+                (root / "reference" / "leak.md").symlink_to(secret)
+            except OSError as exc:
+                self.skipTest(f"symlink unsupported: {exc}")
+            with self.assertRaises(packager.PackagingError):
+                packager.collect_entries(root)
+
+    def test_collect_entries_rejects_untracked_files_in_a_git_checkout(self) -> None:
+        if shutil.which("git") is None:
+            self.skipTest("git unavailable")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._minimal_plugin_root(root)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            (root / "reference" / "local-note.md").write_text("local only", encoding="utf-8")
+            with self.assertRaisesRegex(packager.PackagingError, "local-note.md"):
+                packager.collect_entries(root)
+
+    def test_collect_entries_without_git_still_applies_the_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self._minimal_plugin_root(root)
+            if packager._git_untracked(root) is not None:
+                self.skipTest("temporary directory is inside a git checkout")
+            (root / "AGENTS.md").write_text("repo instructions", encoding="utf-8")
+            entries = packager.collect_entries(root)
+            self.assertIn(PurePosixPath(".qoder-plugin/plugin.json"), entries)
+            self.assertNotIn(PurePosixPath("AGENTS.md"), entries)
+
     def test_other_host_surfaces_are_excluded(self) -> None:
         for relative in (
             PurePosixPath(".claude-plugin/marketplace.json"),
@@ -221,6 +307,12 @@ class QoderPackagingTest(unittest.TestCase):
                 names = {PurePosixPath(item.filename) for item in bundle.infolist()}
                 self.assertIn(PurePosixPath("hooks/hooks.json"), names)
                 self.assertNotIn(PurePosixPath("SKILL.md"), names)
+                for relative in names:
+                    self.assertTrue(
+                        relative in packager.GENERATED_ARCHIVE_PATHS
+                        or packager.is_packaged(relative),
+                        f"ZIP 混入非 Qoder 表面文件: {relative}",
+                    )
                 for command in sorted(WORKFLOW_COMMANDS):
                     self.assertIn(
                         PurePosixPath(f"hosts/qoder/skills/{command}/SKILL.md"), names, command

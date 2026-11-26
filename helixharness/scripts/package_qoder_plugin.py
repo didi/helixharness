@@ -16,6 +16,11 @@ archive, and the two host-specific adjustments Qoder needs are applied to the ar
 Usage::
 
     python3 scripts/package_qoder_plugin.py [--output DIR]
+
+Only the surfaces Qoder loads are packaged. The allowlist below is positive: a
+new top-level directory or file must be added deliberately. Untracked files in
+a git checkout and symlinks that resolve outside the plugin root are refused,
+so local state cannot leak into a distributed archive.
 """
 
 from __future__ import annotations
@@ -25,6 +30,7 @@ import hashlib
 import io
 import json
 import stat
+import subprocess
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -42,6 +48,17 @@ EXCLUDED_TOP_LEVEL = {".claude-plugin", ".codex-plugin", "SKILL.md", "dist"}
 EXCLUDED_PATHS = {PurePosixPath("hosts/claude-code"), PurePosixPath("hosts/codex")}
 EXCLUDED_NAMES = {"__pycache__", ".DS_Store", ".git", ".ruff_cache", ".pytest_cache", "output"}
 EXCLUDED_SUFFIXES = {".pyc", ".pyo", ".coverage"}
+
+# Positive allowlist: only Qoder-loadable surfaces ship.
+ALLOWED_TOP_LEVEL_DIRS = {
+    "agents", "commands", "hosts", "reference", "scripts", "skills", "templates", "workflows",
+}
+ALLOWED_TOP_LEVEL_FILES = {
+    "LICENSE", "NOTICE", "PLUGIN_USAGE.md", "README.md", "THIRD_PARTY_NOTICES.md",
+}
+ALLOWED_HOST_CHILDREN = {"qoder", "shared", "host-manifest-v1.schema.json"}
+ALLOWED_PLUGIN_DIRS = {".qoder-plugin"}
+GENERATED_ARCHIVE_PATHS = {PurePosixPath("hooks/hooks.json")}
 
 ZIP_TIMESTAMP = (2026, 1, 1, 0, 0, 0)
 
@@ -216,15 +233,63 @@ def is_excluded(relative: PurePosixPath) -> bool:
     return relative.suffix in EXCLUDED_SUFFIXES
 
 
+def is_packaged(relative: PurePosixPath) -> bool:
+    """Return True when a plugin-relative path belongs in the Qoder archive."""
+    parts = relative.parts
+    if not parts:
+        return False
+    top = parts[0]
+    if top in ALLOWED_PLUGIN_DIRS:
+        return len(parts) > 1 and not is_excluded(relative)
+    if top == "hosts":
+        if len(parts) < 2 or parts[1] not in ALLOWED_HOST_CHILDREN:
+            return False
+        return not is_excluded(relative)
+    if top in ALLOWED_TOP_LEVEL_DIRS:
+        return not is_excluded(relative)
+    return len(parts) == 1 and top in ALLOWED_TOP_LEVEL_FILES
+
+
+def _git_untracked(plugin_root: Path) -> set[PurePosixPath] | None:
+    """Return unversioned files under the plugin root, or None outside git.
+
+    An installed plugin cache is not a git checkout; the allowlist still bounds
+    the archive there, but provenance cannot be checked.
+    """
+    command = ["git", "-C", str(plugin_root), "ls-files", "--others", "-z"]
+    try:
+        result = subprocess.run(command, capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    return {
+        PurePosixPath(entry)
+        for entry in result.stdout.decode("utf-8", "surrogateescape").split("\0")
+        if entry
+    }
+
+
 def collect_entries(plugin_root: Path) -> dict[PurePosixPath, bytes]:
+    root = plugin_root.resolve()
+    untracked = _git_untracked(plugin_root)
+    unversioned: list[str] = []
     archive: dict[PurePosixPath, bytes] = {}
     for path in sorted(plugin_root.rglob("*")):
         if not path.is_file():
             continue
         relative = PurePosixPath(path.relative_to(plugin_root).as_posix())
-        if is_excluded(relative):
+        if not is_packaged(relative):
+            continue
+        if path.is_symlink() and not path.resolve().is_relative_to(root):
+            raise PackagingError(f"符号链接越过插件根: {relative} -> {path.resolve()}")
+        if untracked is not None and relative in untracked:
+            unversioned.append(str(relative))
             continue
         archive[relative] = path.read_bytes()
+    if unversioned:
+        raise PackagingError(
+            f"未纳入版本控制的 {len(unversioned)} 个文件会被打包: "
+            + ", ".join(sorted(unversioned)[:5])
+        )
 
     archive[HOOKS_TARGET_RELATIVE] = _read_manifest_text(
         plugin_root, HOOKS_SOURCE_RELATIVE
@@ -266,8 +331,8 @@ def verify_archive(plugin_root: Path, archive_path: Path) -> dict[str, object]:
         for relative in names:
             if relative.is_absolute() or ".." in relative.parts:
                 raise PackagingError(f"ZIP 条目路径不安全: {relative}")
-            if is_excluded(relative) and relative != HOOKS_TARGET_RELATIVE:
-                raise PackagingError(f"ZIP 混入其他宿主文件: {relative}")
+            if relative not in GENERATED_ARCHIVE_PATHS and not is_packaged(relative):
+                raise PackagingError(f"ZIP 混入非 Qoder 插件文件: {relative}")
         for relative in host_resource_paths(plugin_root):
             if relative not in names:
                 raise PackagingError(f"ZIP 缺少宿主适配器资源: {relative}")

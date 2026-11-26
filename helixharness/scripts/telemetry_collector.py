@@ -275,7 +275,13 @@ def _collect_entry(
             started_at = str(boundary["started_at"] if boundary is not None else locator["started_at"])
             ended_at = str(boundary["ended_at"] if boundary is not None else locator["ended_at"])
             events, usage = [], {}
-            evidence = {"status": "unavailable", "reason_code": "host_transcript_not_collected"}
+            # The platform validates evidence.schema on every supplement, including
+            # stage-facts-only hosts that never collect a transcript.
+            evidence = {
+                "schema": telemetry_protocol.EVIDENCE_SCHEMA,
+                "status": "unavailable",
+                "reason_code": "host_transcript_not_collected",
+            }
         else:
             validated_source = adapter.validate_session_source(session_path, repo) if adapter is not None else None
             if validated_source is None or Path(validated_source).resolve() != session_path.expanduser().resolve():

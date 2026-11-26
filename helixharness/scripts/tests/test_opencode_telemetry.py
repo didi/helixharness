@@ -97,6 +97,9 @@ class OpenCodeTelemetryTest(unittest.TestCase):
         self.assertEqual(supplement["usage"], {})
         self.assertEqual(supplement["execution"], {})
         self.assertEqual(supplement["evidence"]["status"], "unavailable")
+        self.assertEqual(supplement["evidence"]["reason_code"], "host_transcript_not_collected")
+        # 平台对每条 supplement 校验 evidence.schema；缺了它会被 invalid_evidence 拒收。
+        self.assertEqual(supplement["evidence"]["schema"], "helixharness-evolution-evidence/1.0")
         archived = metrics.start(self.repo, "opencode", "demo", "archive", "user_command")
         metrics.finish(self.repo, "opencode", "demo", "archive", "completed", None, {})
         final = telemetry_collector.collect_entry(self.repo, archived["entry_id"], home=home,
