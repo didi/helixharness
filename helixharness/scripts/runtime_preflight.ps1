@@ -70,15 +70,26 @@ function Invoke-HelixPython($Python, [string[]]$Values, [bool]$RedirectInput) {
     } finally { $process.Dispose() }
 }
 
-function Find-HelixPython {
+function Find-HelixPython([string]$Explicit) {
     $status = 'missing'
     $version = $null
-    foreach ($name in @('python.exe', 'python3.exe', 'py.exe')) {
-        foreach ($candidate in @(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)) {
+    $explicitRequested = $PSBoundParameters.ContainsKey('Explicit')
+    if ($explicitRequested -and ([string]::IsNullOrWhiteSpace($Explicit) -or $Explicit -match '[\x00-\x1F\x7F]')) {
+        return @{ status = 'unusable'; version = $null; executable = $null; arguments = @() }
+    }
+    $names = @('python.exe', 'python3.exe', 'py.exe')
+    if ($explicitRequested) { $names = @($Explicit) }
+    foreach ($name in $names) {
+        $candidates = @(Get-Command $name -CommandType Application -All -ErrorAction SilentlyContinue)
+        if ($explicitRequested -and [IO.Path]::IsPathRooted($name) -and (Test-Path -LiteralPath $name -PathType Leaf)) {
+            $candidates = @([pscustomobject]@{ Source = $name })
+        }
+        if ($explicitRequested) { $candidates = @($candidates | Select-Object -First 1) }
+        foreach ($candidate in $candidates) {
             # Do not launch the Microsoft Store's placeholder executable.
             if ($candidate.Source -match '[\\/]Microsoft[\\/]WindowsApps[\\/]') { continue }
             $prefix = @()
-            if ($name -eq 'py.exe') { $prefix = @('-3') }
+            if ([IO.Path]::GetFileName($name) -eq 'py.exe') { $prefix = @('-3') }
             try {
                 $version = & $candidate.Source @prefix -c 'import sys; print(str(sys.version_info.major)+chr(46)+str(sys.version_info.minor)+chr(46)+str(sys.version_info.micro))' 2>$null
                 if ($LASTEXITCODE -ne 0 -or "$version" -notmatch '^\d+\.\d+\.\d+$') {
@@ -91,6 +102,10 @@ function Find-HelixPython {
                 $status = 'unsupported_version'
             } catch { $status = 'unusable' }
         }
+    }
+    if ($explicitRequested) {
+        if ($status -eq 'missing') { $status = 'unusable' }
+        return @{ status = $status; version = $null; executable = $null; arguments = @() }
     }
     # uv-managed interpreters are installed independently from uv's cache.
     # Read those directories directly so Codex's workspace sandbox does not
@@ -151,7 +166,14 @@ function Write-Check($python) {
     } | ConvertTo-Json -Depth 5 -Compress
 }
 
-$python = Find-HelixPython
+if ($Action -eq 'exec' -and $RuntimeArguments -and $RuntimeArguments[0] -eq '--python') {
+    $explicit = ''
+    if ($RuntimeArguments.Count -gt 1) { $explicit = $RuntimeArguments[1] }
+    $RuntimeArguments = @($RuntimeArguments | Select-Object -Skip 2)
+    $python = Find-HelixPython -Explicit $explicit
+} else {
+    $python = Find-HelixPython
+}
 switch ($Action) {
     'check' { Write-Check $python; exit 0 }
     'install-python' {

@@ -177,10 +177,13 @@ def _snapshot_payload(item: dict[str, Any]) -> dict[str, Any]:
 
     evidence = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
     snapshot["evidence"] = {"schema": EVIDENCE_SCHEMA}
-    for field in ("status", "reason_code"):
-        value = evidence.get(field)
-        if isinstance(value, str) and value.strip():
-            snapshot["evidence"][field] = value[:64]
+    if evidence.get("status") == "unavailable":
+        snapshot["evidence"]["status"] = "unavailable"
+        # Keep the known machine reason, never arbitrary paths or free-form text.
+        if evidence.get("reason_code") == "host_transcript_not_collected":
+            snapshot["evidence"]["reason_code"] = "host_transcript_not_collected"
+        # Explicit absence takes precedence over contradictory conversation counts.
+        evidence = {}
     for field, allowed in (
         ("interaction_summary", ("user_turns", "assistant_messages")),
         ("coverage", ("in_window", "retained")),

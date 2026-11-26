@@ -35,6 +35,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/r
 
 保留示例中的脚本路径和参数，也可用回执的 `python.executable` 与 `python.arguments` 构造参数数组，PowerShell 用 `&` 调用。路径一律加引号。
 启动器与 Hook 使用同一套解释器查找规则，无需修改 PATH。
+`exec --python <executable> <script> [args...]` 可显式选择解释器（绝对路径或 PATH 中的命令名），
+仍通过共享探测校验 Python 3.10+；显式值缺失、不可用或版本过低时返回标准运行时诊断，不静默回退。
+OpenCode 的自动编辑后巡检使用同一入口；既有 `HELIXHARNESS_OPENCODE_PYTHON` 覆盖也经此校验，
+运行时不可用只报告 `project_check_unavailable`，不把成功的编辑或合法项目语法误报为失败。
 Windows 安装恢复使用同一 `.ps1` 的 `install-python --user-confirmed`。
 命令中的 POSIX 环境变量赋值、路径和 Shell 工具必须转换为宿主原生写法；不得调用 WSL 的 bash 运行原生 Windows 工作区。
 

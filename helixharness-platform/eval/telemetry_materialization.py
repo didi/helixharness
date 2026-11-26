@@ -33,7 +33,7 @@ def materialized_hash(raw: bytes, records: Mapping[str, LinkedStageSupplement]) 
     """Identify the combined fixed-ledger and active-Supplement projection."""
 
     identity = {
-        "materializer": "helixharness-eval-materialized/2.1",
+        "materializer": "helixharness-eval-materialized/2.2",
         "supplements": {
             entry_id: {
                 "payload_hash": record.payload_hash,
@@ -134,6 +134,8 @@ def _materialize_entry(
         if isinstance(supplement, dict) and isinstance(supplement.get("evidence"), dict)
         else {}
     )
+    if evidence.get("status") == "unavailable":
+        evidence = {key: evidence[key] for key in ("schema", "status", "reason_code") if key in evidence}
     trace = (
         supplement.get("workflow_trace")
         if isinstance(supplement, dict) and isinstance(supplement.get("workflow_trace"), dict)
@@ -264,6 +266,14 @@ def _materialize_usage(usage: dict[str, Any]) -> dict[str, Any]:
 
 
 def _materialize_collection(evidence: dict[str, Any]) -> dict[str, Any]:
+    if evidence.get("status") == "unavailable":
+        return {
+            "scope": "none", "source_log_count": 0,
+            "events_scanned": None, "messages_scanned": None, "messages_used": None,
+            "user_turn_count": None, "confidence": "unknown", "semantic_status": "unavailable",
+            "unavailable_reason": evidence.get("reason_code") or "evidence_unavailable",
+            "candidate_user_turn_count": 0, "classified_user_turn_count": 0, "malformed_event_count": 0,
+        }
     coverage = evidence.get("coverage") if isinstance(evidence.get("coverage"), dict) else {}
     summary = evidence.get("interaction_summary") if isinstance(evidence.get("interaction_summary"), dict) else {}
     return {
@@ -282,6 +292,7 @@ def _materialize_collection(evidence: dict[str, Any]) -> dict[str, Any]:
 
 
 def _materialize_friction(evidence: dict[str, Any]) -> dict[str, Any]:
+    available = bool(evidence) and evidence.get("status") != "unavailable"
     tools = evidence.get("tools") if isinstance(evidence.get("tools"), dict) else {}
     failed = int(tools.get("failed", 0) or 0)
     return {
@@ -289,8 +300,8 @@ def _materialize_friction(evidence: dict[str, Any]) -> dict[str, Any]:
         "intervention_breakdown": {},
         "intervention_events": [],
         "rework_from_previous": False,
-        "classification_source": "async_stage_supplement" if evidence else "unavailable",
-        "confidence": "medium" if evidence else "unknown",
+        "classification_source": "async_stage_supplement" if available else "unavailable",
+        "confidence": "medium" if available else "unknown",
         "failed_tool_count": failed,
     }
 
@@ -306,6 +317,8 @@ def _evolution_evidence(
     interactions = [item for item in evidence.get("interactions", []) if isinstance(item, dict)]
     bounded_interactions = interactions if len(interactions) <= 12 else [*interactions[:6], *interactions[-6:]]
     return {
+        **({"status": "unavailable", "reason_code": evidence.get("reason_code") or "evidence_unavailable"}
+           if evidence.get("status") == "unavailable" else {}),
         "interactions": [
             {
                 "role": str(item.get("role") or "unknown")[:32],

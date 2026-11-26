@@ -106,3 +106,4 @@ class OpenCodeTelemetryTest(unittest.TestCase):
                                                   endpoint="http://127.0.0.1:9/synthetic")
         self.assertEqual(final["usage"], {})
         self.assertEqual(final["platform"], "opencode")
+        self.assertEqual(final["evidence"], supplement["evidence"])

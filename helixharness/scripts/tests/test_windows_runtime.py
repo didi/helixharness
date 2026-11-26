@@ -68,6 +68,38 @@ class WindowsRuntimeTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(json.loads(result.stdout), {"message": "中文 🌍"})
 
+    def test_explicit_exec_override_preserves_native_arguments(self):
+        with tempfile.TemporaryDirectory(prefix="helix explicit 中文 ") as temporary:
+            script = Path(temporary) / "args.py"
+            script.write_text("import json,sys; print(json.dumps(sys.argv[1:])); sys.exit(7)", encoding="utf-8")
+            result = subprocess.run([*self.base, "exec", "--python", sys.executable, str(script),
+                                     "space value", "中文", '{"key":"value"}', "C:\\trailing\\"],
+                                    capture_output=True, text=True, encoding="utf-8", timeout=20)
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertEqual(json.loads(result.stdout), ["space value", "中文", '{"key":"value"}', "C:\\trailing\\"])
+
+    def test_explicit_obsolete_python_does_not_use_default_or_uv_fallback(self):
+        with tempfile.TemporaryDirectory(prefix="helix old interpreter ") as temporary:
+            old = Path(temporary) / "old-python.cmd"
+            old.write_text("@echo off\r\necho 3.9.6\r\n", encoding="ascii")
+            result = subprocess.run([*self.base, "exec", "--python", str(old), "never.py"],
+                                    capture_output=True, text=True, encoding="utf-8", timeout=20)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["python"]["status"], "unsupported_version")
+
+    def test_explicit_command_name_does_not_fall_through_same_named_path_candidates(self):
+        with tempfile.TemporaryDirectory(prefix="helix explicit PATH ") as temporary:
+            root = Path(temporary)
+            first, later = root / "first", root / "later"
+            first.mkdir(); later.mkdir()
+            for directory, version in ((first, "3.9.6"), (later, "3.12.13")):
+                (directory / "python-selector.cmd").write_text(f"@echo off\r\necho {version}\r\n", encoding="ascii")
+            environment = {**os.environ, "PATH": os.pathsep.join((str(first), str(later), os.environ["PATH"]))}
+            result = subprocess.run([*self.base, "exec", "--python", "python-selector.cmd", "never.py"],
+                                    env=environment, capture_output=True, text=True, encoding="utf-8", timeout=20)
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["python"]["status"], "unsupported_version")
+
     def test_lifecycle_strips_utf8_bom_from_stdin(self):
         with tempfile.TemporaryDirectory() as temporary:
             script = Path(temporary) / "hook.py"

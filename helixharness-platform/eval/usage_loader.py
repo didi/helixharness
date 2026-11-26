@@ -409,6 +409,8 @@ def _execution_stats(entry: dict) -> dict:
     stats = entry.get("execution_stats") if isinstance(entry.get("execution_stats"), dict) else {}
     reads = stats.get("context_reads") if isinstance(stats.get("context_reads"), dict) else {}
     evidence = entry.get("async_evidence") if isinstance(entry.get("async_evidence"), dict) else {}
+    if evidence.get("status") == "unavailable":
+        evidence = {}  # Transcript absence does not invalidate independent execution measurements.
     tools = evidence.get("tools") if isinstance(evidence.get("tools"), dict) else {}
     status = stats.get("collection_status")
     available = status not in {"unavailable", "pending"}
@@ -439,15 +441,16 @@ def _collection(entry: dict) -> dict:
     return {
         "scope": c.get("scope", "none"),
         "source_log_count": int(c.get("source_log_count", 0) or 0),
-        "events_scanned": int(c.get("events_scanned", 0) or 0),
-        "messages_scanned": int(c.get("messages_scanned", 0) or 0),
-        "messages_used": int(c.get("messages_used", 0) or 0),
+        "events_scanned": _to_int_or_none(c.get("events_scanned", 0)),
+        "messages_scanned": _to_int_or_none(c.get("messages_scanned", 0)),
+        "messages_used": _to_int_or_none(c.get("messages_used", 0)),
         "user_turn_count": _to_int_or_none(c.get("user_turn_count")),
         "confidence": c.get("confidence", "unknown"),
         "collector_version": c.get("collector_version"),
         "parser_version": c.get("parser_version"),
         "host_versions": c.get("host_versions") if isinstance(c.get("host_versions"), list) else [],
         "semantic_status": c.get("semantic_status") or "unavailable",
+        "unavailable_reason": c.get("unavailable_reason"),
         "classifier_version": c.get("classifier_version"),
         "semantic_coverage": c.get("semantic_coverage"),
         "candidate_user_turn_count": int(c.get("candidate_user_turn_count", 0) or 0),
@@ -2807,6 +2810,12 @@ def render_feature_timeline_html(eval_log: dict, *, archive_changes: dict | None
             _stage_total_html("用户交互轮次", [_entry_user_turns(e)], "轮"),
             _stage_total_html("AI 回复", [assistant_messages], "条"),
         ]
+        collection = _collection(e)
+        if collection["semantic_status"] == "unavailable" and collection["unavailable_reason"]:
+            note = "会话未采集"
+            if collection["unavailable_reason"] == "host_transcript_not_collected":
+                note += "，仅记录阶段信息"
+            interaction_bits.append(f'<small>{note}</small>')
         process_bits = [
             f'<b>/helix:{_esc(e.get("command", ""))}</b> · {_entry_status_badge(str(e.get("status") or ""))}',
             f'<span>结果：{_esc(_entry_outcome_text(e))}</span>',

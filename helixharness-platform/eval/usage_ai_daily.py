@@ -51,7 +51,7 @@ def _number(value: Any) -> int | None:
 
 def daily_records(features: list[dict]) -> list[dict]:
     """Project stable, allowlisted facts for every project and physical entry."""
-    from eval.usage_loader import _duration_sec, _resource_usage, _workflow
+    from eval.usage_loader import _duration_sec, _execution_stats, _resource_usage, _workflow
 
     records = []
     for feature in features:
@@ -90,7 +90,15 @@ def daily_records(features: list[dict]) -> list[dict]:
             linked = entry.get("telemetry_status") == "complete"
             trace = (async_data.get("workflow_trace") or {}) if linked else {}
             gates = trace.get("gates") or []
-            failed_tools = (async_data.get("failed_tools") or []) if linked else []
+            transcript_available = async_data.get("status") != "unavailable"
+            failed_tools = (async_data.get("failed_tools") or []) if linked and transcript_available else []
+            execution = _execution_stats(entry) if linked else {}
+            tool_errors = execution.get("tool_error_count")
+            if (tool_errors is None and linked and transcript_available
+                    and execution.get("collection_status") not in {"unavailable", "pending"}
+                    and isinstance(async_data.get("failed_tools"), list)):
+                # Legacy snapshots may explicitly measure an empty failure list.
+                tool_errors = len(failed_tools)
             records.append({
                 **identity, "record_key": _hash([project_key, entry_id]), "kind": "entry",
                 "stage": BUSINESS_STAGES.get(entry.get("stage_kind"), "其他阶段"),
@@ -114,7 +122,7 @@ def daily_records(features: list[dict]) -> list[dict]:
                     name for gate in gates if isinstance(gate, dict) and gate.get("status") in {"failed", "blocked"}
                     if (name := _identifier(gate.get("gate") or gate.get("name") or gate.get("id")))
                 })[:12],
-                "failed_tool_count": len(failed_tools) if linked and isinstance(async_data.get("failed_tools"), list) else None,
+                "failed_tool_count": tool_errors,
                 "failed_tool_names": sorted({
                     name for tool in failed_tools
                     if isinstance(tool, dict)

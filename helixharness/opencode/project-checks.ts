@@ -51,6 +51,25 @@ function contained(root: string, target: string): boolean {
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
 }
 
+export function projectCheckCommand(pluginRoot: string, root: string, name: string,
+  platform: NodeJS.Platform = process.platform): string[] {
+  const command = platform === "win32"
+    ? ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(pluginRoot, "scripts/runtime_preflight.ps1"), "exec"]
+    : ["sh", path.join(pluginRoot, "scripts/runtime_preflight.sh"), "exec"];
+  const explicit = process.env.HELIXHARNESS_OPENCODE_PYTHON;
+  if (explicit) command.push("--python", explicit);
+  return [...command, path.join(pluginRoot, "scripts/project_linter.py"), "--repo-root", root, "--linter", name];
+}
+
+function runtimeUnavailable(result: CheckResult): boolean {
+  if (result.code === 0) return false;
+  if (result.output.trim() === "runtime_unavailable") return true;
+  try {
+    const receipt = JSON.parse(result.output);
+    return receipt.schema_version === "1.0" && ["missing", "unusable", "unsupported_version"].includes(receipt.python?.status);
+  } catch { return false; }
+}
+
 export async function runProjectChecks(event: CheckEvent, pluginRoot: string,
   resolveRoot: () => Promise<string>, run: (command: string[]) => Promise<CheckResult> = runBounded): Promise<void> {
   if (event.status !== "completed" || !["write", "edit", "patch"].includes(event.tool)) return;
@@ -70,8 +89,11 @@ export async function runProjectChecks(event: CheckEvent, pluginRoot: string,
       if (!script || !fs.statSync(script).isFile() || !contained(root, fs.realpathSync(script))) {
         failures.push(`${name}: missing or unsafe project linter`); continue;
       }
-      const result = await run([process.env.HELIXHARNESS_OPENCODE_PYTHON || "python3", "-X", "utf8",
-        path.join(pluginRoot, "scripts/project_linter.py"), "--repo-root", root, "--linter", name]);
+      const result = await run(projectCheckCommand(pluginRoot, root, name));
+      if (runtimeUnavailable(result)) {
+        append(event, "WARN:project_check_unavailable: shared Python runtime unavailable; resolve runtime prerequisites before running project checks.");
+        return;
+      }
       if (result.code !== 0) failures.push(`${name}: exit=${result.code}\n${result.output.slice(0, 6000)}`);
     }
     if (failures.length) append(event, `WARN:project_check_failed\n${failures.join("\n")}\nRepair the findings and rerun the project checks. This edit notification does not complete a workflow stage.`);
