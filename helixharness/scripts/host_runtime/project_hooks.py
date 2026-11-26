@@ -26,7 +26,8 @@ class StaleBindingPolicy:
 
     - recognize: how to identify our own generated command.
       * exact_args: argv[1:] must match exactly (current behavior).
-      * linter_flag: match by --linter <name> + script path tail + absolute interpreter.
+      * linter_flag: match by --linter <name> + script path tail + absolute interpreter;
+        extra flags disqualify the command, so user-modified handlers are preserved.
     - merge: what to do when multiple shape-matched entries exist.
       * append: current dedup behavior (keep first, append others).
       * collapse: keep first, drop extras.

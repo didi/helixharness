@@ -536,7 +536,7 @@ service 的 `--knowledge` 导入分支在此验证导入产物后，才补做 St
   `resources.project_hooks.stale_binding_policy.check` 分档：默认 `fail` 时缺失或重复即抛
   `project_hooks_missing_or_duplicated`；`warn` 时同样条件返回 `warnings` 数组而不阻断，Init 继续
   把 warnings 原样输出给用户，除非用户显式要求严格模式（`--strict`）才升级为 BLOCKED。任何冲突、
-  坏 JSON 或非形状匹配的重复仍报告 `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，
+  坏 JSON 或非法 hook 结构仍报告 `BLOCKED: project_hooks_incomplete`，保留其他已生成工件，
   不得报告 Init 完成。
 
 绿地额外验收：`project-context.md` 必须明确 `project-mode: greenfield`，未知事实保留 TODO。
