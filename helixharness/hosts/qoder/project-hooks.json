@@ -1,0 +1,31 @@
+{
+  "project_hooks_version": "1.0",
+  "owner": "parent",
+  "settings_file": ".qoder/settings.json",
+  "merge_strategy": "json_append_dedup",
+  "dedupe_key": "hooks.PostToolUse[].matcher=Write|Edit|NotebookEdit",
+  "stale_binding_policy": {
+    "recognize": "linter_flag",
+    "merge": "collapse",
+    "check": "warn"
+  },
+  "payload": {
+    "hooks": {
+      "PostToolUse": [
+        {
+          "matcher": "Write|Edit|NotebookEdit",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter invariant-check"
+            },
+            {
+              "type": "command",
+              "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter spec-sync-check"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

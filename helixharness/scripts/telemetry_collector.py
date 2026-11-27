@@ -16,6 +16,7 @@ import telemetry_ledger as telemetry_ledger
 import telemetry_protocol as telemetry_protocol
 import telemetry_trace as telemetry_trace
 from telemetry_hosts import get_host_adapter
+from cli_stdio import configure_utf8_stdio
 
 
 MAX_TOOL_EVENTS = 20_000
@@ -62,7 +63,21 @@ def _execution_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
         "tools": [],
         "tools_truncated": False,
     }
+    subagents: dict[str, dict[str, Any]] = {}
+    started_subagents: set[str] = set()
     for event in events:
+        if event.get("type") == "subagent":
+            identity = event.get("subagent_id")
+            if not isinstance(identity, str) or not identity:
+                continue
+            row = subagents.setdefault(identity, {"name": str(event.get("name") or "unknown"), "status": "unknown"})
+            if event.get("phase") == "start":
+                started_subagents.add(identity)
+            elif event.get("phase") == "stop":
+                row["status"] = str(event.get("status") or "unknown")
+                if type(event.get("duration_ms")) in {int, float} and event["duration_ms"] >= 0:
+                    row["duration_ms"] = event["duration_ms"]
+            continue
         if event.get("type") != "tool":
             continue
         summary["tool_call_count"] += 1
@@ -89,6 +104,14 @@ def _execution_summary(events: list[dict[str, Any]]) -> dict[str, Any]:
             kind = _context_kind(arguments.get("file_path") or arguments.get("path") or arguments.get("uri"))
             if kind:
                 summary["context_reads"][kind] += 1
+    if subagents:
+        # Native child lifecycle is authoritative when present. A Task tool
+        # completion and its start/stop callbacks describe the same child.
+        summary["subagent_spawn_count"] = len(started_subagents)
+        summary["subagents"] = list(subagents.values())
+    if any(event.get("type") == "collection_gap" for event in events):
+        summary["collection_status"] = "partial" if summary["tool_call_count"] or subagents else "unavailable"
+        summary["unavailable_reason"] = "ambiguous_workspace"
     return summary
 
 
@@ -128,11 +151,13 @@ def _sealed_boundary(
     )
     if boundary is None:
         raise ValueError("Lite collection seal does not contain stage entry")
-    return _validate_sealed_boundary(boundary)
+    entry = next(item for item in ledger.get("entries", []) if item.get("entry_id") == entry_id)
+    adapter = get_host_adapter(str(entry.get("platform") or ""))
+    return _validate_sealed_boundary(boundary, allow_stage_facts=getattr(adapter, "stage_facts_only", False) is True)
 
 
-def _validate_sealed_boundary(boundary: dict[str, Any]) -> dict[str, Any]:
-    if boundary.get("source_status") != "recorded":
+def _validate_sealed_boundary(boundary: dict[str, Any], *, allow_stage_facts: bool = False) -> dict[str, Any]:
+    if boundary.get("source_status") != "recorded" and not (allow_stage_facts and boundary.get("source_status") == "stage_facts"):
         raise ValueError("session source was unavailable when requirement was archived")
     limit = boundary.get("source_limit_bytes")
     fingerprint = boundary.get("source_fingerprint")
@@ -185,7 +210,7 @@ def _collection_context(
     boundary = frozen.get("sealed_boundary")
     try:
         validated_boundary = (
-            _validate_sealed_boundary(boundary)
+            _validate_sealed_boundary(boundary, allow_stage_facts=getattr(get_host_adapter(str(locator.get("platform") or "")), "stage_facts_only", False) is True)
             if isinstance(boundary, dict)
             else None
         )
@@ -242,36 +267,52 @@ def _collect_entry(
         adapter = get_host_adapter(platform)
         if adapter is None:
             raise UnrecoverableCollectionError("unsupported_telemetry_host")
-        validated_source = adapter.validate_session_source(session_path, repo) if adapter is not None else None
-        if validated_source is None or Path(validated_source).resolve() != session_path.expanduser().resolve():
-            raise UnrecoverableCollectionError("session_source_unavailable")
-        transcript_fingerprint = transcript_fingerprint or _source_fingerprint(session_path)
-        source_fingerprint = (
-            hashlib.sha256(
-                f"{transcript_fingerprint}\0{trace_fingerprint}".encode("utf-8")
-            ).hexdigest()
-            if transcript_fingerprint
-            else None
-        )
-        if previous and source_fingerprint and previous.get("source_fingerprint") == source_fingerprint:
-            return previous, False, str(previous.get("content_id") or ""), source_fingerprint, boundary is not None
-        started_at = str(
-            boundary["started_at"] if boundary is not None else locator["started_at"]
-        )
-        ended_at = str(
-            boundary["ended_at"] if boundary is not None else locator["ended_at"]
-        )
-        try:
-            window = adapter.collect_supplement_window(
-                session_path,
-                started_at=started_at,
-                ended_at=ended_at,
-                max_bytes=source_limit_bytes,
+        stage_only = getattr(adapter, "stage_facts_only", False) is True
+        if stage_only:
+            # The canonical workflow trace is available; host conversation and
+            # usage are not. Missing observations must never become zero counts.
+            source_fingerprint = hashlib.sha256(f"stage-facts\0{trace_fingerprint}\0{entry_id}".encode()).hexdigest()
+            started_at = str(boundary["started_at"] if boundary is not None else locator["started_at"])
+            ended_at = str(boundary["ended_at"] if boundary is not None else locator["ended_at"])
+            events, usage = [], {}
+            # The platform validates evidence.schema on every supplement, including
+            # stage-facts-only hosts that never collect a transcript.
+            evidence = {
+                "schema": telemetry_protocol.EVIDENCE_SCHEMA,
+                "status": "unavailable",
+                "reason_code": "host_transcript_not_collected",
+            }
+        else:
+            validated_source = adapter.validate_session_source(session_path, repo) if adapter is not None else None
+            if validated_source is None or Path(validated_source).resolve() != session_path.expanduser().resolve():
+                raise UnrecoverableCollectionError("session_source_unavailable")
+            transcript_fingerprint = transcript_fingerprint or _source_fingerprint(session_path)
+            source_fingerprint = (
+                hashlib.sha256(
+                    f"{transcript_fingerprint}\0{trace_fingerprint}".encode("utf-8")
+                ).hexdigest()
+                if transcript_fingerprint
+                else None
             )
-        except FileNotFoundError as exc:
-            raise UnrecoverableCollectionError("session_source_unavailable") from exc
-        events, usage = window.events, window.usage
-        evidence = telemetry_protocol.build_evolution_evidence(events, started_at=started_at, ended_at=ended_at)
+            if previous and source_fingerprint and previous.get("source_fingerprint") == source_fingerprint:
+                return previous, False, str(previous.get("content_id") or ""), source_fingerprint, boundary is not None
+            started_at = str(
+                boundary["started_at"] if boundary is not None else locator["started_at"]
+            )
+            ended_at = str(
+                boundary["ended_at"] if boundary is not None else locator["ended_at"]
+            )
+            try:
+                window = adapter.collect_supplement_window(
+                    session_path,
+                    started_at=started_at,
+                    ended_at=ended_at,
+                    max_bytes=source_limit_bytes,
+                )
+            except FileNotFoundError as exc:
+                raise UnrecoverableCollectionError("session_source_unavailable") from exc
+            events, usage = window.events, window.usage
+            evidence = telemetry_protocol.build_evolution_evidence(events, started_at=started_at, ended_at=ended_at)
         fixed = {
             "entry_id": entry_id,
             "requirement_id": ledger["requirement"]["id"],
@@ -284,7 +325,7 @@ def _collect_entry(
                 else str(locator["raw_session_id"])
             ),
         }
-        execution = _execution_summary(events)
+        execution = {} if stage_only else _execution_summary(events)
         candidate = telemetry_protocol.build_stage_supplement(
             fixed,
             session_hash=str(entry.get("session_hash") or "session-unknown"),
@@ -489,6 +530,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     if args.entry_id:
         result: dict[str, Any] = collect_entry(Path(args.repo_root), args.entry_id, home=args.home)

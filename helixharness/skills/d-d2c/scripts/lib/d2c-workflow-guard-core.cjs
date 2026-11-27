@@ -3,10 +3,47 @@
 
 const fs = require('fs')
 const path = require('path')
+const { randomBytes } = require('crypto')
 
 const GUARD_VERSION = 1
 const ACTIVE_WORKFLOW_FILE = '.active-workflow.json'
 const ALLOWED_PAUSE_KINDS = new Set(['external-input', 'user-cancelled'])
+const heldWorkflowLocks = new Set()
+
+// All cooperating marker/state writers use the same nonblocking lock. A busy
+// invocation fails closed and may retry; no waiting lock survives process.exit.
+function withWorkflowLock(stateDir, operation) {
+  fs.mkdirSync(stateDir, { recursive: true })
+  const directory = fs.realpathSync(stateDir)
+  if (heldWorkflowLocks.has(directory)) return operation()
+  // Unique entries avoid deleting/replacing a fixed lock while another writer
+  // is acquiring it. A killed process leaves only its own dead-PID entry.
+  const lock = path.join(directory, `.workflow-state.lock-${process.pid}-${randomBytes(12).toString('hex')}`)
+  fs.mkdirSync(lock)
+  heldWorkflowLocks.add(directory)
+  const release = () => {
+    if (!heldWorkflowLocks.has(directory)) return
+    heldWorkflowLocks.delete(directory)
+    try { fs.rmdirSync(lock) } catch (error) { if (error.code !== 'ENOENT') throw error }
+  }
+  process.once('exit', release)
+  try {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const match = entry.name.match(/^\.workflow-state\.lock-([1-9]\d*)-[a-f0-9]{24}$/)
+      if (!match || !entry.isDirectory() || path.join(directory, entry.name) === lock) continue
+      const pid = Number(match[1])
+      let live = true
+      try { process.kill(pid, 0) } catch (error) { if (error.code === 'ESRCH') live = false }
+      if (live) throw new Error('workflow state is busy; retry after its current writer completes')
+      // This unique directory can never become a new owner's entry (no ABA).
+      try { fs.rmdirSync(path.join(directory, entry.name)) } catch { /* dead entry need not block a retry */ }
+    }
+    return operation()
+  } finally {
+    process.removeListener('exit', release)
+    release()
+  }
+}
 
 function nowIso() {
   return new Date().toISOString()
@@ -238,10 +275,18 @@ function markerStatus(action) {
 }
 
 function syncActiveWorkflow(options) {
+  return withWorkflowLock(options.stateDir || 'd-d2c/temp', () => syncActiveWorkflowLocked(options))
+}
+
+function syncActiveWorkflowLocked(options) {
   const stateDir = options.stateDir || 'd-d2c/temp'
   const pageDir = String(options.pageDir || '').trim()
   const state = options.state
   if (!pageDir || !state) return null
+
+  const stateFile = path.resolve(options.stateFile || workflowStatePath(stateDir, pageDir))
+  const storedState = readJsonIfExists(stateFile)
+  if (storedState && JSON.stringify(storedState) !== JSON.stringify(state)) throw new Error('workflow state changed before its marker could be synchronized')
 
   const file = activeWorkflowPath(stateDir)
   const previous = readJsonIfExists(file)
@@ -258,7 +303,7 @@ function syncActiveWorkflow(options) {
   const marker = {
     version: GUARD_VERSION,
     pageDir,
-    stateFile: path.resolve(options.stateFile || workflowStatePath(stateDir, pageDir)),
+    stateFile,
     mode: state.mode || null,
     workflowStartedAt: startedAt,
     ownerSessionId: sameRun ? previous.ownerSessionId || null : null,
@@ -275,13 +320,17 @@ function syncActiveWorkflow(options) {
 
 function claimActiveWorkflow(filePath, marker, sessionId) {
   if (!marker || !sessionId || marker.ownerSessionId) return marker
-  const claimed = {
-    ...marker,
-    ownerSessionId: String(sessionId),
-    ownerClaimedAt: nowIso(),
-  }
-  writeJsonAtomic(filePath, claimed)
-  return claimed
+  return withWorkflowLock(path.dirname(filePath), () => {
+    const current = readJsonIfExists(filePath)
+    if (JSON.stringify(current) !== JSON.stringify(marker)) throw new Error('workflow changed before ownership could be claimed; retry from the current checkpoint')
+    const claimed = {
+      ...current,
+      ownerSessionId: String(sessionId),
+      ownerClaimedAt: nowIso(),
+    }
+    writeJsonAtomic(filePath, claimed)
+    return claimed
+  })
 }
 
 function loadGuardContext(cwd, options = {}) {
@@ -422,4 +471,5 @@ module.exports = {
   syncActiveWorkflow,
   workflowStatePath,
   writeJsonAtomic,
+  withWorkflowLock,
 }

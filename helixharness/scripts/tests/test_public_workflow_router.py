@@ -1,5 +1,4 @@
 """Public Lite routing, safe topology selection and archive resume behavior."""
-import json
 import shlex
 import tempfile
 import unittest
@@ -238,4 +237,4 @@ class PublicRouterTest(unittest.TestCase):
             for key in host.adapters:
                 if host.adapter_reference(key).kind=='python':
                     host.load_python_adapter(key)
-        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code'})
+        self.assertEqual(set(registry.supported_ids()),{'codex','claude-code','cursor','opencode','qoder'})

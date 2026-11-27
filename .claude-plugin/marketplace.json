@@ -4,14 +4,14 @@
     "name": "HelixHarness contributors"
   },
   "metadata": {
-    "description": "Plugin marketplace for the HelixHarness repository, exposing the helixharness workflow plugin for Claude Code and Codex"
+    "description": "Plugin marketplace for the HelixHarness repository, exposing the helixharness workflow plugin for Claude Code, Codex, Cursor and OpenCode (macOS 2.3.2 Stable)"
   },
   "plugins": [
     {
       "name": "helix",
-      "description": "HelixHarness workflow plugin for Claude Code and Codex with commands and reusable skills",
+      "description": "HelixHarness workflow plugin for Claude Code, Codex, Cursor and OpenCode (macOS 2.3.2 Stable) with commands and reusable skills",
       "source": "./helixharness",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "license": "Apache-2.0"
     }
   ]

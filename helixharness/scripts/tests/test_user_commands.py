@@ -11,12 +11,13 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import env_sandbox
 import project_status
 import reporting_config
 import telemetry_consent
-import user_config
-import test_workspace
 import test_workflow
+import test_workspace
+import user_config
 
 
 class UserCommandsTest(unittest.TestCase):
@@ -30,7 +31,7 @@ class UserCommandsTest(unittest.TestCase):
         self.home = self.root / 'home'
         self.home.mkdir()
         patch = mock.patch.dict(os.environ, {
-            'HOME': str(self.home), 'CODEX_HOME': str(self.home / 'codex'),
+            **env_sandbox.home_vars(self.home), 'CODEX_HOME': str(self.home / 'codex'),
             'CLAUDE_CONFIG_DIR': str(self.home / 'claude'),
             'HELIXHARNESS_TELEMETRY_HOME': str(self.home / 'telemetry'),
             'HELIXHARNESS_FEEDBACK_HOME': str(self.home / 'feedback'),
@@ -60,6 +61,16 @@ class UserCommandsTest(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = user_config.main(['--repo-root', str(self.repo), '--platform', 'codex', *args])
         return code, json.loads(output.getvalue())
+
+    def change_consent(self, mode, scope):
+        args = ('--telemetry', mode, '--scope', scope, '--user-confirmed')
+        code, result = self.run_config(*args)
+        if mode == 'enabled':
+            self.assertEqual(code, 0, result)
+            self.assertEqual(result['next_action'], 'display_notice_before_enable')
+            self.assertFalse(result['change']['updated'])
+            code, result = self.run_config(*args, '--telemetry-notice-shown', result['notice']['sha256'])
+        return code, result
 
     def test_empty_status_and_config_show_do_not_create_files(self):
         before = self.files()
@@ -126,11 +137,11 @@ class UserCommandsTest(unittest.TestCase):
 
     def test_consent_changes_use_existing_scope_precedence_and_keep_view_read_only(self):
         for mode, scope in [('enabled', 'project'), ('disabled', 'user')]:
-            code, result = self.run_config('--telemetry', mode, '--scope', scope, '--user-confirmed')
+            code, result = self.change_consent(mode, scope)
             self.assertEqual(code, 0, result)
             self.assertTrue(result['change']['updated'])
             self.assertEqual(result['telemetry']['effective_mode'], mode)
-        code, result = self.run_config('--telemetry', 'enabled', '--scope', 'project', '--user-confirmed')
+        code, result = self.change_consent('enabled', 'project')
         self.assertEqual(code, 0, result)
         self.assertFalse(result['change']['updated'])
         self.assertEqual(result['change']['warning'], 'WARN:telemetry_user_scope_disabled')

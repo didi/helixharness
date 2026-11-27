@@ -20,6 +20,7 @@ from workspace import (
     WorkspaceError, validate_workspace_overview, workspace_archive_preflight,
     workspace_completed_preflight,
 )
+from cli_stdio import configure_utf8_stdio
 
 
 def spec_root(repo: Path, state: str) -> Path:
@@ -137,6 +138,7 @@ def snapshot(repo: Path, feature: str | None = None, *, completed: bool = False)
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--repo-root', required=True)
     parser.add_argument('--feature')

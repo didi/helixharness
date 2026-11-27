@@ -35,9 +35,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "{plugin_root}/scripts/r
 
 保留示例中的脚本路径和参数，也可用回执的 `python.executable` 与 `python.arguments` 构造参数数组，PowerShell 用 `&` 调用。路径一律加引号。
 启动器与 Hook 使用同一套解释器查找规则，无需修改 PATH。
+`exec --python <executable> <script> [args...]` 可显式选择解释器（绝对路径或 PATH 中的命令名），
+仍通过共享探测校验 Python 3.10+；显式值缺失、不可用或版本过低时返回标准运行时诊断，不静默回退。
+OpenCode 的自动编辑后巡检使用同一入口；既有 `HELIXHARNESS_OPENCODE_PYTHON` 覆盖也经此校验，
+运行时不可用只报告 `project_check_unavailable`，不把成功的编辑或合法项目语法误报为失败。
 Windows 安装恢复使用同一 `.ps1` 的 `install-python --user-confirmed`。
 命令中的 POSIX 环境变量赋值、路径和 Shell 工具必须转换为宿主原生写法；不得调用 WSL 的 bash 运行原生 Windows 工作区。
 
+`require` 执行同一检查并输出同一 JSON，但在 `ok=false` 时退出 2。POSIX SessionStart 的
+来源绑定使用 `sh "{plugin_root}/scripts/runtime_preflight.sh" require && sh "{plugin_root}/scripts/runtime_preflight.sh" exec ... resolve ...`，
+先检查 Python/Git，再使用同一解析规则选中的解释器执行 resolver。原生 Windows 先检查预检
+JSON 的 `ok`，只有为 `true` 才执行 `.ps1 exec`。不得在检查失败后直接重跑 Python，
+也不得用 PATH 中未验证的 `python3` 替代启动器。原 `check` 保留只读诊断的退出码 0，
+不能单凭 `check` 的退出码判断就绪；两种调用都按下列 JSON 字段及恢复规则处理。
 
 只使用脚本返回的结构化字段：
 

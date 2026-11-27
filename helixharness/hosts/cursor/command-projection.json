@@ -1,0 +1,15 @@
+{
+  "projection_version": "1.0",
+  "surface": "skill",
+  "entrypoints": {
+    "apply": ["hosts/cursor/skills/helix-apply/SKILL.md", "commands/apply.md"],
+    "archive": ["hosts/cursor/skills/helix-archive/SKILL.md", "commands/archive.md"],
+    "bug-fix": ["hosts/cursor/skills/helix-bug-fix/SKILL.md", "commands/bug-fix.md"],
+    "config": ["hosts/cursor/skills/helix-config/SKILL.md", "commands/config.md"],
+    "init": ["hosts/cursor/skills/helix-init/SKILL.md", "commands/init.md"],
+    "propose": ["hosts/cursor/skills/helix-propose/SKILL.md", "commands/propose.md"],
+    "status": ["hosts/cursor/skills/helix-status/SKILL.md", "commands/status.md"],
+    "update": ["hosts/cursor/skills/helix-update/SKILL.md", "commands/update.md"],
+    "ut": ["hosts/cursor/skills/helix-ut/SKILL.md", "commands/ut.md"]
+  }
+}

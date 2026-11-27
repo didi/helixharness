@@ -1,0 +1,12 @@
+{
+  "name": "helix",
+  "version": "1.1.0",
+  "description": "HelixHarness workflow skills for Cursor",
+  "author": {"name": "HelixHarness contributors"},
+  "license": "Apache-2.0",
+  "skills": "./hosts/cursor/skills/",
+  "commands": [],
+  "agents": [],
+  "rules": [],
+  "hooks": "./hosts/cursor/hooks.json"
+}

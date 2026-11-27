@@ -14,7 +14,6 @@ from typing import Any
 
 from . import SupplementWindow
 
-
 MAX_LOG_BYTES = 64 * 1024 * 1024
 MAX_EVENTS = 200_000
 
@@ -205,6 +204,8 @@ def collect_claude_window(
         "cache_read_tokens": 0,
         "cache_write_tokens": 0,
     }
+    complete_fields = set(usage_totals)
+    assistant_count = 0
     models: set[str] = set()
     calls: dict[str, dict[str, Any]] = {}
     for ordinal, line in enumerate(_source_lines(path, max_bytes)):
@@ -245,11 +246,16 @@ def collect_claude_window(
             events.append({"type": "user", "timestamp": timestamp, "text": text})
         elif event_type == "assistant":
             events.append({"type": "assistant", "timestamp": timestamp, "text": text})
+            assistant_count += 1
             usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
             for field in usage_totals:
                 value = usage.get(field)
-                if isinstance(value, int) and not isinstance(value, bool):
+                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
                     usage_totals[field] += value
+                else:
+                    # Missing or invalid per-message usage cannot count as zero,
+                    # even when another message reports this field successfully.
+                    complete_fields.discard(field)
             if isinstance(message.get("model"), str):
                 models.add(message["model"])
         for block in blocks:
@@ -279,7 +285,10 @@ def collect_claude_window(
             event["status"] = "failed"
             event["error"] = "tool result missing"
     _mark_last_assistant_final(events)
-    usage: dict[str, Any] = {key: value for key, value in usage_totals.items() if value}
+    usage: dict[str, Any] = {
+        key: value for key, value in usage_totals.items()
+        if assistant_count and key in complete_fields
+    }
     if models:
         usage["models"] = sorted(models)
         if len(models) == 1:

@@ -15,6 +15,7 @@ import time
 from pathlib import Path, PurePosixPath
 from source_binding import guard_source
 from typing import Any, Sequence
+from cli_stdio import configure_utf8_stdio
 
 SCHEMA_VERSION = "1.1"
 MAX_RESOURCE_BYTES = 2 * 1024 * 1024
@@ -581,6 +582,7 @@ def finish_entry(
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    configure_utf8_stdio()
     guard_source(Path(__file__).resolve().parent.parent)
     parser = argparse.ArgumentParser()
     parser.add_argument("--plugin-root", type=Path, required=True)

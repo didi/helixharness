@@ -1,0 +1,20 @@
+{
+  "project_hooks_version": "1.1",
+  "owner": "parent",
+  "settings_file": ".cursor/hooks.json",
+  "merge_strategy": "json_flat_append_dedup",
+  "dedupe_key": "hooks.*[].command+matcher",
+  "payload": {
+    "version": 1,
+    "hooks": {
+      "afterFileEdit": [
+        {
+          "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter invariant-check"
+        },
+        {
+          "command": "\"{python}\" -X utf8 \"{plugin_root}/scripts/project_linter.py\" --repo-root \"{repo_root}\" --linter spec-sync-check"
+        }
+      ]
+    }
+  }
+}

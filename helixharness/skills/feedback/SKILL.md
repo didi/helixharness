@@ -97,7 +97,7 @@ $ARGUMENTS
 
 ### Step 3: 准备、确认并发送
 
-`{plugin_root}` 必须来自当前 plugin skill resource（Claude 可用 `${CLAUDE_PLUGIN_ROOT}`，Codex 使用当前 plugin resource root），不得搜索安装目录。`{current_platform}` 必须使用 canonical host ID：Claude Code 固定为 `claude-code`，Codex 固定为 `codex`。
+`{plugin_root}` 必须来自当前 Skill 绑定的 Host Context；按当前宿主入口协议核验来源，不得搜索其他安装目录。`{current_platform}` 使用该 Host Context 的 canonical host ID：Claude Code 为 `claude-code`，Codex 为 `codex`，Cursor 为 `cursor`，OpenCode 为 `opencode`。不得根据操作系统或客户端别名猜测。Cursor 每次脚本调用按 `resources.runtime` 显式传入当前原生会话绑定；缺失时保留未知会话，不借用其他宿主或历史会话。
 
 先准备草稿，不发送。参数必须安全转义：
 
@@ -136,10 +136,10 @@ $ARGUMENTS
 
 **平台拒绝（`status: "rejected"`）**：尚未送达，保留草稿并报告原因，不改写内容重发。用户要求重试时可执行 `feedback_submit.py retry --confirmed`，仅补投已确认且与当前配置地址一致的待发记录。
 
-## 双宿主说明
+## 宿主适配说明
 
-- Claude Code 与 Codex 使用同一 CLI（`feedback_submit.py`），反馈流程本身无 hook 参与、无 consent 流程
-- 会话上下文采集当前仅支持 claude-code 会话；Codex 宿主仍可上报反馈元数据（`transcript_stats.supported=false`），不是错误
+- Claude Code、Codex、Cursor 与 OpenCode 使用同一 CLI（`feedback_submit.py`）；反馈发送使用独立的内容与地址确认，不依赖统计 consent，也不由 hook 自动发送
+- 会话上下文采集当前仅支持 claude-code 会话；Codex、Cursor 与 OpenCode 仍可上报反馈元数据。请求附带会话时按返回的 `transcript_stats.supported=false` 和原因说明边界，不搜索私有会话补全
 - 未注册宿主（`{current_platform}` 无法给出 canonical ID 时）：`--platform unknown` 仍可上报，文档中 `host` 记为 `unknown`
 
 ## 注意事项

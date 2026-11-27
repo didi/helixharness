@@ -11,6 +11,9 @@ probe_helix_python() {
     PYTHON_PROBE=$1
   fi
   python_version=$("$@" -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' </dev/null 2>/dev/null) || return 1
+  # Command substitution removes LF but leaves Windows Python's trailing CR.
+  # Strip only that one terminator; reject embedded or repeated control bytes.
+  python_version=${python_version%"$(printf '\r')"}
   case "$python_version" in *[!0-9.]*|''|.*|*.|*..*) return 1 ;; esac
   python_major=${python_version%%.*}
   python_minor_patch=${python_version#*.}

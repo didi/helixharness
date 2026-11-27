@@ -66,6 +66,28 @@ def test_report_accepts_mixed_health_versions_and_supplements(client: TestClient
         assert connection.execute("SELECT COUNT(*) FROM runtime_health_events").fetchone()[0] == 2
 
 
+def test_report_accepts_cursor_identity_without_synthesizing_usage(client: TestClient) -> None:
+    from eval.tests.test_runtime_health import health_event
+
+    cursor_health = health_event(platform="cursor", scope_id="repo_a_cursor")
+    supplement = _supplement_payload()
+    supplement.update(platform="cursor", usage={}, execution={})
+    supplement["session"]["platform"] = "cursor"
+    invalid_health = health_event(event_id="health_invalid_host", platform="unregistered-host")
+    response = client.post("/report", json={"items": [cursor_health, supplement, invalid_health]})
+    assert response.status_code == 200
+    assert [item["status"] for item in response.json()["items"]] == ["accepted", "accepted", "rejected"]
+    replay = client.post("/report", json={"items": [cursor_health, supplement]})
+    assert [item["status"] for item in replay.json()["items"]] == ["duplicate", "duplicate"]
+    with client.app.state.stage_supplement_store._connect() as connection:
+        health = json.loads(connection.execute("SELECT payload_json FROM runtime_health_events").fetchone()[0])
+        stored = json.loads(connection.execute("SELECT payload_json FROM stage_supplements").fetchone()[0])
+    assert health["platform"] == "cursor"
+    assert stored["platform"] == stored["session"]["platform"] == "cursor"
+    assert stored["usage"] == {}
+    assert stored["execution"] == {}
+
+
 def test_report_rejects_bad_health_item_without_blocking_recovery(client: TestClient) -> None:
     from eval.tests.test_runtime_health import health_event
 

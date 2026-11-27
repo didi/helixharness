@@ -10,6 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cli_stdio import configure_utf8_stdio  # noqa: E402
 from host_runtime import HostRegistry  # noqa: E402
 from lifecycle_service import handle_event, startup_context  # noqa: E402
 
@@ -34,6 +35,7 @@ def persist_environment(payload: dict) -> None:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     try:
         payload = json.load(sys.stdin)
         if not isinstance(payload, dict):
@@ -49,7 +51,7 @@ def main() -> int:
                 return 0
             from host_runtime_cli import _context
             manifest = HostRegistry.discover(ROOT / "hosts").get("claude-code")
-            output = startup_context(manifest)
+            output = startup_context(manifest, command_shell="bash")
             specific = output["hookSpecificOutput"]
             specific["hookEventName"] = event
             specific["additionalContext"] += (
@@ -68,7 +70,7 @@ def main() -> int:
             return 0
         if payload["hook_event_name"] in {"SessionStart", "CwdChanged"}:
             persist_environment(payload)
-        handle_event(HostRegistry.discover(ROOT / "hosts").get("claude-code"), payload)
+        handle_event(HostRegistry.discover(ROOT / "hosts").get("claude-code"), payload, command_shell="bash")
     except (OSError, ValueError):
         return 0
     return 0

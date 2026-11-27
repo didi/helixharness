@@ -479,7 +479,7 @@ Outbox(r'{home}').enqueue(
                 "--repo-root",
                 str(self.repo),
                 "--platform",
-                "cursor",
+                "unregistered-host",
                 "start",
                 "--feature",
                 "demo",

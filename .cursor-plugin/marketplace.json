@@ -1,0 +1,14 @@
+{
+  "name": "helixharness-marketplace",
+  "owner": {"name": "HelixHarness contributors"},
+  "metadata": {"description": "HelixHarness Cursor marketplace"},
+  "plugins": [
+    {
+      "name": "helix",
+      "description": "HelixHarness workflow skills for Cursor",
+      "source": "./helixharness",
+      "version": "1.1.0",
+      "license": "Apache-2.0"
+    }
+  ]
+}

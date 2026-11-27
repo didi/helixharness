@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest import mock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from web_ui.main import create_app
@@ -97,3 +98,19 @@ def test_report_accepts_future_host_identity_and_rejects_invalid_ids():
             item["document"]["host"] = invalid
             receipt = client.post("/feedback/report", json={"items": [item]})
             assert receipt.json()["items"][0]["error"]["code"] == "schema_violation"
+
+
+@pytest.mark.parametrize("host,label", [
+    ("claude-code", "Claude Code"), ("codex", "Codex"), ("cursor", "Cursor"), ("future-host", "future-host"),
+])
+def test_feedback_detail_preserves_host_identity_and_displays_label(host: str, label: str) -> None:
+    with TestClient(create_app()) as client:
+        item = _item()
+        item["document"]["host"] = host
+        receipt = client.post("/feedback/report", json={"items": [item]})
+        assert receipt.json()["items"][0]["status"] == "accepted"
+        assert client.app.state.feedback_store.get(item["feedback_id"])["document"]["host"] == host
+        detail = client.get(f"/feedback/detail/{item['feedback_id']}")
+        assert detail.status_code == 200
+        assert f"<dt>使用平台</dt><dd>{label}</dd>" in detail.text
+        assert "&lt;script&gt;" in detail.text

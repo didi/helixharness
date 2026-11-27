@@ -27,6 +27,7 @@ from urllib.parse import urlsplit
 import eval_schema
 import reporting_config
 import telemetry_consent_state
+from host_runtime import HostRegistry
 from telemetry_hosts import get_host_adapter, normalize_host_id
 from telemetry_ledger import PLUGIN_VERSION, _git
 from telemetry_ledger import LedgerError as TelemetryError
@@ -39,6 +40,7 @@ from telemetry_protocol import (
     _SECRET_PATTERNS,
     sanitize_text,
 )
+from cli_stdio import configure_utf8_stdio
 
 SCHEMA_VERSION = "1.0"
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -362,9 +364,8 @@ def _build_document(repo: Path, payload: dict[str, Any]) -> tuple[dict[str, Any]
     created_at = _now()
     project = telemetry_consent_state.project_fingerprint(repo)
     adapter = get_host_adapter(platform)
-    if adapter is None:
-        # Unregistered hosts still may submit; the schema only admits
-        # registered host ids plus the explicit "unknown" marker.
+    if adapter is None and HostRegistry.discover(PLUGIN_ROOT / "hosts").get(platform) is None:
+        # Feedback identity is independent from telemetry support.
         platform = "unknown"
     session = "unknown"
     context = None
@@ -527,6 +528,7 @@ def send(path: Path, digest: str, *, confirmed: bool = False) -> dict[str, Any]:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     parser = argparse.ArgumentParser(description="HelixHarness feedback: use the published destination or a private config.json override")
     actions = parser.add_subparsers(dest="action", required=True)
     draft = actions.add_parser("prepare", help="prepare a local redacted draft; does not send")

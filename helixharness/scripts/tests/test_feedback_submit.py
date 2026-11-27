@@ -42,7 +42,7 @@ class FeedbackTest(unittest.TestCase):
         post.assert_not_called()
         capture.assert_not_called()
         self.assertNotIn("abcdefghijklmnopqrstuvwxyz", json.dumps(draft))
-        self.assertEqual("1.0.0", draft["item"]["document"]["plugin_version"])
+        self.assertEqual("1.1.0", draft["item"]["document"]["plugin_version"])
         self.assertEqual([], list(self.repo.iterdir()))
         if os.name != "nt":
             self.assertEqual(0o600, Path(draft["draft_path"]).stat().st_mode & 0o777)
@@ -55,10 +55,11 @@ class FeedbackTest(unittest.TestCase):
             def current_session_context(self, repo):
                 return {"session_id": "raw-session-abc", "session_cwd": str(repo)}
 
-        with mock.patch.object(feedback, "get_host_adapter", return_value=Adapter()):
-            draft = self.prepare(platform="claude-code")
-        document = draft["item"]["document"]
-        self.assertEqual(_session_hash("raw-session-abc"), document["session"])
+        for platform in ("claude-code", "codex", "cursor"):
+            with self.subTest(platform=platform), mock.patch.object(feedback, "get_host_adapter", return_value=Adapter()):
+                draft = self.prepare(platform=platform)
+            document = draft["item"]["document"]
+            self.assertEqual(_session_hash("raw-session-abc"), document["session"])
         # 旧 ses_<24hex> 格式已从 schema 移除，必须被 prepare 校验拒绝，防止格式回流
         document["session"] = "ses_" + "0123456789abcdef01234567"
         with self.assertRaisesRegex(feedback.FeedbackError, "violates schema"):
@@ -83,6 +84,15 @@ class FeedbackTest(unittest.TestCase):
         with mock.patch.object(feedback, "get_host_adapter", return_value=adapter):
             draft = self.prepare(platform="future-host")
         self.assertEqual("future-host", draft["item"]["document"]["host"])
+
+    def test_registered_host_without_telemetry_preserves_feedback_identity(self):
+        # Simulate a registered host with telemetry disabled; OpenCode now has
+        # a stage-facts adapter, so its real installed manifest is not this case.
+        with mock.patch.object(feedback, "get_host_adapter", return_value=None):
+            draft = self.prepare(platform="opencode")
+        self.assertEqual("opencode", draft["item"]["document"]["host"])
+        self.assertEqual("unknown", draft["item"]["document"]["session"])
+        self.assertEqual("unknown", self.prepare(platform="unregistered-host")["item"]["document"]["host"])
 
     def test_offline_queue_is_bound_to_original_endpoint(self):
         draft = self.prepare()

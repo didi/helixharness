@@ -121,6 +121,61 @@ class RuntimePreflightTest(unittest.TestCase):
         self.assertEqual(payload["python"]["status"], "ready")
         self.assertEqual(payload["next_action"], "continue")
 
+    def test_explicit_exec_interpreter_preserves_quoted_arguments_stdin_and_exit(self) -> None:
+        interpreter = self.bin_dir / 'Preferred Python "引号"'
+        interpreter.write_text('#!/bin/sh\nif [ "$1" = -c ]; then echo 3.12.13; exit 0; fi\n'
+                               + 'exec ' + shlex.quote(sys.executable) + ' "$@"\n', encoding="utf-8")
+        interpreter.chmod(0o755)
+        script = self.bin_dir / "echo.py"
+        script.write_text("import json,sys; print(json.dumps([sys.argv[1:],sys.stdin.read()])); sys.exit(7)")
+        for selector in (str(interpreter), interpreter.name):
+            result = subprocess.run(["/bin/sh", str(SCRIPT), "exec", "--python", selector,
+                                     str(script), "参数 with spaces"], env={**os.environ, "PATH": str(self.bin_dir)},
+                                    input="synthetic stdin", capture_output=True, text=True)
+            self.assertEqual(result.returncode, 7, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout), [["参数 with spaces"], "synthetic stdin"])
+
+    def test_explicit_old_python_does_not_fall_back_to_supported_default(self) -> None:
+        old = self.bin_dir / "old-python"
+        old.write_text('#!/bin/sh\necho 3.9.6\n'); old.chmod(0o755)
+        result = subprocess.run(["/bin/sh", str(SCRIPT), "exec", "--python", str(old), "never.py"],
+                                env={**os.environ, "PATH": str(self.bin_dir), "FAKE_PYTHON_VERSION": "3.12.13"},
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["python"]["status"], "unsupported_version")
+
+    def test_explicit_missing_python_returns_runtime_diagnostic(self) -> None:
+        result = subprocess.run(["/bin/sh", str(SCRIPT), "exec", "--python", str(self.bin_dir / "missing"), "never.py"],
+                                env={**os.environ, "PATH": str(self.bin_dir), "FAKE_PYTHON_VERSION": "3.12.13"},
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(json.loads(result.stdout)["python"]["status"], "unusable")
+
+    def test_crlf_version_output_retains_minimum_and_strict_validation(self) -> None:
+        for version, status in (("3.12.0\r", "ready"), ("3.9.6\r", "unsupported_version"),
+                                ("3.12.0\r\r", "unusable"), ("3.\r12.0", "unusable"),
+                                ("3.12.0\t", "unusable"), ("banner\n3.12.0\r", "unusable")):
+            with self.subTest(version=version):
+                self.assertEqual(status, self.check(version)["python"]["status"])
+
+    def test_crlf_runtime_exec_and_hook_preserve_stdin_and_exit_code(self) -> None:
+        interpreter = self.bin_dir / "python3"
+        interpreter.write_text(
+            '#!/bin/sh\nif [ "$1" = -c ]; then printf "3.12.0\\r\\n"; exit 0; fi\n'
+            + "exec " + shlex.quote(sys.executable) + ' "$@"\n', encoding="utf-8",
+        )
+        script = self.bin_dir / "stdin echo.py"
+        script.write_text("import sys; print(sys.stdin.read(), end=''); sys.exit(7)", encoding="utf-8")
+        for launcher, action in ((SCRIPT, "exec"), (HOOK, "SessionStart")):
+            with self.subTest(action=action):
+                result = subprocess.run(
+                    ["/bin/sh", str(launcher), action, str(script)],
+                    input="合成 Hook 输入\n", env=dict(os.environ, PATH=str(self.bin_dir)),
+                    text=True, capture_output=True, timeout=10,
+                )
+                self.assertEqual(7, result.returncode, result.stderr)
+                self.assertEqual("合成 Hook 输入\n", result.stdout)
+
     def test_unusable_python3_falls_back_and_exec_uses_the_selected_runtime(self) -> None:
         (self.bin_dir / "python3").write_text("#!/bin/sh\nexit 1\n")
         fallback = self.bin_dir / "python"

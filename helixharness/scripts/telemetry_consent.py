@@ -10,7 +10,6 @@ import os
 import re
 import secrets
 import subprocess
-import sys
 import tempfile
 import time
 from contextlib import contextmanager
@@ -20,8 +19,10 @@ from typing import Any, Iterator
 from urllib.parse import unquote, urlparse
 
 from telemetry_hosts import get_host_adapter, normalize_host_id, supported_host_ids
+import atomic_files
 import eval_json
 from telemetry_async import endpoint_skip
+from cli_stdio import configure_utf8_stdio
 
 
 SCHEMA_VERSION = "1.0"
@@ -38,14 +39,6 @@ VALID_INTERACTIVE_ACTIONS = {
     "disable_project",
     "disable_user",
 }
-
-
-def _configure_utf8_stdio() -> None:
-    """Keep the JSON CLI contract UTF-8 under legacy Windows code pages."""
-    for stream in (sys.stdout, sys.stderr):
-        reconfigure = getattr(stream, "reconfigure", None)
-        if reconfigure is not None:
-            reconfigure(encoding="utf-8", errors="strict")
 
 
 PROJECT_KEY_PATTERN = re.compile(r"^prj_[0-9a-f]{16}$")
@@ -313,12 +306,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        if os.name != "nt":
-            directory_fd = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        atomic_files.fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temp_name)
@@ -855,7 +843,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
-    _configure_utf8_stdio()
+    configure_utf8_stdio()
     args = _parser().parse_args()
     repo: Path | None = None
     try:

@@ -29,6 +29,26 @@ RUNTIME_HEALTH_SCHEMA = RUNTIME_HEALTH_V2_SCHEMA
 RUNTIME_HEALTH_SCHEMAS = {RUNTIME_HEALTH_SCHEMA}
 LINKED_RAW_RETENTION_DAYS = 7
 UNLINKED_RETENTION_DAYS = 30
+USAGE_TEXT_FIELDS = (
+    "collection_status", "status", "unavailable_reason", "reason", "scope", "usage_scope",
+    "attribution", "source", "confidence", "contamination_risk",
+)
+
+
+def usage_metadata(usage: dict[str, Any]) -> dict[str, Any]:
+    """Keep bounded collection facts without retaining arbitrary provider payloads."""
+    metadata = {
+        key: usage[key][:128]
+        for key in USAGE_TEXT_FIELDS
+        if isinstance(usage.get(key), str) and usage[key]
+    }
+    if isinstance(usage.get("input_tokens_include_cache"), bool):
+        metadata["input_tokens_include_cache"] = usage["input_tokens_include_cache"]
+    generations = usage.get("generations")
+    if isinstance(generations, int) and not isinstance(generations, bool) and generations >= 0:
+        metadata["generations"] = generations
+    return metadata
+
 
 _REQUIRED_TEXT_FIELDS = (
     "supplement_id",
@@ -110,6 +130,7 @@ def _snapshot_payload(item: dict[str, Any]) -> dict[str, Any]:
         )
         if key in usage
     }
+    snapshot["usage"].update(usage_metadata(usage))
     models = usage.get("models") if isinstance(usage.get("models"), list) else []
     if models:
         snapshot["usage"]["models"] = [
@@ -140,6 +161,9 @@ def _snapshot_payload(item: dict[str, Any]) -> dict[str, Any]:
             "persistence_latency_ms",
             "record_write_count",
             "collection_status",
+            "unavailable_reason",
+            "scope",
+            "attribution",
         )
         if key in execution
     }
@@ -153,6 +177,13 @@ def _snapshot_payload(item: dict[str, Any]) -> dict[str, Any]:
 
     evidence = item.get("evidence") if isinstance(item.get("evidence"), dict) else {}
     snapshot["evidence"] = {"schema": EVIDENCE_SCHEMA}
+    if evidence.get("status") == "unavailable":
+        snapshot["evidence"]["status"] = "unavailable"
+        # Keep the known machine reason, never arbitrary paths or free-form text.
+        if evidence.get("reason_code") == "host_transcript_not_collected":
+            snapshot["evidence"]["reason_code"] = "host_transcript_not_collected"
+        # Explicit absence takes precedence over contradictory conversation counts.
+        evidence = {}
     for field, allowed in (
         ("interaction_summary", ("user_turns", "assistant_messages")),
         ("coverage", ("in_window", "retained")),

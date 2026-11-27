@@ -180,6 +180,27 @@ def test_link_finalizes_sanitized_snapshot_once(tmp_path) -> None:
     assert "private fallback" not in serialized
 
 
+def test_stage_facts_only_evidence_keeps_unavailable_semantics(tmp_path) -> None:
+    store = StageSupplementStore(tmp_path / "supplements.db")
+    item = _supplement()
+    item["platform"] = "opencode"
+    # 阶段事实型宿主（opencode）没有会话转录，只能上报 unavailable。
+    item["evidence"] = {
+        "schema": "helixharness-evolution-evidence/1.0",
+        "status": "unavailable",
+        "reason_code": "host_transcript_not_collected",
+    }
+    assert store.ingest(item) == {"supplement_id": "supp_0123456789abcdef", "status": "accepted", "linked": False}
+    assert store.refresh_links([_write_ledger(tmp_path)]) == 1
+    snapshot = store.active_linked_records()[0].payload
+    # 快照必须保留“未采集”语义，不能让 unavailable 退化成空证据。
+    assert snapshot["evidence"] == {
+        "schema": "helixharness-evolution-evidence/1.0",
+        "status": "unavailable",
+        "reason_code": "host_transcript_not_collected",
+    }
+
+
 def test_finalized_entry_rejects_later_revision(tmp_path) -> None:
     store = StageSupplementStore(tmp_path / "supplements.db")
     ledger_root = _write_ledger(tmp_path)

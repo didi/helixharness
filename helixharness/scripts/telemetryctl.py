@@ -15,6 +15,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import telemetry_async as telemetry_async
 from telemetry_hosts import supported_host_ids
+from cli_stdio import configure_utf8_stdio
 
 
 def _duration(value: str) -> timedelta:
@@ -45,6 +46,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     home = telemetry_async.telemetry_home(args.home)
     outbox = telemetry_async.Outbox(home)

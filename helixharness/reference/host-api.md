@@ -1,6 +1,6 @@
-# HelixHarness Host API 1.1
+# HelixHarness Host API 1.1 / 1.2
 
-HelixHarness 当前只发布 Claude Code 与 Codex 两个 Host Kit。公共业务契约与宿主运行机制保持解耦：
+HelixHarness 提供 Claude Code、Codex、Cursor 和 OpenCode Host Kit。公共业务契约与宿主运行机制保持解耦：
 `commands/`、`workflows/`、共享 `skills/`、`agents/` 和 `templates/` 定义业务结果，`hosts/{host-id}/`
 只定义如何在某个宿主中安装、发现和执行。
 
@@ -13,10 +13,14 @@ HelixHarness 当前只发布 Claude Code 与 Codex 两个 Host Kit。公共业�
 当前 Registry 必须只发现：
 
 - `claude-code`：原生命令、Hook 生命周期、原生 Agent、Claude marketplace；
-- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace。
+- `codex`：Skill 命令投影、独立启动/结束 Hook 与命令驱动阶段生命周期、Codex subagent、Codex marketplace；
+- `cursor`：独立 Skill 投影、Cursor 原生 hooks、Task 子代理与 Cursor plugin 分发；Stable（桌面范围）；
+- `opencode`：插件注册原生命令/Skill/Agent、命令、原生 `skill` 工具、Skill mention 与原生 Skill 激活的会话目录绑定、原生 subagent 和 OpenCode plugin 分发；Host API 1.1 / Stable（macOS、OpenCode 2.3.2；详见[支持矩阵](../../docs/opencode-testing.md)）。
 
-两者使用 Host API 1.1，支持等级均为 Stable。仓库不提供其他平台的 manifest、安装器、分发清单、
-运行时适配器或入口文件。未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
+Claude Code 与 Codex 保持 Host API 1.1 / Stable；Cursor 使用向后兼容的 1.2 / Stable。
+Cursor 的会话统计和插件更新为 `emulated`：原生 hook 提供有边界的事件/用量证据，登记的托管本地安装通过批准后的原子交换升级。本次正式支持范围为桌面研发工作流；原生自动升级等限制与已接受的验证缺口见 Cursor 安装说明。
+OpenCode 的统计、源码更新和任务跟踪为 `emulated`；原生项目设置 Hook 仍为 `unsupported`，插件级 `project_checks` 已接入编辑后巡检。详细边界见 [OpenCode 能力适配](../hosts/opencode/capabilities.md)。2026-11-20 已在 OpenCode 2.3.2 + DeepSeek 上完成一次合成单仓真实模型闭环（含操作者确认与受控合同修订）；2026-11-23 又完成合成双仓 Workspace 与独立 UT 的操作者辅助验证；后续分类校验与原子发布保护已修复并通过无纠正提醒的真实模型 UT 复验。[合成 Workspace 的专项真实模型验证](../opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23)还覆盖了 Apply 与部分 Archive 原生取消后新会话恢复，以及注入原生 context hook 故障后阻断依赖派发。完整生产业务项目、无人干预时的协议遵守与完整 TUI/桌面 UI 验收仍未完成；已覆盖范围见[定向终端 UI 验收](../opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23)。Skill mention 仓库绑定与插件资源符号链接越界检查已于 2026-11-23 修复并经原生宿主回归；当前 Stable 仅覆盖上述支持矩阵；OpenCode 2.2.2、2.3.0 仅有自动化兼容覆盖。Workspace Apply 的 `may_delegate` RepoJob 使用 `helix-worker` 且需要 `experimental.subagent_depth >= 2`，reviewer 仍为只读 leaf；深度不足阻塞，不绕过评审。
+未知宿主必须关闭失败，不能回退到 Claude Code 或借用 Codex 资源。
 
 ## 共享核心与 Host Kit
 
@@ -37,14 +41,14 @@ Host Kit 负责：
 - 子代理派发、等待、结果编码和资源回收；
 - workflow transition、autopilot、UT、delivery 与 lifecycle；
 - 项目入口、settings/hook 合并；
-- 会话数据采集、consent 路径和原生更新命令。
+- 会话数据采集、consent 路径和受控更新执行。
 
 ## Manifest 契约
 
 `hosts/{host-id}/host.json` 只允许以下顶层字段：
 
 - `host_id`：规范宿主 ID，必须与目录名一致；
-- `host_api_version`：当前正式 Host Kit 使用 `1.1`；
+- `host_api_version`：接受 `1.1` 与 `1.2`；旧 Host Kit 不需迁移；
 - `aliases`：可选输入别名，必须全局唯一；
 - `capabilities`：能力等级；
 - `adapters`：`resource:` 或 `python:` 引用；
@@ -58,7 +62,7 @@ Skill 已声明的调用意图确定性投影为自己的原生 metadata，但�
 
 ## 标准资源适配器
 
-Host API 1.1 的业务 Host Kit 必须提供：
+Host API 1.1 / 1.2 的业务 Host Kit 必须提供：
 
 - `distribution`：该宿主的原生 marketplace/plugin 清单；
 - `installer`：安装、升级、卸载与重载 smoke 手册；
@@ -83,6 +87,26 @@ Host API 1.1 的业务 Host Kit 必须提供：
 - `plugin_update=native|emulated`：必须提供 `update` 与 `version`；
 - `detector`：仅供开发诊断和 Host Context CLI 自动识别使用。
 
+### 1.2 的项目 hooks 扩展
+
+1.1 保留 `project_hooks_version=1.0` 的 `json_append_dedup` 嵌套事件结构。
+1.2 兼容旧资源，并允许 `project_hooks_version=1.1` 的 `json_flat_append_dedup`：
+目标文件使用 `{version: 1, hooks: {event: [{command, matcher?}]}}`。
+按处理器身份去重，保留用户选项和其他事件；非法配置不覆盖，重复 Init 不重复追加。
+共享合并器按版本和策略选择行为，不按宿主名称分支。事件转换与响应编码由 Host Kit 负责。
+
+### 可选统计源与更新扩展
+
+Host API 1.2 允许统计 Adapter 自愿声明 `strict_private_cleanup = True`。共享清理在任何删除前取得
+Adapter；仅该属性严格为布尔 True 或调用方显式指定 `strict_scope=True` 时，规范化本仓路径并保留
+归属不明、损坏或其他宿主的数据。Adapter 装载失败时不开始删除。未声明、False 及非布尔值均保留
+既有默认语义；显式 strict_scope 不能被 Adapter 关闭。此属性不是 HostAdapter Protocol 的必需字段，
+不改变 manifest、Registry 或后台快照格式。Cursor 选择严格策略，Claude Code、Codex 保持原默认。
+
+统计 Adapter 可以提供 `prepare_session_source`、`release_session_source` 和 `purge_private_sources`，用于创建、最终投递后释放和撤销授权后清理自有私有事件源。调用方持有有效 consent lease；旧 Adapter 不实现时保持既有原生日志行为，不删除宿主日志。缺少可靠会话身份可抛出 `SessionContextUnavailable`，只跳过该次统计，业务继续。后台 Runtime 必须携带安装时从 Registry 验证得到的 Adapter 快照，不能依赖源码 checkout 或其他版本缓存。
+
+Update Adapter 可以提供 `update_binding`、`validate_update_binding`、`prepare_update_binding`、`cache_binding_matches_installation`、`execute_install_step` 和 `verify_installation`。默认实现保持既有原生 CLI 行为；有绑定的实现必须把同一 `update_binding` 贯穿版本缓存、用户确认、一次性授权和安装验证，不能批准后重选来源。可选 `validate_install_resume` 默认返回 false；只有能以独立事务凭据验证原授权及不可变目标的适配器，才允许 `installing` 状态使用授权内冻结的 `approved_releases` 恢复，不依赖后续刷新的检查缓存。尚未开始的授权、无恢复凭据的历史授权与原生更新适配器继续严格校验缓存。共享核心不按宿主名称分支。详见 [版本更新协议](version-update-protocol.md)。
+
 ## 能力等级
 
 - `native`：宿主直接提供该行为；
@@ -106,7 +130,7 @@ Context，不在每条命令中启动 Python 重新识别。
 架构保留清单驱动扩展点，但新增宿主必须作为一次独立架构变更重新引入，不得只复制旧平台文件。
 最小步骤是：
 
-1. 评估新宿主能否满足 Host API 1.1；不能满足时先设计新的通用 API 版本；
+1. 评估新宿主能否满足已支持的 Host API；不能满足时先设计新的通用 API 版本；
 2. 新增 `hosts/{host-id}/host.json` 和全部必需资源；
 3. 新增宿主原生分发入口、安装/重载流程和 Host Context 绑定；
 4. 为 telemetry/update 提供独立 adapter，或真实声明 `unsupported`；
@@ -119,9 +143,10 @@ Context，不在每条命令中启动 Python 重新识别。
 
 ## 插件 Hook 分发
 
-两个宿主的原生 plugin manifest 都必须显式声明 `hosts/{host-id}/hooks.json`。
+Claude Code、Codex 与 Cursor 的原生 plugin manifest 必须显式声明 `hosts/{host-id}/hooks.json`。
 不得发布根目录默认 `hooks/hooks.json`，以免客户端自动装载另一个宿主的入口。
+OpenCode 不发布 hook manifest；`opencode/index.ts` 在插件 setup 中注册入口，按 `hosts/opencode/lifecycle.md` 声明 `session_start=emulated`、`session_events=unsupported`。
 Hook 入口位于对应 Host Kit，绑定自身安装目录的规范 manifest，转换宿主事件与环境持久化。
 共享 `scripts/lifecycle_service.py` 只消费显式 HostManifest 和规范事件，不猜平台。
-项目级检查 hooks 独立使用 `project_hooks` 合同；单仓 Init 的实际 settings 缺失或重复必须阻断。
+项目级检查 hooks 独立使用 `project_hooks` 合同；支持项目 hooks 时，单仓 Init 的实际 settings 缺失或重复必须阻断；OpenCode `settings_file=null`，只合并 `AGENTS.md`。
 遥测 adapter 统一通过该 Registry 的 manifest Python 引用装载，不维护第二份平台注册表。

@@ -528,19 +528,56 @@ def test_workflow_detail_uses_three_business_stages_for_duration_and_process(tmp
     assert "未采集本次代码文件清单" in timeline_html
 
 
-def test_workflow_detail_displays_helixharness_version_and_execution_platform(tmp_path: Path) -> None:
+@pytest.mark.parametrize("platform,label", [("claude-code", "Claude Code"), ("codex", "Codex"), ("cursor", "Cursor")])
+def test_workflow_detail_displays_helixharness_version_and_execution_platform(
+    tmp_path: Path, platform: str, label: str,
+) -> None:
     feature_dir = tmp_path / "docs" / "eval" / "workflow-runtime"
     feature_dir.mkdir(parents=True)
+    log = _workflow_log()
+    log["entries"][0]["platform"] = platform
     (feature_dir / "eval-log.json").write_text(
-        json.dumps(_workflow_log(), ensure_ascii=False),
+        json.dumps(log, ensure_ascii=False),
         encoding="utf-8",
     )
 
     html = render_usage_overview_html([str(tmp_path)], "按需求维度")
-    timeline_html = render_feature_timeline_html(_workflow_log())
+    timeline_html = render_feature_timeline_html(log)
 
-    assert '<span class="helixharness-runtime-summary">HelixHarness 2.2.0 · 平台 Codex</span>' in html
-    assert "<span>HelixHarness 2.2.0 · Codex</span>" in timeline_html
+    assert f'<span class="helixharness-runtime-summary">HelixHarness 2.2.0 · 平台 {label}</span>' in html
+    assert f"<span>HelixHarness 2.2.0 · {label}</span>" in timeline_html
+
+
+def test_cursor_identity_does_not_create_usage_measurements(tmp_path: Path) -> None:
+    log = _workflow_log()
+    log["entries"][0]["platform"] = "cursor"
+    feature_dir = tmp_path / "docs" / "eval" / "example-feature"
+    feature_dir.mkdir(parents=True)
+    (feature_dir / "eval-log.json").write_text(json.dumps(log), encoding="utf-8")
+    loaded = discover_projects([str(tmp_path)])[0]["features"][0]
+    entry = loaded["entries"][0]
+
+    usage = _resource_usage(entry)
+    assert usage["total_tokens"] is None
+    assert usage["collection_status"] == "unavailable"
+    assert entry["telemetry_status"] == "pending"
+    timeline = render_feature_timeline_html(loaded)
+    assert "HelixHarness 2.2.0 · Cursor" in timeline
+    assert "当前不按 0 统计" in timeline
+    assert "工具调用 <b>0 次</b>" not in timeline
+    assert "用户交互轮次 <b>0 轮</b>" not in timeline
+
+
+def test_runtime_distribution_keeps_cursor_separate_from_existing_hosts() -> None:
+    entries = [
+        _runtime_entry("Alice", platform="codex"),
+        _runtime_entry("Bob", platform="claude-code"),
+        _runtime_entry("Carol", platform="cursor"),
+    ]
+    chart = _runtime_distribution_html([{"entries": entries}], "platform")
+    for label in ("Codex", "Claude Code", "Cursor"):
+        assert f'data-label="{label}" data-count="1"' in chart
+    assert "共 3 人" in chart
 
 
 def _runtime_entry(user: str, time: str = "2026-09-08T00:00:00Z", **values) -> dict:

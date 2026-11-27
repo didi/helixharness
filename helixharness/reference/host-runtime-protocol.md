@@ -6,11 +6,13 @@
 
 ## 1. Host Context 绑定
 
-Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主启动适配器绑定，不在每条命令中
-启动 Python 进程重新识别：
+Host Context 在 command/Skill 进入业务工作流前由安装分发或宿主启动适配器绑定，不通过 Python
+进程、环境或 CLI 探测重新识别：
 
 1. Claude Code 的 `commands/{entry}.md` plugin command 表面绑定 `hosts/claude-code/host.json`；
-2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`。
+2. Codex 的 `hosts/codex/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/codex/host.json`；
+3. Cursor 的 `hosts/cursor/skills/{entry}/SKILL.md` plugin Skill 表面绑定 `hosts/cursor/host.json`；
+4. OpenCode 的 `opencode/index.ts` 注册原生命令和方法 Skill，绑定 `hosts/opencode/host.json` 以及当前仓库与会话；只通过 TypeScript 注册和注入 Host Context，不借用其他宿主的启动 hooks。
 
 “分发表面绑定”是一种确定性入口绑定，不要求宿主额外设置环境变量或在目标项目
 生成 settings：当前产品加载 `resources.command_projection` 已声明的原生命令或宿主 Skill
@@ -25,16 +27,18 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 环境变量或 plugin cache。
 
 绑定后读取精确路径 `hosts/{current_host_id}/host.json`，确认 `host_id` 与目录名一致、
-`host_api_version` 为当前支持的 1.1，且引用的资源位于插件根内，再读取
+`host_api_version` 为当前支持的 1.1 或 1.2，且引用的资源位于插件根内，再读取
 `resources.runtime`，并绑定不可变规范身份 `canonical_host_id = host.json.host_id`。`current_host_id`
 只用于选择 manifest 路径；后续版本检查、遥测 `--platform` 和宿主回执统一使用
 `canonical_host_id`，不得从操作系统、CLI 名称、环境变量或自然语言别名重新猜测。
 恢复同一命令时使用
 当前分发表面重新绑定，不复用其他会话或宿主的 Host Context。
 
-`scripts/host_runtime_cli.py resolve` 保留为安装器、开发诊断和契约测试工具；正常业务命令不得为了
-识别宿主调用它。这样 Python 不可用且 telemetry 关闭时，原本不依赖 Python 的 Claude Code/Codex
-业务动作不会因 Host Registry 新增阻断或工具调用。
+`scripts/host_runtime_cli.py resolve` 可用于安装器、开发诊断和契约测试；正常业务命令不得为了
+猜测或识别宿主调用它。Host Kit 或 `runtime-preflight.md` 已要求的来源校验可以在确定性绑定后
+显式传入 `--platform {canonical_host_id} --expected-plugin-root {plugin_root}`，检查当前执行副本
+与绑定来源一致。这是验证既定身份，不是重新发现宿主；校验失败不得搜索其他安装来补齐。
+本协议不额外要求原本不依赖 Python 的动作启动进程，宿主入口已有的 runtime preflight 仍须执行。
 
 当前产品与插件分发表面无法共同确定唯一宿主、规范 ID 含路径分隔符或 `..`、清单不匹配、版本
 不支持、资源越过插件根目录时，立即返回 `BLOCKED: helixharness_host_unavailable`。不得从 PATH 中
@@ -47,7 +51,7 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 ## 2. 逻辑动作
 
 公共 command 的工具拼写和不可降低语义先读取
-`reference/tool-semantics.md`。Claude Code 对这些拼写使用原生工具语义；Codex 按 Host Kit 映射。
+`reference/tool-semantics.md`。Claude Code 对这些拼写使用原生工具语义；其他宿主按各自 Host Kit 映射。
 
 共享工作流使用下列逻辑动作，实际工具名以 `resources.runtime` 为准：
 
@@ -65,7 +69,7 @@ Host Kit，不得假定所有入口都位于根 `skills/{entry}/`。这一确定
 
 command 中的 `Read`、`Write`、`Edit`、`Bash`、`AskUserQuestion`、`TodoWrite`、
 `Skill`、`Agent` 和 `Task` 属于 HelixHarness Tool Semantics 的 Claude Code 兼容拼写。
-Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
+其他宿主不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作。
 
 ## 3. 能力选择规则
 
@@ -85,7 +89,7 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
   `commands/{command}.md` 唯一契约入口；宿主资源不进入公共命令面。
 - `project_hooks=native|emulated`：读取 `resources.project_hooks`，按 owner、目标、合并策略和去重键
   执行；为 `unsupported` 时不创建替代 settings 文件。
-- `task_tracking=native|emulated`：使用宿主计划工具；为 `unsupported` 时回退到当前 Feature
+- `task_tracking=native`：使用宿主计划工具；`emulated` 使用 Host Kit 明确的计划适配器（可直接操作 canonical tasks.md）；为 `unsupported` 时回退到当前 Feature
   的 `tasks.md`，不得另造宿主专属状态文件。
 - telemetry 命令必须读取 `reference/telemetry-command-protocol.md` 与
   `resources.telemetry_protocol`，只按 `hook|command|disabled` 生命周期模式执行；不得按宿主 ID、
@@ -99,7 +103,7 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
 
 ## 5. 未来宿主扩展契约
 
-当前仓库不发布其他 Host Kit。未来重新接入新宿主时，正常改动范围应限制为：
+当前仓库提供 Claude Code、Codex、Cursor 与 [OpenCode（macOS Stable）](../../docs/opencode-testing.md)。OpenCode 的统计、源码更新和任务跟踪为 `emulated`；原生项目设置 Hook 仍为 `unsupported`，插件级 `project_checks` 已接入编辑后巡检。详细边界见 [OpenCode 能力适配](../hosts/opencode/capabilities.md)。未来接入新宿主时，正常改动范围应限制为：
 
 - `hosts/{host-id}/host.json`；
 - 该 Host Kit 引用的分发、安装、入口投影、启动、工具映射、生命周期、项目配置、遥测或更新适配器；
@@ -107,5 +111,5 @@ Codex 不得虚构同名工具，必须按 Host Kit 映射为上述逻辑动作�
 
 如果接入必须修改 `commands/`、共享 `skills/`、`scripts/metrics.py`、
 `scripts/version_update.py` 或 Host Registry 中的平台列表，说明 Host API 缺少通用能力。此时只能
-先以版本化、宿主无关的方式扩展 Host API，并为 Claude Code、Codex 补齐兼容测试；禁止加入
+先以版本化、宿主无关的方式扩展 Host API，并为现有宿主补齐兼容测试；禁止加入
 按平台名称选择业务流程的核心分支。

@@ -17,7 +17,7 @@
       "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
     },
     "host_api_version": {
-      "enum": ["1.1"]
+      "enum": ["1.1", "1.2"]
     },
     "aliases": {
       "type": "array",
@@ -81,7 +81,7 @@
     {
       "if": {
         "properties": {
-          "host_api_version": {"const": "1.1"}
+          "host_api_version": {"enum": ["1.1", "1.2"]}
         }
       },
       "then": {

@@ -19,7 +19,7 @@ from eval.stage_supplements import LinkedStageSupplement, StageSupplementStore
 from eval.usage_ai_daily import MAX_INPUT_CHARS, daily_records, generate_daily_insight, global_facts
 
 AI_INSIGHTS_FILE = "ai_insights.json"
-AI_FACT_CONTRACT_VERSION = "facts-v4-daily"
+AI_FACT_CONTRACT_VERSION = "facts-v5-availability"
 DEFAULT_ENDPOINT = "https://api.openai.com/v1"
 
 
@@ -393,6 +393,8 @@ def _entry_evidence(entry: dict[str, Any], max_chars: int, attempt: dict[str, An
             "messages_scanned": collection.get("messages_scanned"),
             "messages_used": collection.get("messages_used"),
             "user_messages": collection.get("user_turn_count"),
+            "semantic_status": collection.get("semantic_status"),
+            "unavailable_reason": collection.get("unavailable_reason"),
         },
         "code_delta": {
             "files": delta.get("files_changed"),

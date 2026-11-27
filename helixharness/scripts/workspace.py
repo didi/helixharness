@@ -12,6 +12,7 @@ import shlex
 import sys
 from pathlib import Path
 from typing import Any
+from cli_stdio import configure_utf8_stdio
 
 try:
     import workflow as lifecycle
@@ -585,6 +586,22 @@ def workspace_execution_plan(
                     str(overview["spec_receipt_sha256"]),
                 )
                 repo_results[repo] = validate_tasks(repo_root, feature, "apply")
+                child_spec = spec_contract(read_regular(
+                    repo_root / "docs/specs/active" / feature_name(feature) / "spec.md",
+                    f"repo {repo} spec.md",
+                ))
+                if child_spec.get("status") in {"implemented", "completed"}:
+                    try:
+                        completed_result = archive_preflight(
+                            repo_root, feature, allow_review_acceptance=False
+                        )
+                    except (WorkflowError, OSError):
+                        # Single Apply owns recovery of invalid/missing Evidence.
+                        # Identity, Tasks and the original baseline passed above.
+                        pass
+                    else:
+                        repo_results[repo] = completed_result
+                        continue
             except (WorkflowError, OSError) as exc:
                 raise WorkspaceError(
                     f"repo {repo} Single Lite artifacts are invalid: {exc}"
@@ -635,6 +652,7 @@ def workspace_execution_plan(
                     repo_results[repo] = completed_archive_preflight(
                         repo_root, feature
                     )
+                    continue
                 else:
                     raise WorkflowError(
                         "active/completed feature location is ambiguous"
@@ -747,6 +765,9 @@ def workspace_execution_plan(
     batches = _execution_batches(overview["repositories"])
     if command == "archive":
         batches = list(reversed(batches))
+    pending_repos = {job["repo"] for job in jobs}
+    batches = [pending for batch in batches
+               if (pending := [repo for repo in batch if repo in pending_repos])]
     return {
         **overview,
         "batches": batches,
@@ -902,6 +923,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     args = parser().parse_args(argv)
     try:
         payload = args.handler(workspace_root(args.workspace_root), args)

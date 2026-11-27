@@ -2,11 +2,22 @@
   "schema_version": "1.0",
   "plugin": "helix",
   "marketplace": "helixharness-marketplace",
-  "latest_version": "1.0.0",
+  "latest_version": "1.1.0",
   "minimum_supported_version": "1.0.0",
   "force_update_below": "1.0.0",
   "force_update_message": "请使用当前版本的 HelixHarness。",
   "releases": [
+    {
+      "version": "1.1.0",
+      "date": "2026-11-26",
+      "update_type": "recommended",
+      "title": "HelixHarness",
+      "changes": [
+        "新增 Qoder 宿主支持：Host Kit、本地 ZIP 分发与声明式陈旧 Hook 绑定策略。",
+        "集成 Cursor 与 OpenCode 宿主适配，并补齐 Windows 运行环境兼容。"
+      ],
+      "restart_required": true
+    },
     {
       "version": "1.0.0",
       "date": "2026-09-10",

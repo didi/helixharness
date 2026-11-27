@@ -11,6 +11,7 @@ from typing import Any
 
 from host_runtime import HostContractError, HostManifest, HostRegistry
 from source_binding import guard_source
+from cli_stdio import configure_utf8_stdio
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
@@ -64,6 +65,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     arguments = _parser().parse_args()
     guard_source(PLUGIN_ROOT, getattr(arguments, "expected_plugin_root", None))
     try:

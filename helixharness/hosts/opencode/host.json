@@ -1,0 +1,58 @@
+{
+  "host_id": "opencode",
+  "host_api_version": "1.1",
+  "aliases": [],
+  "support": {
+    "level": "stable",
+    "display_name": "OpenCode",
+    "evidence": null,
+    "limitations": [
+      "Stable scope: macOS 15.7.1 arm64, OpenCode 2.3.2 local CLI/server and targeted PTY. 2.2.2/2.3.0 have automated compatibility coverage only; other platforms/versions are unverified.",
+      "The adapter has no equivalent SessionStart/Stop/failure/session-end business hook guarantee. Native tool/session hooks are used for binding and project diagnostics; idle never completes a stage.",
+      "Telemetry is consent-gated stage facts and workflow traces only. Native conversation, token usage and unobserved tool counts remain unavailable; no transcript files are read.",
+      "Task tracking is emulated by scripts/task_plan.py over canonical tasks.md, with optimistic receipts, dependency validation and atomic updates; stage completion still requires workflow verification.",
+      "Native project settings hooks remain unsupported (settings_file=null). Plugin-level project_checks run existing invariant/spec-sync linters after successful native write/edit/patch; shell changes still require explicit checks.",
+      "Workspace Apply RepoJobs use delegation_policy=may_delegate; OpenCode defaults to subagent depth 1, so set experimental.subagent_depth to at least 2.",
+      "D2C has an explicit owner-bound evidence gate; native skill-scoped Stop/question hooks are not provided. The audit does not authenticate browser provenance or replace visual acceptance.",
+      "Absolute-directory installation is supported. /helix:update can update clean attached Git checkouts with an explicit upstream through the consent protocol, pinned to an immutable fast-forward target. Dirty/detached/package-managed copies require manual handling; restart after updating.",
+      "Production projects, unattended model reliability, full desktop UI, full D2C visual fidelity, and real Kotlin/Groovy or multi-module compiler acceptance are outside this Stable scope."
+    ]
+  },
+  "capabilities": {
+    "command_surface": "native",
+    "skill_discovery": "native",
+    "session_start": "emulated",
+    "stop_hook": "unsupported",
+    "failure_hook": "unsupported",
+    "command_lifecycle": "native",
+    "workflow_transition": "emulated",
+    "subagents": "native",
+    "unit_test_workflow": "native",
+    "task_tracking": "emulated",
+    "project_hooks": "unsupported",
+    "project_checks": "emulated",
+    "session_events": "unsupported",
+    "telemetry": "emulated",
+    "plugin_install": "native",
+    "plugin_update": "emulated",
+    "session_end": "unsupported"
+  },
+  "adapters": {
+    "detector": "python:update_hosts.opencode:detect_host",
+    "distribution": "resource:package.json",
+    "installer": "resource:hosts/opencode/installer.md",
+    "command_projection": "resource:hosts/opencode/command-projection.json",
+    "runtime": "resource:hosts/opencode/runtime.md",
+    "subagent_protocol": "resource:hosts/opencode/subagent.md",
+    "workflow_transition": "resource:hosts/opencode/workflow-transition.md",
+    "project_config": "resource:hosts/opencode/project.json",
+    "project_hooks": "resource:hosts/opencode/project-hooks.json",
+    "ut": "resource:hosts/opencode/ut.md",
+    "lifecycle": "resource:hosts/opencode/lifecycle.md",
+    "telemetry_protocol": "resource:hosts/shared/telemetry.md",
+    "telemetry": "python:telemetry_hosts.opencode:OpenCodeAdapter",
+    "version": "python:update_hosts.opencode:plugin_version",
+    "update": "python:update_hosts.opencode:OpenCodeUpdateAdapter",
+    "d2c_gate": "resource:hosts/opencode/d2c_gate.cjs"
+  }
+}

@@ -13,12 +13,13 @@ import time
 from contextlib import contextmanager, nullcontext
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from source_binding import guard_source
 from typing import Any, Iterator
 
+import atomic_files
 import eval_json
+from cli_stdio import configure_utf8_stdio
+from source_binding import guard_source
 from update_hosts import (
-    INSTALL_TIMEOUT_SECONDS,
     MARKETPLACE,
     PLUGIN_ID,
     PLUGIN_NAME,
@@ -29,7 +30,6 @@ from update_hosts import (
     detect_update_host_id,
     supported_update_host_ids,
 )
-
 
 CACHE_SCHEMA_VERSION = "1.0"
 AUTH_SCHEMA_VERSION = "1.0"
@@ -349,7 +349,11 @@ def locate_formal_policy(
         )
     except UpdateHostError as exc:
         raise UpdateError(str(exc)) from exc
-    marketplace = _read_json(root / ".claude-plugin" / "marketplace.json")
+    try:
+        marketplace_path = adapter.marketplace_manifest_path(root)
+    except UpdateHostError as exc:
+        raise UpdateError(str(exc)) from exc
+    marketplace = _read_json(marketplace_path)
     plugins = marketplace.get("plugins") if isinstance(marketplace.get("plugins"), list) else []
     matches = [item for item in plugins if isinstance(item, dict) and item.get("name") == PLUGIN_NAME]
     if marketplace.get("name") != MARKETPLACE or len(matches) != 1:
@@ -379,12 +383,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp_name, path)
-        if os.name != "nt":
-            parent_fd = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(parent_fd)
-            finally:
-                os.close(parent_fd)
+        atomic_files.fsync_directory(path.parent)
     finally:
         try:
             os.unlink(temp_name)
@@ -394,12 +393,7 @@ def _atomic_write(path: Path, data: dict[str, Any]) -> None:
 
 def _durable_unlink(path: Path) -> None:
     path.unlink()
-    if os.name != "nt":
-        parent_fd = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(parent_fd)
-        finally:
-            os.close(parent_fd)
+    atomic_files.fsync_directory(path.parent)
 
 
 @contextmanager
@@ -457,7 +451,7 @@ def _validate_cached_releases(
 def _load_cache(path: Path) -> dict[str, Any]:
     data = _read_json(path)
     _expect_exact_keys(
-        data, CACHE_KEYS, optional={"skip"}, label="version cache"
+        data, CACHE_KEYS, optional={"skip", "update_binding"}, label="version cache"
     )
     if data["schema_version"] != CACHE_SCHEMA_VERSION:
         raise UpdateError(f"unsupported version cache schema: {data['schema_version']}")
@@ -510,6 +504,12 @@ def _load_cache(path: Path) -> dict[str, Any]:
         "required_reason": required_reason,
         "releases": releases,
     }
+    try:
+        adapter.validate_update_binding(data.get("update_binding"))
+    except UpdateHostError as exc:
+        raise UpdateError(str(exc)) from exc
+    if "update_binding" in data:
+        normalized["update_binding"] = data["update_binding"]
     skip = data.get("skip")
     if skip is not None:
         if not isinstance(skip, dict):
@@ -571,10 +571,12 @@ def refresh(
     *,
     platform: str,
     now: datetime | None = None,
+    update_binding: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     current = now or _now()
     adapter = _adapter(platform)
     adapter.validate_scope(current_scope)
+    adapter.validate_update_binding(update_binding)
     if current_scope == "all":
         raise UpdateError("formal installation scope cannot be all")
     policy = _load_policy(policy_path)
@@ -621,6 +623,8 @@ def refresh(
         "required_reason": required_reason,
         "releases": path_releases,
     }
+    if update_binding is not None:
+        data["update_binding"] = update_binding
     with _lock(cache_path):
         if cache_path.exists():
             try:
@@ -737,10 +741,10 @@ def _cache_matches_installation(
         for key in ("platform", "plugin_id", "current_version", "current_scope", "current_source")
     ):
         return False
-    return True
+    return _adapter(str(installation["platform"])).cache_binding_matches_installation(cached.get("update_binding"), installation)
 
 
-def check_for_update(
+def _check_for_update(
     platform: str,
     repo_root: Path,
     cache_path: Path,
@@ -832,6 +836,7 @@ def check_for_update(
                         target,
                         platform=platform,
                         now=current,
+                        update_binding=adapter.update_binding(snapshot_root, installation, command_runner),
                     )
             except UpdateHostError as exc:
                 raise UpdateError(str(exc)) from exc
@@ -852,7 +857,7 @@ def check_for_update(
                 error: Exception = fallback_error
         else:
             error = primary_error
-    except (UpdateError, OSError) as exc:
+    except (UpdateError, UpdateHostError, OSError) as exc:
         error = exc
 
     try:
@@ -893,6 +898,63 @@ def check_for_update(
             str(cache_error),
             "WARN:version_check_cache_unwritable",
         )
+
+
+def check_for_update(
+    platform: str,
+    repo_root: Path,
+    cache_path: Path,
+    *,
+    plugin_root: Path = PLUGIN_ROOT,
+    plugin_list_data: Any = None,
+    marketplace_list_data: Any = None,
+    force_refresh: bool = False,
+    now: datetime | None = None,
+    runner: BoundedCommandRunner | None = None,
+    volatile_cache_path: Path | None = None,
+    negative_cache_path: Path | None = None,
+    authorization_path: Path | None = None,
+) -> dict[str, Any]:
+    if platform in SUPPORTED_PLATFORMS:
+        policy = _adapter(platform).entry_policy(plugin_root)
+        if policy is not None:
+            return policy
+    current = now or _now()
+    result = _check_for_update(
+        platform, repo_root, cache_path, plugin_root=plugin_root,
+        plugin_list_data=plugin_list_data, marketplace_list_data=marketplace_list_data,
+        force_refresh=force_refresh, now=current, runner=runner,
+        volatile_cache_path=volatile_cache_path, negative_cache_path=negative_cache_path,
+    )
+    if authorization_path is not None and platform in SUPPORTED_PLATFORMS:
+        pending = _pending_installation(platform, authorization_path, plugin_root, current, runner)
+        if pending is not None:
+            result["pending_installation"] = pending
+    return result
+
+
+def _pending_installation(
+    platform: str, path: Path, plugin_root: Path, now: datetime,
+    runner: BoundedCommandRunner | None,
+) -> dict[str, Any] | None:
+    """Read an already-confirmed transaction; a check never advances it."""
+    if not path.is_file():
+        return None
+    try:
+        raw = _read_json(path)
+        authorization = _load_authorization(path, str(raw.get("challenge_id") or ""), now)
+        if (authorization["platform"] != platform or authorization["state"] != "installing"
+                or "approved_releases" not in authorization):
+            return None
+        adapter = _adapter(platform)
+        if not adapter.validate_install_resume(authorization, plugin_root=plugin_root):
+            return None
+        steps = adapter.install_steps(str(authorization["scope"]), runner or BoundedCommandRunner())
+        if not set(authorization["completed_steps"]) <= {step.step_id for step in steps}:
+            return None
+        return {key: authorization[key] for key in ("challenge_id", "scope", "target_version", "expires_at")}
+    except (UpdateError, UpdateHostError, OSError):
+        return None
 
 
 def record_skip(
@@ -1045,7 +1107,16 @@ def prepare_authorization(
         "expires_at": _timestamp(current + timedelta(minutes=AUTH_TTL_MINUTES)),
         "prompt": _prompt_for(cache),
         "completed_steps": [],
+        "approved_releases": cache["releases"],
     }
+    try:
+        binding_context = adapter.prepare_update_binding(cache.get("update_binding"))
+    except UpdateHostError as exc:
+        raise UpdateError(str(exc)) from exc
+    if "update_binding" in cache:
+        data["update_binding"] = cache["update_binding"]
+    if binding_context:
+        data["prompt"]["message"] += "\n\n" + binding_context
     with _lock(authorization_path):
         if authorization_path.exists():
             try:
@@ -1077,7 +1148,7 @@ def _load_authorization(path: Path, challenge_id: str, now: datetime) -> dict[st
     }
     if state not in optional_by_state:
         raise UpdateError("invalid update authorization state")
-    optional = optional_by_state[state]
+    optional = optional_by_state[state] | {"update_binding", "approved_releases"}
     required = AUTH_KEYS | (
         {"confirmation_source", "authorized_at"}
         if state in {"authorized", "installing"}
@@ -1091,11 +1162,21 @@ def _load_authorization(path: Path, challenge_id: str, now: datetime) -> dict[st
     platform = str(data["platform"])
     adapter = _adapter(platform)
     try:
+        adapter.validate_update_binding(data.get("update_binding"))
+    except UpdateHostError as exc:
+        raise UpdateError(str(exc)) from exc
+    try:
         adapter.validate_scope(str(data["scope"]))
     except UpdateHostError as exc:
         raise UpdateError(str(exc)) from exc
     _version_text(data["current_version"])
     _version_text(data["target_version"])
+    if "approved_releases" in data:
+        releases = _validate_cached_releases(
+            data["approved_releases"], data["current_version"], data["target_version"],
+        )
+        if not any(item["version"] == data["target_version"] for item in releases):
+            raise UpdateError("target release is missing from update authorization")
     if data["update_status"] not in {"recommended", "required"}:
         raise UpdateError("invalid update authorization policy")
     created_at = _parse_timestamp(data["created_at"])
@@ -1209,6 +1290,10 @@ def _validate_install_against_cache(
     for authorization_key, cache_key in comparisons.items():
         if authorization[authorization_key] != cache[cache_key]:
             raise UpdateError(f"update authorization {authorization_key} no longer matches cache")
+    if authorization.get("update_binding") != cache.get("update_binding"):
+        raise UpdateError("update authorization source binding no longer matches cache")
+    if "approved_releases" in authorization and authorization["approved_releases"] != cache["releases"]:
+        raise UpdateError("update authorization release information no longer matches cache")
 
 
 def install(
@@ -1225,6 +1310,8 @@ def install(
 ) -> dict[str, Any]:
     current = now or _now()
     adapter = _adapter(platform)
+    if adapter.entry_policy(plugin_root) is not None:
+        raise UpdateError("installation_update_not_supported: Cursor native cache is not managed-local")
     command_runner = runner or BoundedCommandRunner()
     install_guard = authorization_path.with_name(f"{authorization_path.name}.install")
     executed: list[list[str]] = []
@@ -1235,12 +1322,24 @@ def install(
                 raise UpdateError("update authorization has not been confirmed by the user")
             if authorization["platform"] != platform:
                 raise UpdateError("update authorization platform mismatch")
-            cache = _load_cache(cache_path)
-            _validate_install_against_cache(authorization, cache)
+            try:
+                independent_resume = (
+                    authorization["state"] == "installing"
+                    and "approved_releases" in authorization
+                    and adapter.validate_install_resume(authorization, plugin_root=plugin_root)
+                )
+            except UpdateHostError as exc:
+                raise UpdateError(str(exc)) from exc
+            if independent_resume:
+                releases = authorization["approved_releases"]
+            else:
+                cache = _load_cache(cache_path)
+                _validate_install_against_cache(authorization, cache)
+                releases = cache["releases"]
             target_release = next(
                 (
                     item
-                    for item in cache["releases"]
+                    for item in releases
                     if item["version"] == authorization["target_version"]
                 ),
                 None,
@@ -1248,7 +1347,7 @@ def install(
             if target_release is None:
                 raise UpdateError("target release is missing from version cache")
             restart_required = any(
-                item["restart_required"] for item in cache["releases"]
+                item["restart_required"] for item in releases
             )
             try:
                 steps = adapter.install_steps(str(authorization["scope"]), command_runner)
@@ -1295,7 +1394,7 @@ def install(
                 if step.step_id in authorization["completed_steps"]:
                     continue
             try:
-                command_runner.run(step.command, timeout=INSTALL_TIMEOUT_SECONDS)
+                adapter.execute_install_step(step, command_runner, authorization=authorization, plugin_root=plugin_root)
             except UpdateHostError as exc:
                 with _lock(authorization_path):
                     failed = _load_authorization(authorization_path, challenge_id, current)
@@ -1303,9 +1402,10 @@ def install(
                     _atomic_write(authorization_path, failed)
                 completed = authorization["completed_steps"]
                 raise UpdateError(
-                    f"plugin update step failed: {step.step_id}; completed steps: {completed}"
+                    f"plugin update step failed: {step.step_id}: {exc}; completed steps: {completed}"
                 ) from exc
-            executed.append(list(step.command))
+            if step.command:
+                executed.append(list(step.command))
             with _lock(authorization_path):
                 authorization = _load_authorization(authorization_path, challenge_id, current)
                 if step.step_id not in authorization["completed_steps"]:
@@ -1313,6 +1413,10 @@ def install(
                 authorization.pop("last_error", None)
                 _atomic_write(authorization_path, authorization)
 
+        try:
+            verification = adapter.verify_installation(authorization, command_runner, plugin_root=plugin_root)
+        except UpdateHostError as exc:
+            raise UpdateError(f"updated plugin verification failed: {exc}") from exc
         with _lock(authorization_path):
             authorization = _load_authorization(authorization_path, challenge_id, current)
             if set(authorization["completed_steps"]) != {step.step_id for step in steps}:
@@ -1327,6 +1431,7 @@ def install(
             "resumed": resumed,
             "authorization_consumed": True,
             "restart_required": restart_required,
+            **verification,
         }
 
 
@@ -1362,6 +1467,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     guard_source(Path(__file__).resolve().parent.parent)
     args = _parser().parse_args()
     try:
@@ -1370,6 +1476,12 @@ def main() -> int:
             print(json.dumps(_unsupported_result(platform), ensure_ascii=False, sort_keys=True))
             return 0
         repo_root = Path(args.repo_root).expanduser().resolve()
+        policy = _adapter(platform).entry_policy(PLUGIN_ROOT)
+        if policy is not None:
+            if args.command != "check":
+                policy = {**policy, "status": "unsupported", "next_action": "manual_update"}
+            print(json.dumps(policy, ensure_ascii=False, sort_keys=True))
+            return 0 if args.command == "check" else 2
         cache_path = _cache_path(platform, args.cache_path)
         authorization_path = _authorization_path(platform, args.authorization_path)
         if args.command == "check":
@@ -1385,6 +1497,7 @@ def main() -> int:
                 force_refresh=args.force_refresh,
                 volatile_cache_path=volatile_cache_path,
                 negative_cache_path=negative_cache_path,
+                authorization_path=authorization_path,
             )
         elif args.command == "resolve":
             result = resolve(cache_path)
@@ -1428,7 +1541,7 @@ def main() -> int:
                 args.challenge_id,
                 repo_root=repo_root,
             )
-    except (UpdateError, OSError) as exc:
+    except (UpdateError, UpdateHostError, OSError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}, ensure_ascii=False))
         return 2
     print(json.dumps(result, ensure_ascii=False, sort_keys=True))

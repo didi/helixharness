@@ -6,7 +6,19 @@ MINIMUM_PYTHON="3.10"
 . "$(dirname "$0")/python_runtime.sh"
 
 python_status() {
-  find_helix_python
+  if [ "$#" -eq 0 ]; then
+    find_helix_python
+    return
+  fi
+  # An explicit interpreter uses the same strict probe, without discovery fallback.
+  PYTHON_STATUS=unusable
+  PYTHON_VERSION=
+  PYTHON_COMMAND=
+  PYTHON_LAUNCHER=
+  PYTHON_PROBE=
+  case "$1" in ''|*[[:cntrl:]]*) return ;; esac
+  explicit_python=$(command -v "$1" 2>/dev/null) || return
+  case "$explicit_python" in /*) probe_helix_python "$explicit_python" || : ;; esac
 }
 
 git_status() {
@@ -154,7 +166,14 @@ install_python() {
 case "${1:-}" in
   exec)
     shift
-    find_helix_python
+    if [ "${1:-}" = --python ]; then
+      shift
+      explicit_python=${1:-}
+      [ "$#" -eq 0 ] || shift
+      python_status "$explicit_python"
+    else
+      python_status
+    fi
     if [ "$PYTHON_STATUS" != ready ]; then
       emit_check
       exit 2
@@ -165,12 +184,18 @@ case "${1:-}" in
     python_status
     emit_check
     ;;
+  require)
+    # Keep check's diagnostic-only exit contract; require also gates shell chains.
+    python_status
+    emit_check
+    [ "$ok" = true ] || exit 2
+    ;;
   install-python)
     shift
     install_python "${1:-}"
     ;;
   *)
-    printf '%s\n' 'usage: runtime_preflight.sh check | exec script.py [args...] | install-python --user-confirmed' >&2
+    printf '%s\n' 'usage: runtime_preflight.sh check | require | exec script.py [args...] | install-python --user-confirmed' >&2
     exit 2
     ;;
 esac

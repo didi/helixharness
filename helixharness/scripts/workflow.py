@@ -16,6 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from source_binding import guard_source
 from typing import Any, Iterator
+from cli_stdio import configure_utf8_stdio
 
 try:
     from atomic_files import AtomicWriteError, atomic_write_text
@@ -2011,6 +2012,7 @@ def parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_utf8_stdio()
     guard_source(Path(__file__).resolve().parent.parent)
     args = parser().parse_args(argv)
     try:

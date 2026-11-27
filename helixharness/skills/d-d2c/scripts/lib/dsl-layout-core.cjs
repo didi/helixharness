@@ -76,6 +76,7 @@ const WS_PATTERN_DEFS = [
   { key: 'fullwidth-space', re: /　/, label: '全角空格 U+3000' },
   { key: 'nbsp', re: / /, label: '不间断空格 U+00A0' },
   { key: 'tab', re: /\t/, label: 'Tab 制表符' },
+  { key: 'line-break', re: /[\r\n]/, label: '换行' },
 ]
 
 function detectWhitespaceRisk(text) {
@@ -90,6 +91,7 @@ function visualizeWhitespace(text) {
     .replace(/ /g, '⍽')
     .replace(/　/g, '【全角空格】')
     .replace(/\t/g, '⇥')
+    .replace(/\r\n?|\n/g, '↵')
 }
 
 /** 遍历布局树收集空白风险 TEXT 节点（供 text-whitespace.json） */
@@ -112,7 +114,7 @@ function buildTextWhitespaceManifest(markedNodes) {
             (k) => (WS_PATTERN_DEFS.find((p) => p.key === k) || {}).label || k
           ),
           suggestion:
-            '单行文本用 white-space: pre（替代 nowrap）保留空白序列，或将连续空格转 &nbsp;；禁止 nowrap 直接承载该文案',
+            '逐字符保留原文；Vue 用 v-text 或字符串插值，单行用 white-space: pre，多行按 DSL 用 pre-wrap/pre；普通空格可逐个转 &nbsp;，Tab/换行/全角空格不得替换；核对运行时 textContent，CSS 或 v-pre 不能恢复编译时丢失的空白',
         })
       }
     }
@@ -122,7 +124,7 @@ function buildTextWhitespaceManifest(markedNodes) {
   return {
     hasWhitespaceRisk: items.length > 0,
     count: items.length,
-    note: 'HTML 会折叠连续/前后空白：命中节点必须保留空白序列（white-space: pre 或 &nbsp;），否则文本渲染宽度小于 DSL bbox，产生右端累积横向漂移。',
+    note: '空白必须在模板编译和 CSS 渲染后都保真。Vue 静态模板可能合并空白，须用 v-text/字符串插值保留原文并核对运行时 textContent；普通空格与 NBSP 仅逐个等价，CRLF/CR 可规范为 LF，Tab/换行/全角空格的种类与数量不可改变。',
     items,
   }
 }
@@ -766,7 +768,7 @@ function buildStylesMarkdown(specs) {
     '- **itemSpacing**：flex 容器 `gap`',
     '- **文本**：`fontSize` / `fontWeight` / `lineHeightPx` / `letterSpacing` / `fontFamily` / `textDecoration` / `fontStyle`',
     '- **混排文本**：见同目录 **`mixed-text.json`**（`hasMixedText`）；为 true 时读下方清单 + `dom.md` 的 `data-span-index`',
-    '- **空白保真**：见同目录 **`text-whitespace.json`**（`hasWhitespaceRisk`）；命中节点须 `white-space: pre` 或 `&nbsp;` 保留空白序列，对应 `dom.md` 的 `data-preserve-whitespace`',
+    '- **空白保真**：见同目录 **`text-whitespace.json`**（`hasWhitespaceRisk`）；Vue 用 `v-text`/字符串插值保留原文，再用 `white-space: pre`/`pre-wrap`（或将普通空格逐个转 `&nbsp;`），并核对运行时 `textContent`；CSS 和 `v-pre` 无法恢复编译时已丢失的空白。对应 `dom.md` 的 `data-preserve-whitespace`',
     '',
   ]
 
@@ -777,7 +779,7 @@ function buildStylesMarkdown(specs) {
     lines.push(
       `## 文本空白保真清单（代码生成前必查，共 ${whitespaceRows.length} 处）`,
       '',
-      '> ⚠️ 下列文案含 HTML 会折叠的空白（连续/前后/全角空格等）。`white-space: nowrap` 会把连续空格折叠成一个，导致渲染宽度小于 DSL bbox、右端逐字累积横向漂移。**必须** `white-space: pre`（单行）或将连续空格转 `&nbsp;`。',
+      '> ⚠️ 下列文案含空白风险。Vue 静态模板会合并部分空白，先用 `v-text`/字符串插值保留 DSL 原文；再用 `white-space: pre`（单行）/`pre-wrap`（按 DSL 多行）或逐个替换普通空格为 `&nbsp;`。Tab、换行、全角空格不得替换为普通空格；CSS 本身不折叠 NBSP/全角空格。最终必须核对运行时 `textContent` 的字符及数量。',
       '',
       '| layoutMark | 文案（空白可视化） | 空白类型 | DSL 宽度 |',
       '|---|---|---|---:|'

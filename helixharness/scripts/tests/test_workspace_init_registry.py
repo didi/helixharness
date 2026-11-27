@@ -21,6 +21,8 @@ class WorkspaceInitRegistryTest(unittest.TestCase):
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text('Initialized workspace\n', encoding='utf-8')
+        template = Path(__file__).resolve().parents[2] / 'templates/workspace-entry.md.tpl'
+        (self.root / 'AGENTS.md').write_text(template.read_text(encoding='utf-8'), encoding='utf-8')
         self.registry = self.root / 'helixharness.workspace.yaml'
         self.registry.write_text('''version: 1
 repos:

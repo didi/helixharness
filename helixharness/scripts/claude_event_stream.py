@@ -134,7 +134,7 @@ def run(args: argparse.Namespace) -> int:
         process = spawn_group(cmd, cwd=project, env=env, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=0)
         (output / "process.json").write_text(json.dumps({"pid": process.pid, "plugin_root": str(root),
-                                                         "project": str(project)}))
+                                                         "project": str(project)}), encoding="utf-8")
         def send(message: dict[str, Any]) -> None:
             if process.stdin.closed:
                 raise RuntimeError("native task notice arrived after input was closed")
@@ -211,7 +211,8 @@ def run(args: argparse.Namespace) -> int:
     result = {"exit_code": code, "timed_out": timed_out, "driver_error": driver_error,
               "seconds": round(time.monotonic() - start, 1), "terminal": relay.terminal,
               "active_tasks": sorted(relay.active), "pending_relays": len(relay.pending_messages)}
-    (output / "driver-result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    (output / "driver-result.json").write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+                                               encoding="utf-8")
     # Native exit 0 and a final reply still do not establish workflow acceptance.
     return 0 if code == 0 and relay.terminal and not relay.failed and not timed_out and not driver_error else 1
 

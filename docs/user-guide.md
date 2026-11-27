@@ -2,9 +2,9 @@
 
 **English** | [简体中文](user-guide.zh-CN.md)
 
-Source version: **HelixHarness 1.0.0 · helixharness-platform 1.0.0**.
+Source version: **HelixHarness 1.1.0 · helixharness-platform 1.0.0**.
 
-**A development workflow for Codex and Claude Code, with a companion platform for usage dashboards, version evaluation and evolution.**
+**A development workflow for Codex, Claude Code, Cursor, [OpenCode (macOS Stable)](opencode-testing.md) and [Qoder](../helixharness/hosts/qoder/installer.md), with a companion platform for usage dashboards, version evaluation and evolution.**
 
 Take a requirement through to a verified code change: define the scope, break it into tasks, implement, test, review, and archive the result. HelixHarness gives your coding agent a reusable workflow. Requirements and progress stay in the repository so you can inspect them and resume unfinished work.
 
@@ -14,7 +14,7 @@ Propose → Apply → Archive
            └─ Tests + code review + verification evidence
 ```
 
-**9 public commands · 3 core stages · Codex / Claude Code · Single repo / multi-repo Workspace · Apache-2.0**
+**9 public commands · 3 core stages · Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) / [Qoder](../helixharness/hosts/qoder/installer.md) · Single repo / multi-repo Workspace · Apache-2.0**
 
 Install **HelixHarness** for everyday development. Add **helixharness-platform** to observe usage and evaluate or improve **the HelixHarness framework itself**. Scenario results provide evidence about framework behavior; this is not a general business-code grading service.
 
@@ -49,16 +49,16 @@ Install **HelixHarness** for everyday development. Add **helixharness-platform**
 
 | Use case | Requirements |
 | --- | --- |
-| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex or Claude Code installation that is signed in or has its model configuration set up and works normally |
+| HelixHarness plugin | Python 3.10+, Git, and a plugin-capable Codex, Claude Code, Cursor, OpenCode installation (macOS, 2.3.2; see the [support matrix](opencode-testing.md)) or Qoder Desktop / CLI that is signed in or has its model configuration set up and works normally |
 | Platform demo or usage dashboard | Python 3.10+, Git, and the platform's `server` dependencies |
 | Real version evaluation | Platform dependencies, a working Codex execution environment, model credentials, accessible Git repositories, and the build/test tools required by each Case |
 | Frontend previews and visual verification | Your project's Node.js, package manager, and browser tools; configure design services as needed |
 
-The terminal examples below use Bash / Zsh. GitHub plugin installation does not require a manual clone. Running the platform or developing the plugin requires a source checkout.
+The terminal examples below use Bash / Zsh. Codex/Claude Code marketplace installation does not require a manual clone. The OpenCode 2.3.2 route below uses a source clone and local-directory configuration; running the platform or developing the plugin also requires a source checkout. The Qoder route below needs a source checkout too, because that App has no marketplace CLI.
 
 ### 1. Install the Plugin
 
-After the repository is public, run the commands for your coding agent in a terminal. For testing before publication or modifying the plugin, use [developer installation from local source](installation.md#developer-installation).
+After the repository is public, use the terminal commands below for Codex/Claude Code, the marketplace UI for Cursor, or the plugin ZIP you build from a checkout for Qoder. For testing before publication or modifying the plugin, use [developer installation from local source](installation.md#developer-installation).
 
 **Codex**
 
@@ -74,11 +74,33 @@ claude plugin marketplace add https://github.com/didi/helixharness.git
 claude plugin install helix@helixharness-marketplace
 ```
 
+**OpenCode (installation verified with 2.3.2)**
+
+Clone this repository and configure its absolute `helixharness/` subdirectory in project or global `opencode.json(c)`. Follow the [local-directory installation steps](installation.md#opencode-local-directory-installation-verified-with-232). Native `plugin add` does not install this repository layout in the verified client.
+
+**OpenCode Stable support (macOS, 2.3.2):** See the [support matrix](opencode-testing.md) for the current source candidate’s scope and boundaries. OpenCode 2.2.2 and 2.3.0 have automated compatibility coverage only.
+
+The plugin registers native `helix:<command>` commands, `helix-<skill>` method skills and `helix-<agent>` roles. Commands, native `skill` tool results, Skill mentions and native Skill activation bind the requesting session's repository. Unbound Skill content is blocked when session lookup or directory validation fails. On 2026-11-20, OpenCode 2.3.2 with DeepSeek completed one synthetic single-repository Init → Propose → Apply → Archive lifecycle, with operator confirmations and a controlled contract amendment. On 2026-11-23, OpenCode 2.3.2 with DeepSeek also completed assisted synthetic two-repository Workspace and standalone UT runs; UT classification validation and protected atomic publication were subsequently fixed and passed a fresh real-model UT run without corrective operator prompts. [Targeted real-model tests on synthetic Workspaces](../helixharness/opencode/tests/README.md#recovery-and-auxiliary-workflow-acceptance-2026-11-23) also verified native Apply and partial Archive cancellation followed by fresh-session recovery, plus dependent-dispatch blocking after an injected native context-hook failure. Full production-project acceptance, unattended protocol compliance and full TUI/desktop UI acceptance remain outstanding; see [targeted terminal UI acceptance](../helixharness/opencode/tests/README.md#targeted-terminal-ui-acceptance-2026-11-23) for the tested scope. Workspace Apply uses `helix-worker` for `may_delegate` RepoJobs and requires `experimental.subagent_depth >= 2`; independent reviewers remain read-only leaf jobs. Insufficient depth blocks the RepoJob rather than bypassing review.
+
+The adapter uses native tool/session hooks but provides no equivalent SessionStart/Stop/failure/session-end business guarantee. `scripts/task_plan.py` atomically updates the canonical `tasks.md`. Explicitly consented telemetry records stage facts and workflow traces only; native conversations, token usage and unobserved tool counts remain unavailable. `/helix:update` uses the existing confirmation protocol for clean source checkouts with an explicit Git upstream, pins the approved commit and only fast-forwards. Dirty, detached or package-managed copies are not automatically updated. Init merges `AGENTS.md` without `.opencode/` settings; plugin-level checks run existing project linters after successful native write/edit/patch. Shell changes still require explicit checks. The d-d2c Claude skill-scoped Stop/PreToolUse guards do not run; use its no-hook / `--bare` semantics while retaining user decisions, visual acceptance and completion checks.
+
+See the [OpenCode installation guide](../helixharness/hosts/opencode/installer.md) for setup and binding checks.
+
 After installation, open a new agent session in the application repository you want to develop. Check that the nine public HelixHarness commands are available. See the [Codex installation guide](../helixharness/hosts/codex/installer.md) or [Claude Code installation guide](../helixharness/hosts/claude-code/installer.md) for the host-specific setup.
+
+**Cursor**
+
+Install `helix` through **Customize → helix → Install** after the release repository is available in your Cursor marketplace. Use the [marketplace setup and optional installation paths](installation.md#cursor-preview) for administrator setup, fixed-source configuration or managed Local installation. Reload the window and open a new Agent. Cursor's nine `/helix-{command}` Skills use the same arguments and business gates as the `/helix:*` examples below. Statistics require consent and current-session identity and may be partial. Native marketplace updates are managed by Cursor; `/helix-update` supports registered managed-local installations. See [support and verification boundaries](cursor-testing.md).
+
+**Qoder**
+
+Build the plugin ZIP from a checkout: run `python3 scripts/package_qoder_plugin.py` in the plugin directory, then use **Extensions → Install local plugin** in the App and pick `dist/helix-<version>.zip`, or ask the assistant to install that absolute path with the App installation tool. Packaging scope and the two install entries are described in [Qoder](installation.md#qoder); the full capability boundaries are in the [Qoder install contract](../helixharness/hosts/qoder/installer.md).
+
+Review and trust the plugin hooks in the App, then open a new session: the manifest, skills, agents and plugin hooks load at session start, and a session that was already open keeps the plugin root it bound earlier. Qoder exposes the nine public entries as `helix:<command>` skills instead of slash commands, so the `/helix:*` examples below are invoked through those entries. The nine commands use the same arguments and business gates. Statistics reporting is not wired up for this host. Reinstalling a newer ZIP is the only upgrade path, and `/helix:update` returns a blocked status.
 
 ### 2. Build Your First Feature
 
-Enter the following `/helix:*` commands **in your coding agent's conversation**, not in a terminal shell.
+Enter commands **in your coding agent's conversation**, not in a terminal shell. The examples below use the Codex / Claude Code / OpenCode prefix `/helix:`. In Cursor, replace that prefix with `/helix-`, keeping the command name and arguments unchanged; for example, `/helix:init` becomes `/helix-init`, and `/helix:bug-fix` becomes `/helix-bug-fix`. In Qoder, keep the name unchanged but invoke it through the `helix:<command>` skill entry rather than the slash-command menu.
 
 Initialize your application repository:
 
@@ -86,7 +108,7 @@ Initialize your application repository:
 /helix:init
 ```
 
-Initialization writes project documentation and host project settings. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. Check the initialization result before starting a requirement.
+Claude Code, Codex, Cursor and Qoder initialization writes project documentation and host project settings. OpenCode merges `AGENTS.md` without creating `.opencode/` settings or project hooks. Allow the host to write the current project's settings directory when prompted. Automated runs need an explicit permission response too: Claude Code's `acceptEdits` mode alone does not approve `.claude/settings.json`, and a sandbox protecting `.codex/` can leave Codex hooks incomplete. Check the initialization result before starting a requirement.
 
 Create a small, concrete requirement:
 
@@ -149,7 +171,7 @@ python -m web_ui.demo --port 7860 --data-dir /path/to/demo-runtime
 
 | Project | Who it is for | What it does | Where it runs |
 | --- | --- | --- | --- |
-| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code sessions and application repositories |
+| [`helixharness/`](../helixharness/README.md) | Developers using AI coding agents | Project initialization, requirements, implementation, testing, review, and archiving | Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) / Qoder sessions and application repositories |
 | [`helixharness-platform/`](../helixharness-platform/README.md) | Maintainers observing and improving the HelixHarness framework | Usage dashboards, version evaluation and evolution | A separate Python web service and evaluation Workers |
 
 ```mermaid
@@ -178,7 +200,7 @@ Keep three directories distinct: **HelixHarness plugin source**, **application r
 
 ## Commands
 
-There are nine public commands. `--loop` is an option on `propose`.
+There are nine public commands. `--loop` is an option on `propose`. The examples use `/helix:` for Codex / Claude Code / OpenCode; in Cursor, use the `/helix-` prefix with the same arguments; in Qoder, use the same names as the `helix:<command>` skill entries.
 
 | Command | Purpose | Example |
 | --- | --- | --- |
@@ -188,7 +210,7 @@ There are nine public commands. `--loop` is an option on `propose`.
 | `archive` | Check completion evidence, update knowledge, and archive | `/helix:archive search-empty-state` |
 | `bug-fix` | Revise an active, unarchived single-repo feature | `/helix:bug-fix search-empty-state "Clearing filters does not reload the list"` |
 | `ut` | Generate and maintain unit tests | `/helix:ut` |
-| `update` | Check and update the plugin from the host's configured source | `/helix:update` |
+| `update` | Check and update supported host sources (OpenCode: manual update) | `/helix:update` |
 | `status` | Read feature progress, blockers, and the next suggested command | `/helix:status search-empty-state` |
 | `config` | Inspect and change telemetry consent, scope, and reporting addresses | `/helix:config` |
 
@@ -218,6 +240,8 @@ There are nine public commands. `--loop` is an option on `propose`.
 ```
 
 Execute one change at a time. Telemetry changes require `--scope project|user`; user-level disabling overrides project-level enabling, within the current host. Addresses are local user settings, separate from consent. Changing an address neither enables telemetry nor sends a request. Reset restores the published default, which may still name a recipient; explicitly disable consent to stop telemetry. The data notice is shown before enabling; an explicit change request does not require repeated confirmation. Corrupt configuration files are preserved and reported.
+
+An explicit enable request is one interaction: the agent displays the full notice in a visible progress message, then continues the same request without waiting for “continue” or another consent choice. Direct CLI callers receive a read-only `request_complete=false` notice response and must display it before following `continuation` with the original authorization and scope. `request_complete=true` means the script request has finished, not that the change succeeded; inspect `change.updated`, warnings, and the effective settings.
 
 Models, credentials, application configuration, and platform deployment are outside this entrypoint. See the full [status](../helixharness/commands/status.md) and [config](../helixharness/commands/config.md) contracts.
 
@@ -398,7 +422,7 @@ Paths below are relative to your platform's base URL:
 
 ### Model Configuration
 
-For everyday plugin use, configure models in Codex / Claude Code. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
+For everyday plugin use, configure models in Codex / Claude Code / Cursor / [OpenCode (macOS Stable)](opencode-testing.md) or Qoder. The platform's own model configuration applies to evaluation, analysis, and other jobs it starts.
 
 See [`helixharness-platform/.env.example`](../helixharness-platform/.env.example) for the template. The service reads **process environment variables and does not automatically load `.env.example`**. Inject real values into the environments running both the web service and Workers.
 
@@ -610,7 +634,7 @@ The repository contains two independently installable projects:
 ├── helixharness/
 │   ├── commands/       # Nine public command entrypoints
 │   ├── workflows/      # single/ execution and workspace/ coordination
-│   ├── hosts/          # Codex / Claude Code adapters
+│   ├── hosts/          # Codex / Claude Code / Cursor / OpenCode (macOS Stable) / Qoder adapters
 │   ├── skills/         # Reusable workflow methods
 │   └── scripts/        # Routing, artifact validation, and telemetry
 └── helixharness-platform/
@@ -633,7 +657,7 @@ The repository contains two independently installable projects:
 | [`systematic-debugging`](../helixharness/skills/systematic-debugging/SKILL.md) | Reproduce failures, test hypotheses, identify causes, and verify fixes | Standalone, explicitly invoked by the user |
 | [`feedback`](../helixharness/skills/feedback/SKILL.md) | Submit HelixHarness usage issues | Standalone; requires a running platform and configured destination |
 
-Codex installs these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
+Codex and Cursor each install these eight method skills alongside the nine public entry skills; Claude Code discovers the root `skills/` directly; OpenCode registers the same root files as `helix-<name>` method skills; Qoder declares both skill roots in `.qoder-plugin/plugin.json`, so it sees these eight method skills plus nine `helix:<command>` entry skills. The four lifecycle commands still use the workflow router; `status` and `config` do not advance development stages. Auxiliary skills do not add development stages; formal Spec/Tasks, progress tracking, and completion checks remain owned by those stages.
 
 `git-diff-impact` requires no Init, active feature, or platform service. For example: “Use HelixHarness git-diff-impact to analyze uncommitted changes, --no-save.” You may instead specify two commits or branches and optional `--req` / `--design` documents. Markdown reports default to `diff-impact-reports/`; `--out` selects another location. The skill does not fix code or change review verdicts.
 
@@ -658,6 +682,8 @@ Validate the plugin from `helixharness/`:
 ```bash
 python3 scripts/run_tests.py
 python3 scripts/host_runtime_cli.py list
+bun test opencode/tests
+bun run typecheck
 ```
 
 Validate the platform from `helixharness-platform/` with its virtual environment active:

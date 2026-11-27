@@ -28,9 +28,9 @@ permission_cleanup: not_required
 |---|---|
 | `prompt_source` | `agents/unit-test-worker.md`，worker 首个业务动作前完整读取 |
 | `depends_on` | 目标测试路径或共享 fixture 写域冲突时依赖前一 job |
-| `write_scope` | worker 临时目录、自己的 result/defects、唯一目标测试文件 |
+| `write_scope` | worker 临时目录、自己的 result/defects/findings JSON 及同名 `.tmp` staging、唯一目标测试文件 |
 | `forbidden_scope` | 业务源码、构建配置、共享 queue/session/summary/experience、其他 worker 路径 |
-| `expected_artifacts` | result；成功时目标测试文件；有缺陷时 defects |
+| `expected_artifacts` | result、findings JSON 与生成的分类 defects；成功时目标测试文件 |
 | `validation` | 原生终态、公共 final、写域、结果结构、6 Loop、测试和覆盖率 |
 | `unavailable_fallback` | 仅确认子代理能力不可用时，父流程按同一 prompt 串行内联 |
 

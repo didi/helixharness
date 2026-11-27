@@ -23,14 +23,16 @@ The baseline has two passing tests. It returns all titles but does not yet accep
 
 ## 2. Run HelixHarness
 
-Open Codex or Claude Code in the `$TASK_FILTER_DEMO` directory (run `pwd` in that terminal to see its path) and enter:
+Open Codex, Claude Code, Cursor or [OpenCode (macOS Stable)](../docs/opencode-testing.md) in the `$TASK_FILTER_DEMO` directory (run `pwd` in that terminal to see its path) and enter:
 
 ```text
 /helix:init
 /helix:propose task-filter ./requirements/task-filter.md --loop
 ```
 
-Allow the host's project-hook setup when prompted. For this example, choose telemetry **off** when asked. Review the proposed requirement boundaries and answer any clarification in the conversation.
+Cursor uses `/helix-init` and `/helix-propose` with the same arguments. OpenCode 2.3.2 on macOS uses the `/helix:` commands above, within the [Stable support matrix](../docs/opencode-testing.md); 2.2.2 and 2.3.0 have automated compatibility coverage only. This walkthrough does not establish real-model acceptance. OpenCode has no project hooks or telemetry; Init merges `AGENTS.md` and the telemetry choice does not apply. See the [OpenCode limits](../helixharness/hosts/opencode/installer.md).
+
+On hosts supporting hooks, allow the host's project-hook setup when prompted. For this example, choose telemetry **off** if asked. Review the proposed requirement boundaries and answer any clarification in the conversation.
 
 Expected workflow:
 
@@ -62,6 +64,6 @@ This is a reproducible walkthrough, not a pre-recorded model run. No generated S
 
 ## 中文操作说明
 
-按第一步复制起始项目到独立临时目录并建立 Git 基线，两个基础测试应通过。在该业务目录打开宿主，依次执行 Init 和上面的 Propose 命令；示例可关闭统计，不需要平台地址。
+按第一步复制起始项目到独立临时目录并建立 Git 基线，两个基础测试应通过。在该业务目录打开宿主，依次执行 Init 和上面的 Propose 命令；Cursor 将 `/helix:` 前缀换为 `/helix-`。macOS 上 OpenCode 2.3.2 按 [Stable 支持矩阵](../docs/opencode-testing.md)沿用 `/helix:`；2.2.2、2.3.0 仅有自动化兼容覆盖。不生成项目 hooks、不采集统计；本示例不代表已完成真实模型验收。支持统计的宿主可关闭统计，不需要平台地址。
 
 检查需求是否保留六条验收标准，Apply 是否实现筛选并补充测试、评审，Archive 是否生成完整的 completed 工件。最后运行基础测试和独立验收脚本。起始代码运行独立验收会失败，这是因为筛选需求尚未实现；不要把教程中的预期工件当作已经发生的模型执行记录。

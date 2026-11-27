@@ -20,15 +20,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import zlib
 import xml.etree.ElementTree as element_tree
 from contextlib import ExitStack, contextmanager, nullcontext
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Callable, Iterator
 from xml.sax.saxutils import escape
 
 
 import reporting_config
+from cli_stdio import configure_utf8_stdio
 
 
 DEFAULT_INTERVAL_SECONDS = 600
@@ -46,6 +48,7 @@ MAX_BATCH_COMPRESSED_BYTES = 1024 * 1024
 MAX_BATCH_ITEMS = 100
 BATCH_PAUSE_SECONDS = 0.5
 RUNTIME_FILES = (
+    "cli_stdio.py",
     "eval_json.py",
     "reporting_config.py",
     "git_target.py",
@@ -56,18 +59,53 @@ RUNTIME_FILES = (
     "telemetry_protocol.py",
     "telemetry_trace.py",
     "telemetry_consent_state.py",
+    "telemetry_session.py",
 )
 RUNTIME_SCRIPT_DIRECTORIES = (
     "host_runtime",
     "telemetry_hosts",
 )
 RUNTIME_RESOURCE_DIRECTORIES = (
-    ".claude-plugin",
-    ".codex-plugin",
     "commands",
     "hosts",
     "reference",
 )
+
+
+def _distribution_targets(plugin_root: Path) -> tuple[PurePosixPath, ...]:
+    """Return every installed Host Kit's declared distribution manifest, plugin-relative.
+
+    Each manifest is read on its own, and only the declared reference is used, so the
+    runtime snapshot mirrors what the Host Kits point at instead of a per-platform list
+    while one incomplete kit cannot hide the others.
+    """
+
+    targets: list[PurePosixPath] = []
+    for manifest_path in sorted((Path(plugin_root) / "hosts").glob("*/host.json")):
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        adapters = payload.get("adapters") if isinstance(payload, dict) else None
+        reference = adapters.get("distribution") if isinstance(adapters, dict) else None
+        kind, _, target = str(reference or "").partition(":")
+        if kind != "resource" or not target:
+            continue
+        relative = PurePosixPath(target)
+        if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2:
+            continue
+        if relative not in targets:
+            targets.append(relative)
+    return tuple(targets)
+
+
+def runtime_resource_directories(plugin_root: Path) -> tuple[str, ...]:
+    """Static shared resources plus each Host Kit's own distribution directory."""
+
+    names = set(RUNTIME_RESOURCE_DIRECTORIES)
+    for target in _distribution_targets(plugin_root):
+        names.add(target.parts[0])
+    return tuple(sorted(names))
 
 
 def _now() -> str:
@@ -77,7 +115,7 @@ def _now() -> str:
 def _runtime_version(plugin_root: Path) -> str:
     root = Path(plugin_root).resolve()
     for path in (
-        root / ".codex-plugin" / "plugin.json",
+        *(root / str(target) for target in _distribution_targets(root)),
         root / "runtime-manifest.json",
     ):
         try:
@@ -513,9 +551,28 @@ class Outbox:
                 removed += 1
         return removed
 
-    def purge_repo(self, repo: Path, *, platform: str | None = None) -> int:
+    def purge_repo(self, repo: Path, *, platform: str | None = None, strict_scope: bool = False) -> int:
+        if strict_scope and not platform:
+            raise ValueError("strict cleanup requires an explicit platform")
         target = str(Path(repo).expanduser().resolve())
         removed = 0
+        if strict_scope:
+            # Do not call records(): its corruption quarantine mutates records
+            # from every host before ownership can be established.
+            for directory in (self.outbox, self.quarantine):
+                if not directory.is_dir() or directory.is_symlink():
+                    continue
+                for path in directory.glob("*.json.gz"):
+                    if path.is_symlink():
+                        continue
+                    try:
+                        record = _load_gzip(path)
+                    except (OSError, ValueError, EOFError, zlib.error):
+                        continue
+                    if record.get("repo") == target and record.get("platform") == platform:
+                        path.unlink(missing_ok=True)
+                        removed += 1
+            return removed
         for path, record in self.records():
             if str(record.get("repo") or "") != target:
                 continue
@@ -1251,6 +1308,8 @@ def register_repository(repo: Path, platform: str, home: str | Path | None = Non
 
 
 def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
+    from telemetry_hosts import build_runtime_snapshot, RUNTIME_SNAPSHOT_NAME
+    host_snapshot = build_runtime_snapshot(Path(plugin_root))
     root = telemetry_home(home)
     plugin = Path(plugin_root).resolve()
     version = _runtime_version(plugin)
@@ -1272,7 +1331,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
                 target_directory,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
-    for directory in RUNTIME_RESOURCE_DIRECTORIES:
+    for directory in runtime_resource_directories(plugin):
         source_directory = plugin / directory
         target_directory = root / directory
         if source_directory.is_dir():
@@ -1283,6 +1342,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
                 target_directory,
                 ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
+    _atomic_bytes(target / RUNTIME_SNAPSHOT_NAME, (json.dumps(host_snapshot, sort_keys=True) + "\n").encode("utf-8"))
     wrapper = root / "bin" / "telemetryctl"
     command = f"#!{sys.executable}\nimport runpy\nrunpy.run_path({str(target / 'telemetryctl.py')!r}, run_name='__main__')\n"
     _atomic_bytes(wrapper, command.encode("utf-8"), 0o700)
@@ -1294,6 +1354,7 @@ def install_runtime(plugin_root: Path, home: str | Path | None = None) -> Path:
 
 
 def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) -> bool:
+    from telemetry_hosts import build_runtime_snapshot, RUNTIME_SNAPSHOT_NAME
     source = Path(plugin_root).resolve() / "scripts"
     root = telemetry_home(home)
     target = root / "runtime"
@@ -1317,6 +1378,9 @@ def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) ->
         )
 
     try:
+        snapshot_path = target / RUNTIME_SNAPSHOT_NAME
+        if snapshot_path.is_symlink() or json.loads(snapshot_path.read_text(encoding="utf-8")) != build_runtime_snapshot(Path(plugin_root)):
+            return False
         for filename in RUNTIME_FILES:
             candidate = source / filename
             if not candidate.is_file() or (target / filename).read_bytes() != candidate.read_bytes():
@@ -1327,9 +1391,9 @@ def _runtime_files_current(plugin_root: Path, home: str | Path | None = None) ->
         plugin = source.parent
         return all(
             trees_match(plugin / directory, root / directory)
-            for directory in RUNTIME_RESOURCE_DIRECTORIES
+            for directory in runtime_resource_directories(plugin)
         )
-    except OSError:
+    except (OSError, ValueError):
         return False
 
 
@@ -1623,6 +1687,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_utf8_stdio()
     args = _parser().parse_args()
     exit_code = 0
     if args.command == "run":

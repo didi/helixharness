@@ -4,6 +4,16 @@
 
 FastAPI + Jinja2 + HTMX 单服务，包含使用数据看板、可信评测与证据驱动的自进化。`web_ui` 组合独立的 `eval`、`bench`、`evolution` 模块；各模块不互相导入、不跨模块查库。
 
+## 宿主兼容范围 / Host compatibility
+
+平台可接收带 `claude-code`、`codex`、`cursor` 身份的合规健康事件，并在使用看板与反馈详情中展示宿主名称。Cursor Host Kit 当前为 preview，已支持授权后统计和托管本地安装的受控更新。平台保留用量的采集状态、父代理范围和缺失原因；部分采集显示小计，缺失用量保持“未采集”，缓存命中不重复计入总 Token。
+
+Bench 执行器仍只有 `CODEX` 与 `MOCK`，Candidate 生成仍使用 Codex。插件接入 Cursor 不包含 Cursor benchmark 执行器，也不自动开启统计、模型调用或评测。
+
+The platform accepts valid health events identified as `claude-code`, `codex`, or `cursor`, and displays host names in usage dashboards and feedback details. The Cursor Host Kit remains a preview with opt-in telemetry and confirmed updates for managed local installations. The platform retains collection status, parent-only scope and missing-data reasons; partial usage is shown as a subtotal, missing usage stays unavailable, and cached tokens are not added twice.
+
+Bench execution remains limited to `CODEX` and `MOCK`, and Candidate generation still uses Codex. Cursor plugin support does not include a Cursor benchmark executor or automatically enable telemetry, model calls, or evaluation.
+
 ## 安装和 Demo
 
 以下命令在 `helixharness-platform/` 目录执行。

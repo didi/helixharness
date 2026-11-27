@@ -12,6 +12,22 @@ class AtomicWriteError(OSError):
     """Raised when an atomic write target is not safe or cannot be replaced."""
 
 
+def fsync_directory(path: Path) -> None:
+    """Make an entry change inside `path` durable.
+
+    POSIX persists a rename or unlink through the directory handle. Windows has no
+    openable directory handle and already treats a completed rename as durable, so
+    the call is a no-op there rather than a PermissionError.
+    """
+    if os.name == "nt":
+        return
+    descriptor = os.open(str(path), os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def atomic_write_text(path: Path, text: str, *, mode: int = 0o644) -> None:
     """Replace a regular target without following a predictable temp symlink."""
     parent = path.parent

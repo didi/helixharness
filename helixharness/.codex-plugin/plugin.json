@@ -1,6 +1,6 @@
 {
   "name": "helix",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HelixHarness 面向 Codex 的研发工作流插件，提供命令入口和可复用 Skills",
   "author": {
     "name": "HelixHarness contributors"
